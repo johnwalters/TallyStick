@@ -16,22 +16,22 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Documentation complete; Balance Sheet implementation not started |
-| Current phase | Phase 0 — baseline and implementation preflight |
-| Next task | BS0-004 — run and record the pre-change verification baseline |
-| Current branch | Workspace working tree |
+| Overall status | Phase 0 baseline/oracle complete; production Balance Sheet implementation not started |
+| Current phase | Phase 1 — shared contracts and domain catalog |
+| Next task | `BS-SLICE-02-TAXONOMY-CORE` — exhaustive accounting taxonomy and validation |
+| Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | Not yet implemented |
-| Last tracker update | August 16, 2026 |
+| Last verified Balance Sheet test | `npm run test:balance-sheet-fixtures`: 2 neutral companies, A1–A19 exact oracle, schema 5 |
+| Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
 ## How to update this tracker
 
-- Work from the first unchecked task in the current phase unless a dependency is stated.
+- Work from the first unchecked task in the current phase unless a dependency is stated. When a named implementation slice is invoked, the catalog's declared order and dependencies control the next task across checkbox subsections.
 - Mark a task `[x]` only after its behavior and applicable tests pass.
 - Do not mark a phase gate complete merely because a DTO, migration, service method, static UI, or build exists.
 - A report task is complete only when displayed values and applicable drill-down/export values reconcile.
@@ -60,7 +60,7 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Phase | Outcome | Status |
 | --- | --- | --- |
-| 0 | Accepted documentation and verified implementation baseline | In progress |
+| 0 | Accepted documentation and verified implementation baseline | Complete |
 | 1 | Shared company, account-taxonomy, and Balance Sheet contracts | Not started |
 | 2 | Schema 6, migrations, repositories, and backup compatibility | Not started |
 | 3 | Company Settings and generic account management | Not started |
@@ -76,12 +76,12 @@ Execution is divided into token-conscious, independently testable units in the [
 - [x] **BS0-001** Create the Balance Sheet PRD with BS-001 through BS-030 and A1 through A19.
 - [x] **BS0-002** Create the implementation-ready Balance Sheet Product Specification with contracts, calculations, schema proposal, outputs, and test gates.
 - [x] **BS0-003** Create this resumable, phase-based checkbox tracker from the PRD and Product Specification.
-- [ ] **BS0-004** Run and record the pre-change `npm run test:ci`, production build, desktop-host suite, and isolated Electron smoke baseline.
-- [ ] **BS0-005** Record the current schema-5 database fixture counts and a pre-migration backup/restore proof for later comparison.
-- [ ] **BS0-006** Add at least two neutral company fixtures with different names, addresses, fiscal-year starts, institutions, and account names.
-- [ ] **BS0-007** Add deterministic fixture expectations for A1 through A19, including exact minor-unit totals and detail contributions.
-- [ ] **BS0-008** Confirm the implementation slice introduces no unresolved product or architecture decision; document an ADR before coding if one appears.
-- [ ] **BS0-GATE** Exit gate: current tests/build/smoke pass, neutral fixtures and exact expectations exist, and no open decision blocks implementation.
+- [x] **BS0-004** Run and record the pre-change `npm run test:ci`, production build, desktop-host suite, and isolated Electron smoke baseline.
+- [x] **BS0-005** Record the current schema-5 database fixture counts and a pre-migration backup/restore proof for later comparison.
+- [x] **BS0-006** Add at least two neutral company fixtures with different names, addresses, fiscal-year starts, institutions, and account names.
+- [x] **BS0-007** Add deterministic fixture expectations for A1 through A19, including exact minor-unit totals and detail contributions.
+- [x] **BS0-008** Confirm the implementation slice introduces no unresolved product or architecture decision; document an ADR before coding if one appears.
+- [x] **BS0-GATE** Exit gate: current tests/build/smoke pass, neutral fixtures and exact expectations exist, and no open decision blocks implementation.
 
 ## Phase 1 — Shared contracts and domain catalog
 
@@ -328,3 +328,7 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | Date | Task/gate | Evidence |
 | --- | --- | --- |
 | 2026-08-16 | BS0-001–BS0-003 | Balance Sheet PRD Draft 0.2, Product Specification Draft 0.1, and this tracker created; implementation remains unstarted. |
+| 2026-08-21 | BS0-004 | `npm run test:ci`: boundary check, fixture oracle, and 106 ChromeHeadless tests passed; coverage 78.67% statements, 62.65% branches, 88.21% functions, 86.39% lines. Production build passed; 7 desktop-host tests passed; isolated Electron smoke passed. |
+| 2026-08-21 | BS0-005 | Schema-5 canonical counts recorded: 1 company, 6 financial accounts, 27 Chart accounts, 198 transactions, 146 splits, and 25 transfers. Desktop restore proof activated verified restored bytes, preserved the selected backup, and safety-backed up the prior active database. |
+| 2026-08-21 | BS0-006–BS0-007 | Added 2 deliberately different fictional companies and a machine-validated A1–A19 oracle; every expected money row reconciles to integer detail contributions and canonical 2025/2026 books have zero Difference. |
+| 2026-08-21 | BS0-008–BS0-GATE | No unresolved product or architecture decision found. All Phase 0 artifacts and required baseline commands passed; production Balance Sheet behavior remains intentionally unimplemented. |

@@ -6,5 +6,13 @@
     "acceptedRows": 2,
     "rejectedRows": 1
   },
+  "balanceSheetBaseline": {
+    "companyFixtureFile": "balance-sheet/company-fixtures.json",
+    "acceptanceOracleFile": "balance-sheet/baseline-oracle.json",
+    "databaseSchemaVersion": 5,
+    "companyProfiles": 2,
+    "acceptanceScenarios": 19,
+    "moneyUnit": "INTEGER_MINOR_UNITS"
+  },
   "provenance": "All fixture values are fictional source-shape examples documented in README.md. The larger public-safe accounting dataset is under sample-data/."
 }

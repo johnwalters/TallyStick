@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "companyId": "company-example-outfitters",
+      "legalName": "Example Outfitters LLC",
+      "displayName": "Example Outfitters",
+      "doingBusinessAs": "Example Trail Supply",
+      "entityType": "LLC",
+      "address": {
+        "line1": "100 Example Way",
+        "locality": "Sample City",
+        "region": "CA",
+        "postalCode": "90000",
+        "countryCode": "US"
+      },
+      "phone": "+1-555-0100",
+      "email": "books@example.test",
+      "website": "https://outfitters.example.test",
+      "maskedTaxIdentifier": "**-***0000",
+      "currencyCode": "USD",
+      "fiscalYearStartMonth": 1,
+      "accountingBasis": "ACCRUAL",
+      "activeTaxYear": 2026,
+      "institutions": ["Community Bank", "Example Card Services"],
+      "financialAccountNames": ["Operating checking", "Business rewards card", "Marketplace clearing"]
+    },
+    {
+      "companyId": "company-harbor-workshop",
+      "legalName": "Harbor Workshop Cooperative",
+      "displayName": "Harbor Workshop",
+      "doingBusinessAs": "Workshop Goods",
+      "entityType": "Cooperative",
+      "address": {
+        "line1": "42 Fictional Harbor Road",
+        "line2": "Suite 7",
+        "locality": "Example Bay",
+        "region": "OR",
+        "postalCode": "97000",
+        "countryCode": "US"
+      },
+      "phone": "+1-555-0142",
+      "email": "ledger@harbor.example.test",
+      "website": "https://harbor.example.test",
+      "maskedTaxIdentifier": "**-***0142",
+      "currencyCode": "USD",
+      "fiscalYearStartMonth": 7,
+      "accountingBasis": "CASH",
+      "activeTaxYear": 2026,
+      "institutions": ["Harbor Community Credit Union", "Northline Card Services"],
+      "financialAccountNames": ["Workshop cash", "Materials card", "Settlement ledger"]
+    }
+  ]
+}

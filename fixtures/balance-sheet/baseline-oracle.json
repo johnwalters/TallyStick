@@ -1,0 +1,400 @@
+{
+  "schemaVersion": 1,
+  "currencyCode": "USD",
+  "moneyUnit": "INTEGER_MINOR_UNITS",
+  "sourceDataset": "sample-data",
+  "schema5Baseline": {
+    "databaseSchemaVersion": 5,
+    "counts": {
+      "company": 1,
+      "financialAccount": 6,
+      "chartAccount": 27,
+      "transactionRecord": 198,
+      "postingSplit": 146,
+      "transferMatch": 25
+    },
+    "canonicalReports": {
+      "2025-12-31": {
+        "totalAssetsMinor": 10630060,
+        "totalLiabilitiesMinor": 840000,
+        "totalEquityMinor": 9790060,
+        "differenceMinor": 0
+      },
+      "2026-08-31": {
+        "totalAssetsMinor": 14829840,
+        "totalLiabilitiesMinor": 1050000,
+        "totalEquityMinor": 13779840,
+        "differenceMinor": 0
+      }
+    },
+    "backupRestoreProof": {
+      "suite": "site/src/desktop-host/database-lifecycle.node-test.ts",
+      "test": "restores a validated copy, preserves the selected backup, and safety-backs up current books",
+      "requiredAssertions": [
+        "restored database becomes active",
+        "selected backup bytes remain unchanged",
+        "pre-restore database is preserved in a verified safety backup",
+        "active database path remains recorded"
+      ]
+    }
+  },
+  "scenarios": [
+    {
+      "id": "A1",
+      "name": "Income received",
+      "asOfDate": "2026-01-31",
+      "inputs": [{ "id": "a1-income", "kind": "POSTED_TRANSACTION", "financialAccount": "bank", "chartAccount": "income", "amountMinor": 10000 }],
+      "expectedTotals": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 },
+      "expectedRows": { "bank": 10000, "current-earnings": 10000, "total-assets": 10000, "total-liabilities": 0, "total-equity": 10000, "difference": 0 },
+      "detailGroups": {
+        "bank": [{ "sourceId": "a1-income", "amountMinor": 10000 }],
+        "current-earnings": [{ "sourceId": "a1-income:income", "amountMinor": 10000 }],
+        "total-assets": [{ "sourceId": "bank", "amountMinor": 10000 }],
+        "total-liabilities": [],
+        "total-equity": [{ "sourceId": "current-earnings", "amountMinor": 10000 }],
+        "difference": []
+      }
+    },
+    {
+      "id": "A2",
+      "name": "Expense paid from bank",
+      "asOfDate": "2026-01-31",
+      "inputs": [{ "id": "a2-expense", "kind": "POSTED_TRANSACTION", "financialAccount": "bank", "chartAccount": "expense", "amountMinor": -4000 }],
+      "expectedTotals": { "totalAssetsMinor": -4000, "totalLiabilitiesMinor": 0, "totalEquityMinor": -4000, "differenceMinor": 0 },
+      "expectedRows": { "bank": -4000, "current-earnings": -4000, "total-assets": -4000, "total-liabilities": 0, "total-equity": -4000, "difference": 0 },
+      "detailGroups": {
+        "bank": [{ "sourceId": "a2-expense", "amountMinor": -4000 }],
+        "current-earnings": [{ "sourceId": "a2-expense:expense", "amountMinor": -4000 }],
+        "total-assets": [{ "sourceId": "bank", "amountMinor": -4000 }],
+        "total-liabilities": [],
+        "total-equity": [{ "sourceId": "current-earnings", "amountMinor": -4000 }],
+        "difference": []
+      }
+    },
+    {
+      "id": "A3",
+      "name": "Credit-card expense",
+      "asOfDate": "2026-01-31",
+      "inputs": [{ "id": "a3-card-expense", "kind": "POSTED_TRANSACTION", "financialAccount": "credit-card", "chartAccount": "expense", "amountMinor": -2500 }],
+      "expectedTotals": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 2500, "totalEquityMinor": -2500, "differenceMinor": 0 },
+      "expectedRows": { "credit-card": 2500, "current-earnings": -2500, "total-assets": 0, "total-liabilities": 2500, "total-equity": -2500, "difference": 0 },
+      "detailGroups": {
+        "credit-card": [{ "sourceId": "a3-card-expense", "amountMinor": 2500 }],
+        "current-earnings": [{ "sourceId": "a3-card-expense:expense", "amountMinor": -2500 }],
+        "total-assets": [],
+        "total-liabilities": [{ "sourceId": "credit-card", "amountMinor": 2500 }],
+        "total-equity": [{ "sourceId": "current-earnings", "amountMinor": -2500 }],
+        "difference": []
+      }
+    },
+    {
+      "id": "A4",
+      "name": "Purchase of an asset",
+      "asOfDate": "2026-01-31",
+      "inputs": [{ "id": "a4-equipment", "kind": "POSTED_TRANSACTION", "financialAccount": "bank", "chartAccount": "fixed-asset", "amountMinor": -50000 }],
+      "expectedTotals": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+      "expectedRows": { "bank": -50000, "fixed-asset": 50000, "current-earnings": 0, "total-assets": 0, "total-liabilities": 0, "total-equity": 0, "difference": 0 },
+      "detailGroups": {
+        "bank": [{ "sourceId": "a4-equipment", "amountMinor": -50000 }],
+        "fixed-asset": [{ "sourceId": "a4-equipment:fixed-asset", "amountMinor": 50000 }],
+        "current-earnings": [],
+        "total-assets": [{ "sourceId": "bank", "amountMinor": -50000 }, { "sourceId": "fixed-asset", "amountMinor": 50000 }],
+        "total-liabilities": [],
+        "total-equity": [],
+        "difference": []
+      }
+    },
+    {
+      "id": "A5",
+      "name": "Loan proceeds",
+      "asOfDate": "2026-01-31",
+      "inputs": [{ "id": "a5-loan", "kind": "POSTED_TRANSACTION", "financialAccount": "bank", "chartAccount": "loan-payable", "amountMinor": 100000 }],
+      "expectedTotals": { "totalAssetsMinor": 100000, "totalLiabilitiesMinor": 100000, "totalEquityMinor": 0, "differenceMinor": 0 },
+      "expectedRows": { "bank": 100000, "loan-payable": 100000, "current-earnings": 0, "total-assets": 100000, "total-liabilities": 100000, "total-equity": 0, "difference": 0 },
+      "detailGroups": {
+        "bank": [{ "sourceId": "a5-loan", "amountMinor": 100000 }],
+        "loan-payable": [{ "sourceId": "a5-loan:loan-payable", "amountMinor": 100000 }],
+        "current-earnings": [],
+        "total-assets": [{ "sourceId": "bank", "amountMinor": 100000 }],
+        "total-liabilities": [{ "sourceId": "loan-payable", "amountMinor": 100000 }],
+        "total-equity": [],
+        "difference": []
+      }
+    },
+    {
+      "id": "A6",
+      "name": "Owner contribution and draw",
+      "asOfDate": "2026-01-31",
+      "inputs": [
+        { "id": "a6-contribution", "kind": "POSTED_TRANSACTION", "financialAccount": "bank", "chartAccount": "owner-contributions", "amountMinor": 60000 },
+        { "id": "a6-draw", "kind": "POSTED_TRANSACTION", "financialAccount": "bank", "chartAccount": "owner-draws", "amountMinor": -15000 }
+      ],
+      "expectedTotals": { "totalAssetsMinor": 45000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 45000, "differenceMinor": 0 },
+      "expectedRows": { "bank": 45000, "owner-contributions": 60000, "owner-draws": -15000, "current-earnings": 0, "total-assets": 45000, "total-liabilities": 0, "total-equity": 45000, "difference": 0 },
+      "detailGroups": {
+        "bank": [{ "sourceId": "a6-contribution", "amountMinor": 60000 }, { "sourceId": "a6-draw", "amountMinor": -15000 }],
+        "owner-contributions": [{ "sourceId": "a6-contribution:equity", "amountMinor": 60000 }],
+        "owner-draws": [{ "sourceId": "a6-draw:equity", "amountMinor": -15000 }],
+        "current-earnings": [],
+        "total-assets": [{ "sourceId": "bank", "amountMinor": 45000 }],
+        "total-liabilities": [],
+        "total-equity": [{ "sourceId": "owner-contributions", "amountMinor": 60000 }, { "sourceId": "owner-draws", "amountMinor": -15000 }],
+        "difference": []
+      }
+    },
+    {
+      "id": "A7",
+      "name": "Matched transfer",
+      "asOfDate": "2026-01-31",
+      "inputs": [
+        { "id": "a7-transfer-out", "kind": "MATCHED_TRANSFER", "financialAccount": "operating-bank", "amountMinor": -30000, "matchId": "a7-match" },
+        { "id": "a7-transfer-in", "kind": "MATCHED_TRANSFER", "financialAccount": "reserve-bank", "amountMinor": 30000, "matchId": "a7-match" }
+      ],
+      "expectedTotals": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+      "expectedRows": { "operating-bank": -30000, "reserve-bank": 30000, "current-earnings": 0, "total-assets": 0, "total-liabilities": 0, "total-equity": 0, "difference": 0 },
+      "detailGroups": {
+        "operating-bank": [{ "sourceId": "a7-transfer-out", "amountMinor": -30000 }],
+        "reserve-bank": [{ "sourceId": "a7-transfer-in", "amountMinor": 30000 }],
+        "current-earnings": [],
+        "total-assets": [{ "sourceId": "operating-bank", "amountMinor": -30000 }, { "sourceId": "reserve-bank", "amountMinor": 30000 }],
+        "total-liabilities": [],
+        "total-equity": [],
+        "difference": []
+      }
+    },
+    {
+      "id": "A8",
+      "name": "Opening balances",
+      "asOfDate": "2026-01-31",
+      "inputs": [
+        { "id": "a8-bank-opening", "kind": "OPENING_BALANCE", "accountType": "BANK", "amountMinor": 200000 },
+        { "id": "a8-inventory-opening", "kind": "OPENING_BALANCE", "accountType": "OTHER_CURRENT_ASSET", "amountMinor": 50000 },
+        { "id": "a8-card-opening", "kind": "OPENING_BALANCE", "accountType": "CREDIT_CARD", "storedAmountMinor": -30000, "amountMinor": 30000 }
+      ],
+      "expectedTotals": { "totalAssetsMinor": 250000, "totalLiabilitiesMinor": 30000, "totalEquityMinor": 220000, "differenceMinor": 0 },
+      "expectedRows": { "bank": 200000, "inventory": 50000, "credit-card": 30000, "opening-balance-equity": 220000, "total-assets": 250000, "total-liabilities": 30000, "total-equity": 220000, "difference": 0 },
+      "detailGroups": {
+        "bank": [{ "sourceId": "a8-bank-opening", "amountMinor": 200000 }],
+        "inventory": [{ "sourceId": "a8-inventory-opening", "amountMinor": 50000 }],
+        "credit-card": [{ "sourceId": "a8-card-opening", "amountMinor": 30000 }],
+        "opening-balance-equity": [{ "sourceId": "a8-bank-opening", "amountMinor": 200000 }, { "sourceId": "a8-inventory-opening", "amountMinor": 50000 }, { "sourceId": "a8-card-opening", "amountMinor": -30000 }],
+        "total-assets": [{ "sourceId": "bank", "amountMinor": 200000 }, { "sourceId": "inventory", "amountMinor": 50000 }],
+        "total-liabilities": [{ "sourceId": "credit-card", "amountMinor": 30000 }],
+        "total-equity": [{ "sourceId": "opening-balance-equity", "amountMinor": 220000 }],
+        "difference": []
+      }
+    },
+    {
+      "id": "A9",
+      "name": "State exclusions",
+      "asOfDate": "2026-01-31",
+      "inputs": [
+        { "id": "a9-pending", "kind": "PENDING_TRANSACTION", "amountMinor": 9000 },
+        { "id": "a9-excluded", "kind": "EXCLUDED_TRANSACTION", "amountMinor": -7000 },
+        { "id": "a9-undone-posted", "kind": "UNDONE_POSTED_TRANSACTION", "amountMinor": 11000 },
+        { "id": "a9-undone-transfer", "kind": "UNDONE_MATCHED_TRANSFER", "amountMinor": 13000 }
+      ],
+      "expectedTotals": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+      "expectedRows": { "total-assets": 0, "total-liabilities": 0, "total-equity": 0, "difference": 0 },
+      "detailGroups": { "total-assets": [], "total-liabilities": [], "total-equity": [], "difference": [] },
+      "excludedSourceIds": ["a9-pending", "a9-excluded", "a9-undone-posted", "a9-undone-transfer"]
+    },
+    {
+      "id": "A10",
+      "name": "Hierarchical subtotal",
+      "asOfDate": "2026-01-31",
+      "inputs": [
+        { "id": "a10-parent-posting", "kind": "POSTING_SPLIT", "chartAccount": "equipment-parent", "storedAmountMinor": -20000, "contributionMinor": 20000 },
+        { "id": "a10-child-posting", "kind": "POSTING_SPLIT", "chartAccount": "equipment-child", "storedAmountMinor": -30000, "contributionMinor": 30000 },
+        { "id": "a10-bank-offset", "kind": "POSTED_TRANSACTION", "financialAccount": "bank", "amountMinor": -50000 }
+      ],
+      "expectedTotals": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+      "expectedRows": { "bank": -50000, "equipment-parent-direct": 20000, "equipment-child": 30000, "equipment-subtotal": 50000, "total-assets": 0, "total-liabilities": 0, "total-equity": 0, "difference": 0 },
+      "detailGroups": {
+        "bank": [{ "sourceId": "a10-bank-offset", "amountMinor": -50000 }],
+        "equipment-parent-direct": [{ "sourceId": "a10-parent-posting", "amountMinor": 20000 }],
+        "equipment-child": [{ "sourceId": "a10-child-posting", "amountMinor": 30000 }],
+        "equipment-subtotal": [{ "sourceId": "a10-parent-posting", "amountMinor": 20000 }, { "sourceId": "a10-child-posting", "amountMinor": 30000 }],
+        "total-assets": [{ "sourceId": "bank", "amountMinor": -50000 }, { "sourceId": "equipment-subtotal", "amountMinor": 50000 }],
+        "total-liabilities": [],
+        "total-equity": [],
+        "difference": []
+      }
+    },
+    {
+      "id": "A11",
+      "name": "Current Earnings parity",
+      "asOfDate": "2026-06-30",
+      "fiscalYearStartMonth": 1,
+      "inputs": [
+        { "id": "a11-income", "kind": "POSTED_TRANSACTION", "financialAccount": "bank", "chartAccount": "income", "amountMinor": 12000 },
+        { "id": "a11-expense", "kind": "POSTED_TRANSACTION", "financialAccount": "bank", "chartAccount": "expense", "amountMinor": -5000 }
+      ],
+      "expectedTotals": { "totalAssetsMinor": 7000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 7000, "differenceMinor": 0 },
+      "expectedRows": { "bank": 7000, "unadjusted-pl-net-profit": 7000, "current-earnings": 7000, "total-assets": 7000, "total-liabilities": 0, "total-equity": 7000, "difference": 0 },
+      "detailGroups": {
+        "bank": [{ "sourceId": "a11-income", "amountMinor": 12000 }, { "sourceId": "a11-expense", "amountMinor": -5000 }],
+        "unadjusted-pl-net-profit": [{ "sourceId": "a11-income:income", "amountMinor": 12000 }, { "sourceId": "a11-expense:expense", "amountMinor": -5000 }],
+        "current-earnings": [{ "sourceId": "a11-income:income", "amountMinor": 12000 }, { "sourceId": "a11-expense:expense", "amountMinor": -5000 }],
+        "total-assets": [{ "sourceId": "bank", "amountMinor": 7000 }],
+        "total-liabilities": [],
+        "total-equity": [{ "sourceId": "current-earnings", "amountMinor": 7000 }],
+        "difference": []
+      },
+      "scheduleCVariants": [
+        { "includeFederalIncomeTax": false, "includeStateLocalIncomeTax": true, "expectedCurrentEarningsMinor": 7000 },
+        { "includeFederalIncomeTax": true, "includeStateLocalIncomeTax": false, "expectedCurrentEarningsMinor": 7000 }
+      ]
+    },
+    {
+      "id": "A12",
+      "name": "Unclassified balance",
+      "asOfDate": "2026-01-31",
+      "inputs": [{ "id": "a12-review-opening", "kind": "OPENING_BALANCE", "accountType": "OTHER_CURRENT_ASSET", "classificationStatus": "REVIEW_REQUIRED", "amountMinor": 12500 }],
+      "expectedTotals": { "totalAssetsMinor": 12500, "totalLiabilitiesMinor": 0, "totalEquityMinor": 12500, "differenceMinor": 0 },
+      "expectedRows": { "unclassified-account": 12500, "opening-balance-equity": 12500, "total-assets": 12500, "total-liabilities": 0, "total-equity": 12500, "difference": 0 },
+      "detailGroups": {
+        "unclassified-account": [{ "sourceId": "a12-review-opening", "amountMinor": 12500 }],
+        "opening-balance-equity": [{ "sourceId": "a12-review-opening", "amountMinor": 12500 }],
+        "total-assets": [{ "sourceId": "unclassified-account", "amountMinor": 12500 }],
+        "total-liabilities": [],
+        "total-equity": [{ "sourceId": "opening-balance-equity", "amountMinor": 12500 }],
+        "difference": []
+      },
+      "expectedWarnings": ["UNCLASSIFIED_NONZERO_ACCOUNT"]
+    },
+    {
+      "id": "A13",
+      "name": "Export parity",
+      "asOfDate": "2026-08-31",
+      "sourceReport": "sample-data/expected/balance-sheet-2026-08-31.csv",
+      "expectedTotals": { "totalAssetsMinor": 14829840, "totalLiabilitiesMinor": 1050000, "totalEquityMinor": 13779840, "differenceMinor": 0 },
+      "expectedRows": { "total-assets": 14829840, "total-liabilities": 1050000, "total-equity": 13779840, "difference": 0 },
+      "detailGroups": {
+        "total-assets": [
+          { "sourceId": "fin-bank-savings", "amountMinor": 504500 },
+          { "sourceId": "fin-inventory", "amountMinor": 1250000 },
+          { "sourceId": "fin-legacy-clearing", "amountMinor": 12500 },
+          { "sourceId": "fin-bank-operating", "amountMinor": 12522840 },
+          { "sourceId": "ca-prepaid-insurance", "amountMinor": 120000 },
+          { "sourceId": "ca-equipment-parent", "amountMinor": 240000 },
+          { "sourceId": "ca-equipment-computers", "amountMinor": 180000 }
+        ],
+        "total-liabilities": [
+          { "sourceId": "fin-card", "amountMinor": 140000 },
+          { "sourceId": "ca-long-term-loan", "amountMinor": 660000 },
+          { "sourceId": "ca-short-term-loan", "amountMinor": 250000 }
+        ],
+        "total-equity": [
+          { "sourceId": "ca-owner-contributions", "amountMinor": 600000 },
+          { "sourceId": "ca-owner-draws", "amountMinor": -200000 },
+          { "sourceId": "opening-balance-equity", "amountMinor": 1992500 },
+          { "sourceId": "retained-earnings", "amountMinor": 7517560 },
+          { "sourceId": "current-earnings", "amountMinor": 3869780 }
+        ],
+        "difference": []
+      },
+      "outputs": ["SCREEN", "SUMMARY_CSV", "SUMMARY_XLSX", "DETAIL_XLSX", "PRINT_PREVIEW", "PDF"]
+    },
+    {
+      "id": "A14",
+      "name": "Historical stability",
+      "asOfDate": "2026-08-31",
+      "inputs": [{ "id": "txn-0198", "kind": "POSTED_TRANSACTION", "postingDate": "2026-09-15", "amountMinor": -120000 }],
+      "expectedTotals": { "totalAssetsMinor": 14829840, "totalLiabilitiesMinor": 1050000, "totalEquityMinor": 13779840, "differenceMinor": 0 },
+      "expectedRows": { "archived-savings": 504500, "total-assets": 14829840, "total-liabilities": 1050000, "total-equity": 13779840, "difference": 0 },
+      "detailGroups": {
+        "archived-savings": [{ "sourceId": "fin-bank-savings:opening", "amountMinor": 500000 }, { "sourceId": "txn-0175", "amountMinor": 4500 }],
+        "total-assets": [{ "sourceId": "canonical-2026-assets", "amountMinor": 14829840 }],
+        "total-liabilities": [{ "sourceId": "canonical-2026-liabilities", "amountMinor": 1050000 }],
+        "total-equity": [{ "sourceId": "canonical-2026-equity", "amountMinor": 13779840 }],
+        "difference": []
+      },
+      "excludedSourceIds": ["txn-0198"]
+    },
+    {
+      "id": "A15",
+      "name": "Configurable company identity",
+      "asOfDate": "2026-08-31",
+      "companyFixtureIds": ["company-example-outfitters", "company-harbor-workshop"],
+      "expectedTotals": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+      "expectedRows": { "total-assets": 0, "total-liabilities": 0, "total-equity": 0, "difference": 0 },
+      "detailGroups": { "total-assets": [], "total-liabilities": [], "total-equity": [], "difference": [] },
+      "identityOutputs": ["APPLICATION_HEADER", "BALANCE_SHEET", "PROFIT_LOSS", "CSV", "XLSX", "PRINT_PREVIEW", "PDF", "ACCOUNTANT_PACKAGE"]
+    },
+    {
+      "id": "A16",
+      "name": "Company-setting migration",
+      "asOfDate": "2026-08-31",
+      "expectedTotals": { "totalAssetsMinor": 14829840, "totalLiabilitiesMinor": 1050000, "totalEquityMinor": 13779840, "differenceMinor": 0 },
+      "expectedRows": { "total-assets": 14829840, "total-liabilities": 1050000, "total-equity": 13779840, "difference": 0 },
+      "detailGroups": {
+        "total-assets": [{ "sourceId": "pre-migration-total-assets", "amountMinor": 14829840 }],
+        "total-liabilities": [{ "sourceId": "pre-migration-total-liabilities", "amountMinor": 1050000 }],
+        "total-equity": [{ "sourceId": "pre-migration-total-equity", "amountMinor": 13779840 }],
+        "difference": []
+      },
+      "expectedCountDeltas": { "financialAccount": 0, "chartAccount": 0, "transactionRecord": 0, "postingSplit": 0, "transferMatch": 0, "profileUpdateAuditEvent": 1 }
+    },
+    {
+      "id": "A17",
+      "name": "Bank account detail types",
+      "asOfDate": "2026-08-31",
+      "expectedTotals": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+      "expectedRows": { "total-assets": 0, "total-liabilities": 0, "total-equity": 0, "difference": 0 },
+      "detailGroups": { "total-assets": [], "total-liabilities": [], "total-equity": [], "difference": [] },
+      "requiredDetailTypes": ["Cash on hand", "Checking", "Money Market", "Rents Held in Trust", "Savings", "Trust account"],
+      "expectedPlacement": "ASSETS"
+    },
+    {
+      "id": "A18",
+      "name": "Full account-type placement",
+      "asOfDate": "2026-08-31",
+      "expectedTotals": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+      "expectedRows": { "total-assets": 0, "total-liabilities": 0, "total-equity": 0, "difference": 0 },
+      "detailGroups": { "total-assets": [], "total-liabilities": [], "total-equity": [], "difference": [] },
+      "placements": {
+        "ACCOUNTS_RECEIVABLE": "ASSETS",
+        "OTHER_CURRENT_ASSET": "ASSETS",
+        "FIXED_ASSET": "ASSETS",
+        "OTHER_ASSET": "ASSETS",
+        "CREDIT_CARD": "LIABILITIES",
+        "ACCOUNTS_PAYABLE": "LIABILITIES",
+        "OTHER_CURRENT_LIABILITY": "LIABILITIES",
+        "LONG_TERM_LIABILITY": "LIABILITIES",
+        "EQUITY": "EQUITY",
+        "INCOME": "CURRENT_EARNINGS",
+        "EXPENSE": "CURRENT_EARNINGS"
+      }
+    },
+    {
+      "id": "A19",
+      "name": "Legacy Entity migration",
+      "asOfDate": "2026-08-31",
+      "expectedTotals": { "totalAssetsMinor": 14829840, "totalLiabilitiesMinor": 1050000, "totalEquityMinor": 13779840, "differenceMinor": 0 },
+      "expectedRows": { "marketplace-clearing": 0, "inventory-tracking": 1250000, "review-required-clearing": 12500, "total-assets": 14829840, "total-liabilities": 1050000, "total-equity": 13779840, "difference": 0 },
+      "detailGroups": {
+        "marketplace-clearing": [],
+        "inventory-tracking": [
+          { "sourceId": "fin-inventory:opening", "amountMinor": 400000 },
+          { "sourceId": "transfer-0021", "amountMinor": 600000 },
+          { "sourceId": "transfer-0023", "amountMinor": 500000 },
+          { "sourceId": "txn-0179", "amountMinor": -780000 },
+          { "sourceId": "txn-0182", "amountMinor": 780000 },
+          { "sourceId": "transfer-0025", "amountMinor": 400000 },
+          { "sourceId": "txn-0195", "amountMinor": -650000 }
+        ],
+        "review-required-clearing": [{ "sourceId": "fin-legacy-clearing:opening", "amountMinor": 12500 }],
+        "total-assets": [{ "sourceId": "canonical-2026-assets", "amountMinor": 14829840 }],
+        "total-liabilities": [{ "sourceId": "canonical-2026-liabilities", "amountMinor": 1050000 }],
+        "total-equity": [{ "sourceId": "canonical-2026-equity", "amountMinor": 13779840 }],
+        "difference": []
+      },
+      "expectedMappings": [
+        { "accountId": "fin-marketplace", "fromType": "ENTITY", "toType": "OTHER_CURRENT_ASSET", "classificationStatus": "CONFIRMED" },
+        { "accountId": "fin-inventory", "fromType": "ENTITY", "toType": "OTHER_CURRENT_ASSET", "classificationStatus": "CONFIRMED" },
+        { "accountId": "fin-legacy-clearing", "fromType": "ENTITY", "toType": "OTHER_CURRENT_ASSET", "classificationStatus": "REVIEW_REQUIRED" }
+      ]
+    }
+  ]
+}
