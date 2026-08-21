@@ -1,0 +1,23 @@
+As Of,Section,Account Type,Label,Row Kind,Semantic Key,Amount Minor,Amount,Source
+2025-12-31,Liability,CREDIT_CARD,Business rewards card,ACCOUNT,financial:fin-card,120000,1200.00,FINANCIAL_SOURCE
+2025-12-31,Asset,BANK,Business savings (archived),ACCOUNT,financial:fin-bank-savings,504500,5045.00,FINANCIAL_SOURCE
+2025-12-31,Asset,OTHER_CURRENT_ASSET,Inventory tracking,ACCOUNT,financial:fin-inventory,720000,7200.00,FINANCIAL_SOURCE
+2025-12-31,Asset,Unclassified accounts,Legacy clearing (review required),ACCOUNT,financial:fin-legacy-clearing,12500,125.00,FINANCIAL_SOURCE
+2025-12-31,Asset,BANK,Operating checking,ACCOUNT,financial:fin-bank-operating,9033060,90330.60,FINANCIAL_SOURCE
+2025-12-31,Asset,OTHER_CURRENT_ASSET,Prepaid expenses,ACCOUNT,chart:ca-prepaid-parent,0,0.00,CHART_ACCOUNT
+2025-12-31,Asset,OTHER_CURRENT_ASSET,  Prepaid insurance,ACCOUNT,chart:ca-prepaid-insurance,120000,1200.00,CHART_ACCOUNT
+2025-12-31,Asset,OTHER_CURRENT_ASSET,Total for Prepaid expenses,SUBTOTAL,subtotal:ca-prepaid-parent,120000,1200.00,SYNTHETIC
+2025-12-31,Asset,FIXED_ASSET,Equipment,ACCOUNT,chart:ca-equipment-parent,240000,2400.00,CHART_ACCOUNT
+2025-12-31,Asset,FIXED_ASSET,Total for Equipment,SUBTOTAL,subtotal:ca-equipment-parent,240000,2400.00,SYNTHETIC
+2025-12-31,Liability,LONG_TERM_LIABILITY,Term loan payable,ACCOUNT,chart:ca-long-term-loan,720000,7200.00,CHART_ACCOUNT
+2025-12-31,Equity,EQUITY,Owner equity,ACCOUNT,chart:ca-owner-equity-parent,0,0.00,CHART_ACCOUNT
+2025-12-31,Equity,EQUITY,  Contributions,ACCOUNT,chart:ca-owner-contributions,400000,4000.00,CHART_ACCOUNT
+2025-12-31,Equity,EQUITY,  Draws,ACCOUNT,chart:ca-owner-draws,-120000,-1200.00,CHART_ACCOUNT
+2025-12-31,Equity,EQUITY,Total for Owner equity,SUBTOTAL,subtotal:ca-owner-equity-parent,280000,2800.00,SYNTHETIC
+2025-12-31,Equity,Derived equity,Opening Balance Equity,DERIVED,opening-equity:2025-12-31,1992500,19925.00,DERIVED_EQUITY
+2025-12-31,Equity,Derived equity,Current Earnings,DERIVED,current-earnings:2025-12-31,7517560,75175.60,DERIVED_EQUITY
+2025-12-31,Assets,,Total Assets,TOTAL,total-assets:2025-12-31,10630060,106300.60,SYNTHETIC
+2025-12-31,Liabilities,,Total Liabilities,TOTAL,total-liabilities:2025-12-31,840000,8400.00,SYNTHETIC
+2025-12-31,Equity,,Total Equity,TOTAL,total-equity:2025-12-31,9790060,97900.60,SYNTHETIC
+2025-12-31,Liabilities and Equity,,Total Liabilities and Equity,TOTAL,total-liabilities-equity:2025-12-31,10630060,106300.60,SYNTHETIC
+2025-12-31,Check,,Difference,DIFFERENCE,difference:2025-12-31,0,0.00,SYNTHETIC

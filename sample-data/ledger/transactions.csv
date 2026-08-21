@@ -1,0 +1,199 @@
+Transaction ID,Account ID,Posting Date,Amount,Amount Minor,Description,State,Categorization Source,Transfer Match ID,Source File,Source Row,Created UTC,Modified UTC
+txn-0001,fin-marketplace,2025-01-31,9600.00,960000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0002,fin-marketplace,2025-01-31,-480.00,-48000,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0003,fin-marketplace,2025-01-31,105.60,10560,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0004,fin-marketplace,2025-01-31,-1440.00,-144000,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0005,fin-marketplace,2025-01-31,-2016.00,-201600,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0006,fin-marketplace,2025-01-31,-131.00,-13100,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0007,fin-marketplace,2025-01-31,-5638.60,-563860,Marketplace payout 2025-01,MATCHED_TRANSFER,TRANSFER,transfer-0001,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0008,fin-bank-operating,2025-01-31,5638.60,563860,Marketplace deposit 2025-01,MATCHED_TRANSFER,TRANSFER,transfer-0001,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0009,fin-marketplace,2025-02-28,10800.00,1080000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0010,fin-marketplace,2025-02-28,-540.00,-54000,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0011,fin-marketplace,2025-02-28,118.80,11880,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0012,fin-marketplace,2025-02-28,-1620.00,-162000,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0013,fin-marketplace,2025-02-28,-2268.00,-226800,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0014,fin-marketplace,2025-02-28,-142.00,-14200,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0015,fin-marketplace,2025-02-28,-6348.80,-634880,Marketplace payout 2025-02,MATCHED_TRANSFER,TRANSFER,transfer-0002,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0016,fin-bank-operating,2025-02-28,6348.80,634880,Marketplace deposit 2025-02,MATCHED_TRANSFER,TRANSFER,transfer-0002,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0017,fin-marketplace,2025-03-31,11200.00,1120000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0018,fin-marketplace,2025-03-31,-560.00,-56000,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0019,fin-marketplace,2025-03-31,123.20,12320,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0020,fin-marketplace,2025-03-31,-1680.00,-168000,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0021,fin-marketplace,2025-03-31,-2520.00,-252000,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0022,fin-marketplace,2025-03-31,-153.00,-15300,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0023,fin-marketplace,2025-03-31,-6410.20,-641020,Marketplace payout 2025-03,MATCHED_TRANSFER,TRANSFER,transfer-0003,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0024,fin-bank-operating,2025-03-31,6410.20,641020,Marketplace deposit 2025-03,MATCHED_TRANSFER,TRANSFER,transfer-0003,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0025,fin-marketplace,2025-04-30,11800.00,1180000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0026,fin-marketplace,2025-04-30,-767.00,-76700,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0027,fin-marketplace,2025-04-30,129.80,12980,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0028,fin-marketplace,2025-04-30,-1770.00,-177000,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0029,fin-marketplace,2025-04-30,-2478.00,-247800,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0030,fin-marketplace,2025-04-30,-164.00,-16400,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0031,fin-marketplace,2025-04-30,-6750.80,-675080,Marketplace payout 2025-04,MATCHED_TRANSFER,TRANSFER,transfer-0004,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0032,fin-bank-operating,2025-04-30,6750.80,675080,Marketplace deposit 2025-04,MATCHED_TRANSFER,TRANSFER,transfer-0004,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0033,fin-marketplace,2025-05-31,14200.00,1420000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0034,fin-marketplace,2025-05-31,-710.00,-71000,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0035,fin-marketplace,2025-05-31,156.20,15620,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0036,fin-marketplace,2025-05-31,-2130.00,-213000,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0037,fin-marketplace,2025-05-31,-2982.00,-298200,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0038,fin-marketplace,2025-05-31,-175.00,-17500,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0039,fin-marketplace,2025-05-31,-8359.20,-835920,Marketplace payout 2025-05,MATCHED_TRANSFER,TRANSFER,transfer-0005,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0040,fin-bank-operating,2025-05-31,8359.20,835920,Marketplace deposit 2025-05,MATCHED_TRANSFER,TRANSFER,transfer-0005,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0041,fin-marketplace,2025-06-30,13800.00,1380000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0042,fin-marketplace,2025-06-30,-690.00,-69000,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0043,fin-marketplace,2025-06-30,151.80,15180,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0044,fin-marketplace,2025-06-30,-2070.00,-207000,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0045,fin-marketplace,2025-06-30,-3105.00,-310500,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0046,fin-marketplace,2025-06-30,-186.00,-18600,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0047,fin-marketplace,2025-06-30,-7900.80,-790080,Marketplace payout 2025-06,MATCHED_TRANSFER,TRANSFER,transfer-0006,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0048,fin-bank-operating,2025-06-30,7900.80,790080,Marketplace deposit 2025-06,MATCHED_TRANSFER,TRANSFER,transfer-0006,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0049,fin-marketplace,2025-07-31,19600.00,1960000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0050,fin-marketplace,2025-07-31,-980.00,-98000,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0051,fin-marketplace,2025-07-31,215.60,21560,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0052,fin-marketplace,2025-07-31,-2940.00,-294000,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0053,fin-marketplace,2025-07-31,-4116.00,-411600,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0054,fin-marketplace,2025-07-31,-197.00,-19700,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0055,fin-marketplace,2025-07-31,-11582.60,-1158260,Marketplace payout 2025-07,MATCHED_TRANSFER,TRANSFER,transfer-0007,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0056,fin-bank-operating,2025-07-31,11582.60,1158260,Marketplace deposit 2025-07,MATCHED_TRANSFER,TRANSFER,transfer-0007,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0057,fin-marketplace,2025-08-31,16400.00,1640000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0058,fin-marketplace,2025-08-31,-1066.00,-106600,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0059,fin-marketplace,2025-08-31,180.40,18040,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0060,fin-marketplace,2025-08-31,-2460.00,-246000,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0061,fin-marketplace,2025-08-31,-3444.00,-344400,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0062,fin-marketplace,2025-08-31,-208.00,-20800,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0063,fin-marketplace,2025-08-31,-9402.40,-940240,Marketplace payout 2025-08,MATCHED_TRANSFER,TRANSFER,transfer-0008,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0064,fin-bank-operating,2025-08-31,9402.40,940240,Marketplace deposit 2025-08,MATCHED_TRANSFER,TRANSFER,transfer-0008,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0065,fin-marketplace,2025-09-30,10900.00,1090000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0066,fin-marketplace,2025-09-30,-545.00,-54500,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0067,fin-marketplace,2025-09-30,119.90,11990,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0068,fin-marketplace,2025-09-30,-1635.00,-163500,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0069,fin-marketplace,2025-09-30,-2452.50,-245250,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0070,fin-marketplace,2025-09-30,-219.00,-21900,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0071,fin-marketplace,2025-09-30,-6168.40,-616840,Marketplace payout 2025-09,MATCHED_TRANSFER,TRANSFER,transfer-0009,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0072,fin-bank-operating,2025-09-30,6168.40,616840,Marketplace deposit 2025-09,MATCHED_TRANSFER,TRANSFER,transfer-0009,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0073,fin-marketplace,2025-10-31,12100.00,1210000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0074,fin-marketplace,2025-10-31,-605.00,-60500,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0075,fin-marketplace,2025-10-31,133.10,13310,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0076,fin-marketplace,2025-10-31,-1815.00,-181500,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0077,fin-marketplace,2025-10-31,-2541.00,-254100,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0078,fin-marketplace,2025-10-31,-285.00,-28500,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0079,fin-marketplace,2025-10-31,-6987.10,-698710,Marketplace payout 2025-10,MATCHED_TRANSFER,TRANSFER,transfer-0010,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0080,fin-bank-operating,2025-10-31,6987.10,698710,Marketplace deposit 2025-10,MATCHED_TRANSFER,TRANSFER,transfer-0010,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0081,fin-marketplace,2025-11-30,8800.00,880000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0082,fin-marketplace,2025-11-30,-440.00,-44000,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0083,fin-marketplace,2025-11-30,96.80,9680,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0084,fin-marketplace,2025-11-30,-1320.00,-132000,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0085,fin-marketplace,2025-11-30,-1848.00,-184800,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0086,fin-marketplace,2025-11-30,-296.00,-29600,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0087,fin-marketplace,2025-11-30,-4992.80,-499280,Marketplace payout 2025-11,MATCHED_TRANSFER,TRANSFER,transfer-0011,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0088,fin-bank-operating,2025-11-30,4992.80,499280,Marketplace deposit 2025-11,MATCHED_TRANSFER,TRANSFER,transfer-0011,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0089,fin-marketplace,2025-12-31,7900.00,790000,Product Charges,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0090,fin-marketplace,2025-12-31,-513.50,-51350,Refunds,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0091,fin-marketplace,2025-12-31,86.90,8690,ShippingCharge,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0092,fin-marketplace,2025-12-31,-1185.00,-118500,Commission,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0093,fin-marketplace,2025-12-31,-1777.50,-177750,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0094,fin-marketplace,2025-12-31,-307.00,-30700,FBAStorageFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0095,fin-marketplace,2025-12-31,-75.00,-7500,MiscPlatformFee,POSTED,MANUAL,,imports/2025/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0096,fin-marketplace,2025-12-31,-4128.90,-412890,Marketplace payout 2025-12,MATCHED_TRANSFER,TRANSFER,transfer-0012,imports/2025/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0097,fin-bank-operating,2025-12-31,4128.90,412890,Marketplace deposit 2025-12,MATCHED_TRANSFER,TRANSFER,transfer-0012,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0098,fin-marketplace,2026-01-31,13200.00,1320000,Product Charges,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0099,fin-marketplace,2026-01-31,-660.00,-66000,Refunds,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0100,fin-marketplace,2026-01-31,145.20,14520,ShippingCharge,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0101,fin-marketplace,2026-01-31,-1980.00,-198000,Commission,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0102,fin-marketplace,2026-01-31,-2772.00,-277200,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0103,fin-marketplace,2026-01-31,-131.00,-13100,FBAStorageFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0104,fin-marketplace,2026-01-31,-7802.20,-780220,Marketplace payout 2026-01,MATCHED_TRANSFER,TRANSFER,transfer-0013,imports/2026/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0105,fin-bank-operating,2026-01-31,7802.20,780220,Marketplace deposit 2026-01,MATCHED_TRANSFER,TRANSFER,transfer-0013,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0106,fin-marketplace,2026-02-28,11600.00,1160000,Product Charges,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0107,fin-marketplace,2026-02-28,-580.00,-58000,Refunds,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0108,fin-marketplace,2026-02-28,127.60,12760,ShippingCharge,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0109,fin-marketplace,2026-02-28,-1740.00,-174000,Commission,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0110,fin-marketplace,2026-02-28,-2436.00,-243600,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0111,fin-marketplace,2026-02-28,-142.00,-14200,FBAStorageFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0112,fin-marketplace,2026-02-28,-6829.60,-682960,Marketplace payout 2026-02,MATCHED_TRANSFER,TRANSFER,transfer-0014,imports/2026/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0113,fin-bank-operating,2026-02-28,6829.60,682960,Marketplace deposit 2026-02,MATCHED_TRANSFER,TRANSFER,transfer-0014,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0114,fin-marketplace,2026-03-31,7600.00,760000,Product Charges,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0115,fin-marketplace,2026-03-31,-380.00,-38000,Refunds,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0116,fin-marketplace,2026-03-31,83.60,8360,ShippingCharge,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0117,fin-marketplace,2026-03-31,-1140.00,-114000,Commission,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0118,fin-marketplace,2026-03-31,-1710.00,-171000,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0119,fin-marketplace,2026-03-31,-153.00,-15300,FBAStorageFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0120,fin-marketplace,2026-03-31,-4300.60,-430060,Marketplace payout 2026-03,MATCHED_TRANSFER,TRANSFER,transfer-0015,imports/2026/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0121,fin-bank-operating,2026-03-31,4300.60,430060,Marketplace deposit 2026-03,MATCHED_TRANSFER,TRANSFER,transfer-0015,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0122,fin-marketplace,2026-04-30,4100.00,410000,Product Charges,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0123,fin-marketplace,2026-04-30,-266.50,-26650,Refunds,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0124,fin-marketplace,2026-04-30,45.10,4510,ShippingCharge,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0125,fin-marketplace,2026-04-30,-615.00,-61500,Commission,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0126,fin-marketplace,2026-04-30,-861.00,-86100,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0127,fin-marketplace,2026-04-30,-164.00,-16400,FBAStorageFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0128,fin-marketplace,2026-04-30,-2238.60,-223860,Marketplace payout 2026-04,MATCHED_TRANSFER,TRANSFER,transfer-0016,imports/2026/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0129,fin-bank-operating,2026-04-30,2238.60,223860,Marketplace deposit 2026-04,MATCHED_TRANSFER,TRANSFER,transfer-0016,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0130,fin-marketplace,2026-05-31,6900.00,690000,Product Charges,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0131,fin-marketplace,2026-05-31,-345.00,-34500,Refunds,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0132,fin-marketplace,2026-05-31,75.90,7590,ShippingCharge,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0133,fin-marketplace,2026-05-31,-1035.00,-103500,Commission,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0134,fin-marketplace,2026-05-31,-1449.00,-144900,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0135,fin-marketplace,2026-05-31,-175.00,-17500,FBAStorageFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0136,fin-marketplace,2026-05-31,-3971.90,-397190,Marketplace payout 2026-05,MATCHED_TRANSFER,TRANSFER,transfer-0017,imports/2026/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0137,fin-bank-operating,2026-05-31,3971.90,397190,Marketplace deposit 2026-05,MATCHED_TRANSFER,TRANSFER,transfer-0017,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0138,fin-marketplace,2026-06-30,9200.00,920000,Product Charges,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0139,fin-marketplace,2026-06-30,-460.00,-46000,Refunds,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0140,fin-marketplace,2026-06-30,101.20,10120,ShippingCharge,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0141,fin-marketplace,2026-06-30,-1380.00,-138000,Commission,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0142,fin-marketplace,2026-06-30,-2070.00,-207000,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0143,fin-marketplace,2026-06-30,-186.00,-18600,FBAStorageFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0144,fin-marketplace,2026-06-30,-5205.20,-520520,Marketplace payout 2026-06,MATCHED_TRANSFER,TRANSFER,transfer-0018,imports/2026/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0145,fin-bank-operating,2026-06-30,5205.20,520520,Marketplace deposit 2026-06,MATCHED_TRANSFER,TRANSFER,transfer-0018,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0146,fin-marketplace,2026-07-31,10100.00,1010000,Product Charges,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0147,fin-marketplace,2026-07-31,-505.00,-50500,Refunds,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0148,fin-marketplace,2026-07-31,111.10,11110,ShippingCharge,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0149,fin-marketplace,2026-07-31,-1515.00,-151500,Commission,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0150,fin-marketplace,2026-07-31,-2121.00,-212100,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0151,fin-marketplace,2026-07-31,-197.00,-19700,FBAStorageFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0152,fin-marketplace,2026-07-31,-5873.10,-587310,Marketplace payout 2026-07,MATCHED_TRANSFER,TRANSFER,transfer-0019,imports/2026/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0153,fin-bank-operating,2026-07-31,5873.10,587310,Marketplace deposit 2026-07,MATCHED_TRANSFER,TRANSFER,transfer-0019,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0154,fin-marketplace,2026-08-31,3600.00,360000,Product Charges,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0155,fin-marketplace,2026-08-31,-234.00,-23400,Refunds,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0156,fin-marketplace,2026-08-31,39.60,3960,ShippingCharge,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0157,fin-marketplace,2026-08-31,-540.00,-54000,Commission,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0158,fin-marketplace,2026-08-31,-756.00,-75600,FBAPerUnitFulfillmentFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0159,fin-marketplace,2026-08-31,-208.00,-20800,FBAStorageFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0160,fin-marketplace,2026-08-31,-75.00,-7500,MiscPlatformFee,POSTED,MANUAL,,imports/2026/marketplace-summary.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0161,fin-marketplace,2026-08-31,-1826.60,-182660,Marketplace payout 2026-08,MATCHED_TRANSFER,TRANSFER,transfer-0020,imports/2026/marketplace-transfers.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0162,fin-bank-operating,2026-08-31,1826.60,182660,Marketplace deposit 2026-08,MATCHED_TRANSFER,TRANSFER,transfer-0020,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0163,fin-bank-operating,2025-01-03,4000.00,400000,Owner capital contribution,POSTED,MANUAL,,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0164,fin-bank-operating,2025-01-15,-600.00,-60000,Annual liability insurance,POSTED,MANUAL,,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0165,fin-bank-operating,2025-02-01,-6000.00,-600000,Inventory funding transfer,MATCHED_TRANSFER,TRANSFER,transfer-0021,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0166,fin-inventory,2025-02-01,6000.00,600000,Inventory funding received,MATCHED_TRANSFER,TRANSFER,transfer-0021,imports/2025/inventory-activity.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0167,fin-bank-operating,2025-03-05,-2400.00,-240000,Warehouse equipment purchase,POSTED,MANUAL,,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0168,fin-bank-operating,2025-04-10,8000.00,800000,Term loan proceeds,POSTED,MANUAL,,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0169,fin-card,2025-05-01,-240.00,-24000,Bookkeeping software subscription,POSTED,MANUAL,,imports/2025/business-card.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0170,fin-card,2025-05-20,-700.00,-70000,Search advertising campaign,POSTED,MANUAL,,imports/2025/business-card.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0171,fin-bank-operating,2025-06-05,-940.00,-94000,Business card payment,MATCHED_TRANSFER,TRANSFER,transfer-0022,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0172,fin-card,2025-06-05,940.00,94000,Payment received,MATCHED_TRANSFER,TRANSFER,transfer-0022,imports/2025/business-card.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0173,fin-bank-operating,2025-07-01,-5000.00,-500000,Inventory funding transfer,MATCHED_TRANSFER,TRANSFER,transfer-0023,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0174,fin-inventory,2025-07-01,5000.00,500000,Inventory funding received,MATCHED_TRANSFER,TRANSFER,transfer-0023,imports/2025/inventory-activity.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0175,fin-bank-savings,2025-08-15,45.00,4500,Savings interest,POSTED,MANUAL,,imports/2025/savings-activity.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0176,fin-bank-operating,2025-09-02,-1200.00,-120000,Owner distribution,POSTED,MANUAL,,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0177,fin-bank-operating,2025-10-01,-1000.00,-100000,Term loan payment,POSTED,MANUAL,,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0178,fin-bank-operating,2025-11-01,-1200.00,-120000,Prepaid annual insurance,POSTED,MANUAL,,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0179,fin-inventory,2025-12-31,-7800.00,-780000,Year-end inventory cost adjustment,POSTED,MANUAL,,imports/2025/inventory-activity.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0180,fin-bank-operating,2025-12-29,-99.00,-9900,Excluded personal purchase example,EXCLUDED,NONE,,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0181,fin-bank-operating,2025-12-30,-300.00,-30000,Pending invoice example,PENDING,NONE,,imports/2025/operating-checking.xlsx,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0182,fin-inventory,2026-01-01,7800.00,780000,Reverse prior-year inventory cost adjustment,POSTED,MANUAL,,imports/2026/inventory-activity.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0183,fin-bank-operating,2026-01-03,2000.00,200000,Owner capital contribution,POSTED,MANUAL,,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0184,fin-bank-operating,2026-01-20,2500.00,250000,Short-term loan proceeds,POSTED,MANUAL,,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0185,fin-card,2026-02-04,-300.00,-30000,Operations software subscription,POSTED,MANUAL,,imports/2026/business-card.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0186,fin-card,2026-02-18,-900.00,-90000,Seasonal advertising campaign,POSTED,MANUAL,,imports/2026/business-card.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0187,fin-bank-operating,2026-03-05,-1000.00,-100000,Business card payment,MATCHED_TRANSFER,TRANSFER,transfer-0024,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0188,fin-card,2026-03-05,1000.00,100000,Payment received,MATCHED_TRANSFER,TRANSFER,transfer-0024,imports/2026/business-card.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0189,fin-bank-operating,2026-04-01,-4000.00,-400000,Inventory funding transfer,MATCHED_TRANSFER,TRANSFER,transfer-0025,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0190,fin-inventory,2026-04-01,4000.00,400000,Inventory funding received,MATCHED_TRANSFER,TRANSFER,transfer-0025,imports/2026/inventory-activity.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0191,fin-bank-operating,2026-05-12,-1800.00,-180000,Computer equipment purchase,POSTED,MANUAL,,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0192,fin-bank-operating,2026-06-10,-700.00,-70000,Term loan payment,POSTED,MANUAL,,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0193,fin-bank-operating,2026-07-08,-800.00,-80000,Owner distribution,POSTED,MANUAL,,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0194,fin-bank-operating,2026-08-14,650.00,65000,Consulting service receipt,POSTED,MANUAL,,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0195,fin-inventory,2026-08-31,-6500.00,-650000,Interim inventory cost adjustment,POSTED,MANUAL,,imports/2026/inventory-activity.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0196,fin-bank-operating,2026-08-20,-425.00,-42500,Pending freight invoice,PENDING,NONE,,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0197,fin-card,2026-08-21,-88.00,-8800,Excluded personal charge example,EXCLUDED,NONE,,imports/2026/business-card.csv,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z
+txn-0198,fin-bank-operating,2026-09-15,-1200.00,-120000,Future trade show after August as-of,POSTED,MANUAL,,imports/2026/operating-checking.qbo,,2026-08-20T12:00:00.000Z,2026-08-20T12:00:00.000Z

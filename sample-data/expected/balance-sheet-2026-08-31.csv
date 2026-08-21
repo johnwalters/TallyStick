@@ -1,0 +1,26 @@
+As Of,Section,Account Type,Label,Row Kind,Semantic Key,Amount Minor,Amount,Source
+2026-08-31,Liability,CREDIT_CARD,Business rewards card,ACCOUNT,financial:fin-card,140000,1400.00,FINANCIAL_SOURCE
+2026-08-31,Asset,BANK,Business savings (archived),ACCOUNT,financial:fin-bank-savings,504500,5045.00,FINANCIAL_SOURCE
+2026-08-31,Asset,OTHER_CURRENT_ASSET,Inventory tracking,ACCOUNT,financial:fin-inventory,1250000,12500.00,FINANCIAL_SOURCE
+2026-08-31,Asset,Unclassified accounts,Legacy clearing (review required),ACCOUNT,financial:fin-legacy-clearing,12500,125.00,FINANCIAL_SOURCE
+2026-08-31,Asset,BANK,Operating checking,ACCOUNT,financial:fin-bank-operating,12522840,125228.40,FINANCIAL_SOURCE
+2026-08-31,Asset,OTHER_CURRENT_ASSET,Prepaid expenses,ACCOUNT,chart:ca-prepaid-parent,0,0.00,CHART_ACCOUNT
+2026-08-31,Asset,OTHER_CURRENT_ASSET,  Prepaid insurance,ACCOUNT,chart:ca-prepaid-insurance,120000,1200.00,CHART_ACCOUNT
+2026-08-31,Asset,OTHER_CURRENT_ASSET,Total for Prepaid expenses,SUBTOTAL,subtotal:ca-prepaid-parent,120000,1200.00,SYNTHETIC
+2026-08-31,Asset,FIXED_ASSET,Equipment,ACCOUNT,chart:ca-equipment-parent,240000,2400.00,CHART_ACCOUNT
+2026-08-31,Asset,FIXED_ASSET,  Computers,ACCOUNT,chart:ca-equipment-computers,180000,1800.00,CHART_ACCOUNT
+2026-08-31,Asset,FIXED_ASSET,Total for Equipment,SUBTOTAL,subtotal:ca-equipment-parent,420000,4200.00,SYNTHETIC
+2026-08-31,Liability,LONG_TERM_LIABILITY,Term loan payable,ACCOUNT,chart:ca-long-term-loan,660000,6600.00,CHART_ACCOUNT
+2026-08-31,Liability,OTHER_CURRENT_LIABILITY,Short-term loan payable,ACCOUNT,chart:ca-short-term-loan,250000,2500.00,CHART_ACCOUNT
+2026-08-31,Equity,EQUITY,Owner equity,ACCOUNT,chart:ca-owner-equity-parent,0,0.00,CHART_ACCOUNT
+2026-08-31,Equity,EQUITY,  Contributions,ACCOUNT,chart:ca-owner-contributions,600000,6000.00,CHART_ACCOUNT
+2026-08-31,Equity,EQUITY,  Draws,ACCOUNT,chart:ca-owner-draws,-200000,-2000.00,CHART_ACCOUNT
+2026-08-31,Equity,EQUITY,Total for Owner equity,SUBTOTAL,subtotal:ca-owner-equity-parent,400000,4000.00,SYNTHETIC
+2026-08-31,Equity,Derived equity,Opening Balance Equity,DERIVED,opening-equity:2026-08-31,1992500,19925.00,DERIVED_EQUITY
+2026-08-31,Equity,Derived equity,Retained Earnings,DERIVED,retained-earnings:2026-08-31,7517560,75175.60,DERIVED_EQUITY
+2026-08-31,Equity,Derived equity,Current Earnings,DERIVED,current-earnings:2026-08-31,3869780,38697.80,DERIVED_EQUITY
+2026-08-31,Assets,,Total Assets,TOTAL,total-assets:2026-08-31,14829840,148298.40,SYNTHETIC
+2026-08-31,Liabilities,,Total Liabilities,TOTAL,total-liabilities:2026-08-31,1050000,10500.00,SYNTHETIC
+2026-08-31,Equity,,Total Equity,TOTAL,total-equity:2026-08-31,13779840,137798.40,SYNTHETIC
+2026-08-31,Liabilities and Equity,,Total Liabilities and Equity,TOTAL,total-liabilities-equity:2026-08-31,14829840,148298.40,SYNTHETIC
+2026-08-31,Check,,Difference,DIFFERENCE,difference:2026-08-31,0,0.00,SYNTHETIC

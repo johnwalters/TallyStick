@@ -1,0 +1,5 @@
+Date,Description,Debit,Credit
+not-a-date,Invalid date sample,10.00,
+8/20/26,Ambiguous sign sample,5.00,5.00
+8/21/26,Zero amount sample,0.00,
+8/22/26,,12.00,

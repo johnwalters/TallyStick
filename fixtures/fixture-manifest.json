@@ -1,0 +1,10 @@
+{
+  "bankCsvWithSummaryPreamble": {
+    "file": "imports/bank/bofa-summary-preamble.csv",
+    "sourceRows": 10,
+    "headerRow": 7,
+    "acceptedRows": 2,
+    "rejectedRows": 1
+  },
+  "provenance": "All fixture values are fictional source-shape examples documented in README.md. The larger public-safe accounting dataset is under sample-data/."
+}

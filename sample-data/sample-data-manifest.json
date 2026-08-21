@@ -1,0 +1,187 @@
+{
+  "schemaVersion": 1,
+  "sampleCompanyId": "company-demo-outfitters",
+  "generatedDate": "2026-08-20",
+  "privacy": "Fully fictional public sample data; no real identifiers or copied amounts.",
+  "coverage": [
+    "2025 full year",
+    "2026 through 2026-08-31",
+    "balance sheet",
+    "profit and loss",
+    "imports",
+    "state exclusions",
+    "transfers",
+    "migration warning"
+  ],
+  "expectedResults": {
+    "currency": "USD",
+    "generatedFor": "TallyStick public sample/test data",
+    "balanceSheets": {
+      "2025-12-31": {
+        "totalAssetsMinor": 10630060,
+        "totalLiabilitiesMinor": 840000,
+        "totalEquityMinor": 9790060,
+        "differenceMinor": 0,
+        "openingBalanceEquityMinor": 1992500,
+        "retainedEarningsMinor": 0,
+        "currentEarningsMinor": 7517560
+      },
+      "2026-08-31": {
+        "totalAssetsMinor": 14829840,
+        "totalLiabilitiesMinor": 1050000,
+        "totalEquityMinor": 13779840,
+        "differenceMinor": 0,
+        "openingBalanceEquityMinor": 1992500,
+        "retainedEarningsMinor": 7517560,
+        "currentEarningsMinor": 3869780
+      }
+    },
+    "profitAndLoss": {
+      "2025": {
+        "startDate": "2025-01-01",
+        "endDate": "2025-12-31",
+        "netProfitMinor": 7517560
+      },
+      "2026-ytd": {
+        "startDate": "2026-01-01",
+        "endDate": "2026-08-31",
+        "netProfitMinor": 3869780
+      }
+    },
+    "counts": {
+      "financialAccounts": 6,
+      "chartAccounts": 27,
+      "transactions": 198,
+      "postingSplits": 146,
+      "transferMatches": 25
+    },
+    "validationIssues": []
+  },
+  "files": [
+    {
+      "path": "README.md",
+      "bytes": 3084,
+      "sha256": "bf0420bdc1ee3f9c00b3cddf5a013fbe96dae0c63c15a38e52d1a8fda2c377cd"
+    },
+    {
+      "path": "company/company-profile.json",
+      "bytes": 565,
+      "sha256": "7f41ece081b0f91ce3df3f3ff3628d873e5d53aef7d98ff5359a1ca88ff6a9e9"
+    },
+    {
+      "path": "chart/chart-of-accounts.csv",
+      "bytes": 3619,
+      "sha256": "d6ac1cd0dda72797437dbd88bd16f7fc79aade09d5ec26ec54c9c317c5ef15d8"
+    },
+    {
+      "path": "ledger/financial-accounts.csv",
+      "bytes": 1500,
+      "sha256": "91b73d5104ef5c2fad28621de2df13f3650479232a2c12e28b67ffe757be1a4e"
+    },
+    {
+      "path": "ledger/transactions.csv",
+      "bytes": 35909,
+      "sha256": "6169e3a745f5a8ad7be017f3f8e6512de609833aa616e9b857aee96f937268dc"
+    },
+    {
+      "path": "ledger/posting-splits.csv",
+      "bytes": 7983,
+      "sha256": "bab1ac1133c1066d80c95f4d682a9c551fc60626f82ae76979950ee06bae9a86"
+    },
+    {
+      "path": "ledger/transfer-matches.csv",
+      "bytes": 2669,
+      "sha256": "fecc27fa75b38f71900243682668306dd9d708ec11524b4888eb0d1e5d15f4b3"
+    },
+    {
+      "path": "imports/2025/marketplace-summary.csv",
+      "bytes": 2983,
+      "sha256": "ac84ace03e35c7f61a66697d8ea04396739639bd10a61073e9b2ee0af6a34de9"
+    },
+    {
+      "path": "imports/2025/marketplace-transfers.csv",
+      "bytes": 544,
+      "sha256": "cd4c0da61a129a0069078a2926dc25e8167e0f260b04b84485014a54321c210d"
+    },
+    {
+      "path": "imports/2025/operating-checking.xlsx",
+      "bytes": 4547,
+      "sha256": "b08146fb1ea023372241de9d4aae0c5224ba18ccb6e7fd89e18bb4e844e13571"
+    },
+    {
+      "path": "imports/2025/business-card.csv",
+      "bytes": 159,
+      "sha256": "b785b7a62463751572dccbd3a74c2654379f6cf3f25c50a3a1b09d6cdc5783eb"
+    },
+    {
+      "path": "imports/2025/inventory-activity.csv",
+      "bytes": 161,
+      "sha256": "812a7ce92bd82423bf3c272a2ba9f8b3799c2dab4a514c6caffa9583202a403e"
+    },
+    {
+      "path": "imports/2025/savings-activity.csv",
+      "bytes": 55,
+      "sha256": "94b3dfd33119b86d9455c98215eff203eb5577873c5094617136a3f6beb59740"
+    },
+    {
+      "path": "imports/2026/marketplace-summary.csv",
+      "bytes": 1977,
+      "sha256": "428697fad0b784179c90db3b69dcadde2915d013528c8f59b86b8640b2f22f18"
+    },
+    {
+      "path": "imports/2026/marketplace-transfers.csv",
+      "bytes": 368,
+      "sha256": "eeedbfdf1499268a0d4b4b820b4ab626ff9d2192aaa35c5b424cd2dca6fa9818"
+    },
+    {
+      "path": "imports/2026/operating-checking.qbo",
+      "bytes": 2898,
+      "sha256": "520968bf3f668079dbd3c235d17da93b03feb05e867ba8c8cdc233cd1f04eb57"
+    },
+    {
+      "path": "imports/2026/business-card.csv",
+      "bytes": 210,
+      "sha256": "00a5d4fb534a5126ee270d18543dda01c5bb4040e5a77e3a0c6b544975522faf"
+    },
+    {
+      "path": "imports/2026/inventory-activity.csv",
+      "bytes": 177,
+      "sha256": "486b56664323bb6365064fbb1b20b3af1a543fe1e425afcbd6724382ef702027"
+    },
+    {
+      "path": "imports/negative-cases/invalid-bank-rows.csv",
+      "bytes": 157,
+      "sha256": "2f04416d4f7c52071e8c14a914525ebe5ecad33f6e92ea606a9f71ad5b7a738e"
+    },
+    {
+      "path": "expected/balance-sheet-2025-12-31.csv",
+      "bytes": 2519,
+      "sha256": "c639e88ab50c324f50b4711f22442e259577c11489b6ea04db41d0170faaf6ba"
+    },
+    {
+      "path": "expected/balance-sheet-2026-08-31.csv",
+      "bytes": 2885,
+      "sha256": "b2897ec28b1e1ab764b8d6e04f71532963a2e6a937563f074d9df669f183696a"
+    },
+    {
+      "path": "expected/profit-loss-2025.csv",
+      "bytes": 1740,
+      "sha256": "ae7690724fdcde16cce1948becb29e7d6f311f5034b31e5cf5fdee53f44a0924"
+    },
+    {
+      "path": "expected/profit-loss-2026-ytd.csv",
+      "bytes": 1650,
+      "sha256": "e279a85bc2fe3887d86088b01a758b2c22c14174f82d5cb20a3a84091963c43e"
+    },
+    {
+      "path": "expected/expected-results.json",
+      "bytes": 1113,
+      "sha256": "98c3a6915bdbf8c82a5866524152ca8940122986c13058d63f34226a9735e903"
+    },
+    {
+      "path": "tallystick-sample-data.xlsx",
+      "bytes": 40665,
+      "sha256": "93c7e849fa1aea1b3b82651be6a56fa944d68bc540f16eec2dbe343c2b28006e"
+    }
+  ]
+}

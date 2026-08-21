@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "module": "CommonJS",
+    "moduleResolution": "Node",
+    "target": "ES2022",
+    "types": ["node", "electron"],
+    "sourceMap": true
+  },
+  "include": ["src/desktop-host/**/*.ts", "src/shared/**/*.ts"]
+}

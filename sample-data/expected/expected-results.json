@@ -1,0 +1,44 @@
+{
+  "currency": "USD",
+  "generatedFor": "TallyStick public sample/test data",
+  "balanceSheets": {
+    "2025-12-31": {
+      "totalAssetsMinor": 10630060,
+      "totalLiabilitiesMinor": 840000,
+      "totalEquityMinor": 9790060,
+      "differenceMinor": 0,
+      "openingBalanceEquityMinor": 1992500,
+      "retainedEarningsMinor": 0,
+      "currentEarningsMinor": 7517560
+    },
+    "2026-08-31": {
+      "totalAssetsMinor": 14829840,
+      "totalLiabilitiesMinor": 1050000,
+      "totalEquityMinor": 13779840,
+      "differenceMinor": 0,
+      "openingBalanceEquityMinor": 1992500,
+      "retainedEarningsMinor": 7517560,
+      "currentEarningsMinor": 3869780
+    }
+  },
+  "profitAndLoss": {
+    "2025": {
+      "startDate": "2025-01-01",
+      "endDate": "2025-12-31",
+      "netProfitMinor": 7517560
+    },
+    "2026-ytd": {
+      "startDate": "2026-01-01",
+      "endDate": "2026-08-31",
+      "netProfitMinor": 3869780
+    }
+  },
+  "counts": {
+    "financialAccounts": 6,
+    "chartAccounts": 27,
+    "transactions": 198,
+    "postingSplits": 146,
+    "transferMatches": 25
+  },
+  "validationIssues": []
+}

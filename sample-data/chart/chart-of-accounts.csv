@@ -1,0 +1,28 @@
+Chart Account ID,Account Name,Parent ID,Reporting Group,Account Type,Detail Type,Display Order,Archived,Locked,Description
+ca-prepaid-parent,Prepaid expenses,,ASSET,OTHER_CURRENT_ASSET,Prepaid expenses,100,false,false,Current-asset parent used for hierarchy tests.
+ca-prepaid-insurance,Prepaid expenses:Prepaid insurance,ca-prepaid-parent,ASSET,OTHER_CURRENT_ASSET,Prepaid expenses,101,false,false,Annual insurance paid in advance.
+ca-equipment-parent,Equipment,,ASSET,FIXED_ASSET,Machinery and equipment,120,false,false,Fixed-asset parent with direct and child postings.
+ca-equipment-computers,Equipment:Computers,ca-equipment-parent,ASSET,FIXED_ASSET,Other fixed assets,121,false,false,Computer equipment subaccount.
+ca-accum-depr,Accumulated depreciation,,ASSET,FIXED_ASSET,Other fixed assets,129,false,false,Contra-asset sample; normally carries a negative balance.
+ca-long-term-loan,Term loan payable,,LIABILITY,LONG_TERM_LIABILITY,Notes payable,200,false,false,Principal-only loan balance.
+ca-short-term-loan,Short-term loan payable,,LIABILITY,OTHER_CURRENT_LIABILITY,Loan payable,210,false,false,Current loan balance.
+ca-sales-tax,Sales tax payable,,LIABILITY,OTHER_CURRENT_LIABILITY,Sales tax payable,220,false,false,Liability account included for future tax scenarios.
+ca-owner-equity-parent,Owner equity,,EQUITY,EQUITY,Owner equity,300,false,false,Equity parent.
+ca-owner-contributions,Owner equity:Contributions,ca-owner-equity-parent,EQUITY,EQUITY,Owner equity,301,false,false,Owner capital contributions.
+ca-owner-draws,Owner equity:Draws,ca-owner-equity-parent,EQUITY,EQUITY,Owner draw,302,false,false,Owner distributions.
+ca-retained-earnings,Retained earnings,,EQUITY,EQUITY,Retained earnings,310,false,true,Reserved chart row; the sample expects derived retained earnings.
+ca-online-sales,Online product sales,,INCOME,INCOME,Sales of product income,400,false,false,Marketplace product revenue.
+ca-sales-returns,Sales returns and refunds,,INCOME,INCOME,Sales of product income,401,false,false,Contra-income account.
+ca-shipping-income,Shipping income,,INCOME,INCOME,Other primary income,402,false,false,Customer shipping credits.
+ca-service-income,Service income,,INCOME,INCOME,Service income,410,false,false,Non-marketplace service revenue.
+ca-interest-income,Interest income,,OTHER_INCOME,OTHER_INCOME,Interest earned,450,false,false,Deposit interest.
+ca-product-costs,Product costs,,COGS,COGS,Supplies and materials,500,false,false,Inventory relieved to cost of goods sold.
+ca-fulfillment-fees,Fulfillment fees,,COGS,COGS,"Shipping, freight and delivery",510,false,false,Per-unit fulfillment costs.
+ca-platform-fees-parent,Marketplace fees,,EXPENSE,EXPENSE,Other business expenses,600,false,false,Expense parent with direct and child activity.
+ca-commission-fees,Marketplace fees:Commissions,ca-platform-fees-parent,EXPENSE,EXPENSE,Other business expenses,601,false,false,Marketplace commissions.
+ca-storage-fees,Marketplace fees:Storage,ca-platform-fees-parent,EXPENSE,EXPENSE,Other business expenses,602,false,false,Marketplace storage charges.
+ca-advertising,Advertising,,EXPENSE,EXPENSE,Advertising,620,false,false,Digital advertising.
+ca-insurance,Insurance,,EXPENSE,EXPENSE,Insurance,630,false,false,Business insurance expense.
+ca-software,Software subscriptions,,EXPENSE,EXPENSE,Other business expenses,640,false,false,Software subscriptions.
+ca-interest-expense,Interest expense,,OTHER_EXPENSE,OTHER_EXPENSE,Other miscellaneous expense,700,false,false,Loan interest.
+ca-depreciation,Depreciation expense,,OTHER_EXPENSE,OTHER_EXPENSE,Depreciation,710,false,false,Depreciation sample category.

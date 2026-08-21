@@ -1,0 +1,20 @@
+Period Start,Period End,Section,Label,Row Kind,Chart Account ID,Amount Minor,Amount
+2025-01-01,2025-12-31,Income,Online product sales,ACCOUNT,ca-online-sales,14710000,147100.00
+2025-01-01,2025-12-31,Income,Sales returns and refunds,ACCOUNT,ca-sales-returns,-789650,-7896.50
+2025-01-01,2025-12-31,Income,Shipping income,ACCOUNT,ca-shipping-income,161810,1618.10
+2025-01-01,2025-12-31,Income,Total Income,TOTAL,total-income,14082160,140821.60
+2025-01-01,2025-12-31,Cogs,Product costs,ACCOUNT,ca-product-costs,780000,7800.00
+2025-01-01,2025-12-31,Cogs,Fulfillment fees,ACCOUNT,ca-fulfillment-fees,3154800,31548.00
+2025-01-01,2025-12-31,Cogs,Total Cogs,TOTAL,total-cogs,3934800,39348.00
+2025-01-01,2025-12-31,Expense,Marketplace fees,ACCOUNT,ca-platform-fees-parent,7500,75.00
+2025-01-01,2025-12-31,Expense,Marketplace fees:Commissions,ACCOUNT,ca-commission-fees,2206500,22065.00
+2025-01-01,2025-12-31,Expense,Marketplace fees:Storage,ACCOUNT,ca-storage-fees,246300,2463.00
+2025-01-01,2025-12-31,Expense,Advertising,ACCOUNT,ca-advertising,70000,700.00
+2025-01-01,2025-12-31,Expense,Insurance,ACCOUNT,ca-insurance,60000,600.00
+2025-01-01,2025-12-31,Expense,Software subscriptions,ACCOUNT,ca-software,24000,240.00
+2025-01-01,2025-12-31,Expense,Total Expense,TOTAL,total-expense,2614300,26143.00
+2025-01-01,2025-12-31,Other_income,Interest income,ACCOUNT,ca-interest-income,4500,45.00
+2025-01-01,2025-12-31,Other_income,Total Other_income,TOTAL,total-other_income,4500,45.00
+2025-01-01,2025-12-31,Other_expense,Interest expense,ACCOUNT,ca-interest-expense,20000,200.00
+2025-01-01,2025-12-31,Other_expense,Total Other_expense,TOTAL,total-other_expense,20000,200.00
+2025-01-01,2025-12-31,Net Profit,Net Profit,NET_PROFIT,net-profit,7517560,75175.60

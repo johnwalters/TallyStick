@@ -1,0 +1,4 @@
+{
+  "bank": { "accepted": 2, "rejected": 0, "skipped": 0, "amountMinor": 11250 },
+  "amazon": { "accepted": 2, "rejected": 1, "skipped": 0, "amountMinor": -1075 }
+}

@@ -1,0 +1,31 @@
+# macOS metadata
+.DS_Store
+
+# Dependencies and framework caches
+node_modules/
+.angular/
+
+# Generated output
+coverage/
+dist/
+out-tsc/
+release/
+*.log
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+
+# Local accounting databases and backups
+*.sqlite
+*.sqlite-*
+*.db
+*.db-*
+*.bak
+*.backup
+
+# Editor and office temporary files
+~$*
+*.swp
+*.tmp

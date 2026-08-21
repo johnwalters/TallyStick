@@ -1,0 +1,583 @@
+<div class="app-frame" [class.navigation-collapsed]="!navigationExpanded">
+  <aside class="app-sidebar" aria-label="Primary navigation">
+    <button type="button" class="navigation-toggle" [attr.aria-label]="navigationExpanded ? 'Collapse navigation' : 'Expand navigation'" [attr.aria-expanded]="navigationExpanded" (click)="toggleNavigation()">
+      @if (navigationExpanded) {
+        <svg class="bi bi-chevron-double-left" viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M8.354 1.646a.5.5 0 0 1 0 .708L2.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0"/><path fill-rule="evenodd" d="M12.354 1.646a.5.5 0 0 1 0 .708L6.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0"/></svg>
+      } @else {
+        <svg class="bi bi-chevron-double-right" viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M3.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L9.293 8 3.646 2.354a.5.5 0 0 1 0-.708"/><path fill-rule="evenodd" d="M7.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L13.293 8 7.646 2.354a.5.5 0 0 1 0-.708"/></svg>
+      }
+    </button>
+    <nav class="workspace-switcher" role="tablist" aria-orientation="vertical" aria-label="Accounting workspace">
+      <button id="transactions-workspace-tab" type="button" class="workspace-tab" role="tab" [class.active]="workspaceView === 'TRANSACTIONS'" [attr.aria-selected]="workspaceView === 'TRANSACTIONS'" aria-controls="transactions-workspace" title="Transactions" (click)="selectWorkspace('TRANSACTIONS')"><svg class="bi bi-list" viewBox="0 0 16 16" aria-hidden="true"><path fill-rule="evenodd" d="M2.5 12a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5m0-4a.5.5 0 0 1 .5-.5h10a.5.5 0 0 1 0 1H3a.5.5 0 0 1-.5-.5"/></svg><span class="workspace-label">Transactions</span></button>
+      <button id="chart-workspace-tab" type="button" class="workspace-tab" role="tab" [class.active]="workspaceView === 'CHART'" [attr.aria-selected]="workspaceView === 'CHART'" aria-controls="chart-workspace" title="Chart of Accounts" (click)="selectWorkspace('CHART')"><svg class="bi bi-bar-chart-steps" viewBox="0 0 16 16" aria-hidden="true"><path d="M.5 0a.5.5 0 0 1 .5.5v15a.5.5 0 0 1-1 0V.5A.5.5 0 0 1 .5 0M2 1.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-4a.5.5 0 0 1-.5-.5zm2 4a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5zm2 4a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-6a.5.5 0 0 1-.5-.5zm2 4a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5z"/></svg><span class="workspace-label">Chart of Accounts</span></button>
+      <button id="rules-workspace-tab" type="button" class="workspace-tab" role="tab" [class.active]="workspaceView === 'RULES'" [attr.aria-selected]="workspaceView === 'RULES'" aria-controls="rules-workspace" title="Rules" (click)="selectWorkspace('RULES')"><svg class="bi bi-funnel" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5zm1 .5v1.308l4.372 4.858A.5.5 0 0 1 7 8.5v5.306l2-.666V8.5a.5.5 0 0 1 .128-.334L13.5 3.308V2z"/></svg><span class="workspace-label">Rules</span></button>
+      <button id="reports-workspace-tab" type="button" class="workspace-tab" role="tab" [class.active]="workspaceView === 'REPORTS'" [attr.aria-selected]="workspaceView === 'REPORTS'" aria-controls="reports-workspace" title="Profit &amp; Loss" (click)="selectWorkspace('REPORTS')"><svg class="bi bi-file-ruled" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v4h10V2a1 1 0 0 0-1-1zm9 6H6v2h7zm0 3H6v2h7zm0 3H6v2h6a1 1 0 0 0 1-1zm-8 2v-2H3v1a1 1 0 0 0 1 1zm-2-3h2v-2H3zm0-3h2V7H3z"/></svg><span class="workspace-label">Profit &amp; Loss</span></button>
+      <button id="data-workspace-tab" type="button" class="workspace-tab" role="tab" [class.active]="workspaceView === 'DATA'" [attr.aria-selected]="workspaceView === 'DATA'" aria-controls="data-workspace" title="Backups" (click)="selectWorkspace('DATA')"><svg class="bi bi-database" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.318 2.687C5.234 2.271 6.536 2 8 2s2.766.27 3.682.687C12.644 3.125 13 3.627 13 4c0 .374-.356.875-1.318 1.313C10.766 5.729 9.464 6 8 6s-2.766-.27-3.682-.687C3.356 4.875 3 4.373 3 4c0-.374.356-.875 1.318-1.313M13 5.698V7c0 .374-.356.875-1.318 1.313C10.766 8.729 9.464 9 8 9s-2.766-.27-3.682-.687C3.356 7.875 3 7.373 3 7V5.698c.271.202.58.378.904.525C4.978 6.711 6.427 7 8 7s3.022-.289 4.096-.777A5 5 0 0 0 13 5.698M14 4c0-1.007-.875-1.755-1.904-2.223C11.022 1.289 9.573 1 8 1s-3.022.289-4.096.777C2.875 2.245 2 2.993 2 4v9c0 1.007.875 1.755 1.904 2.223C4.978 15.71 6.427 16 8 16s3.022-.289 4.096-.777C13.125 14.755 14 14.007 14 13zm-1 4.698V10c0 .374-.356.875-1.318 1.313C10.766 11.729 9.464 12 8 12s-2.766-.27-3.682-.687C3.356 10.875 3 10.373 3 10V8.698c.271.202.58.378.904.525C4.978 9.71 6.427 10 8 10s3.022-.289 4.096-.777A5 5 0 0 0 13 8.698m0 3V13c0 .374-.356.875-1.318 1.313C10.766 14.729 9.464 15 8 15s-2.766-.27-3.682-.687C3.356 13.875 3 13.373 3 13v-1.302c.271.202.58.378.904.525C4.978 12.71 6.427 13 8 13s3.022-.289 4.096-.777c.324-.147.633-.323.904-.525"/></svg><span class="workspace-label">Backups</span></button>
+    </nav>
+  </aside>
+
+<main class="shell">
+  <header class="topbar">
+    <div>
+      <p class="eyebrow">TALLYSTICK</p>
+      <h1>{{ title }}</h1>
+    </div>
+    <div class="status"><span class="status-dot"></span>{{ statusMessage }}</div>
+  </header>
+
+  @if (workspaceView === 'TRANSACTIONS') {
+  <div id="transactions-workspace" class="workspace-panel transaction-workspace" role="tabpanel" aria-labelledby="transactions-workspace-tab">
+  <section class="section-heading">
+    <div>
+      <p class="eyebrow">01 · ACCOUNTS</p>
+      <h2>Account overview</h2>
+    </div>
+    <button type="button" class="primary-button" (click)="openNewFinancialAccount()">Add account</button>
+  </section>
+
+  <section class="account-grid">
+    @for (account of accounts; track account.id) {
+      <div class="account-tile" [class.archived]="account.archived">
+        <button class="account-card" [class.selected]="selectedAccountId === account.id" [attr.aria-pressed]="selectedAccountId === account.id" [disabled]="account.archived" (click)="selectAccount(account.id)">
+          <span class="account-type">{{ financialAccountTypeLabel(account.type) }} · {{ account.detailType }}</span>
+          <strong>{{ account.name }}</strong>
+          <span>{{ money(account.calculatedBalance || account.openingBalance) }}</span>
+        </button>
+        <button type="button" class="account-edit-button" [attr.aria-label]="'Edit ' + account.name" (click)="editFinancialAccount(account.id)">Edit</button>
+      </div>
+    }
+  </section>
+
+  <section class="import-strip">
+    <div>
+      <p class="eyebrow">IMPORT</p>
+      <h3>Upload file</h3>
+      <p>CSV, Excel, QBO/OFX/QFX, and Amazon files are previewed before anything enters Pending.</p>
+    </div>
+    <button type="button" class="file-button" [disabled]="!hasSelectedAccount" (click)="openTransactionFilePicker()">Choose file</button>
+    <input #transactionFileInput class="transaction-file-input" type="file" accept=".csv,.xls,.xlsx,.qbo,.ofx,.qfx" [disabled]="!hasSelectedAccount" (change)="inspectFile($event)" aria-label="Choose statement or Amazon transaction file" />
+  </section>
+
+  @if (importPreview) {
+    <section class="preview-card">
+      <div>
+        <p class="eyebrow">IMPORT PREVIEW · {{ importPreview.batch.sourceName }}</p>
+        <h3>{{ importPreview.batch.acceptedCount }} accepted · {{ importPreview.batch.rejectedCount }} rejected · {{ importPreview.batch.skippedCount }} skipped</h3>
+      </div>
+      <button class="primary-button" (click)="commitImport()" [disabled]="!hasSelectedAccount">Commit to Pending</button>
+      @if (importPreview.batch.rejectedCount) {
+        <details class="rejection-details">
+          <summary>View {{ importPreview.batch.rejectedCount }} rejected row{{ importPreview.batch.rejectedCount === 1 ? '' : 's' }}</summary>
+          <p>Nothing from these rows will be imported. Correct the source file, then choose it again.</p>
+          <div class="rejection-table-scroll">
+            <table class="rejection-table">
+              <thead><tr><th>Row</th><th>Reason</th><th>Explanation</th></tr></thead>
+              <tbody>
+                @for (row of rejectedImportRows; track row.rowNumber + ':' + row.code + ':' + row.message) {
+                  <tr><td>{{ row.rowNumber }}</td><td><code>{{ row.code || 'REJECTED' }}</code></td><td>{{ row.message || 'This row could not be imported.' }}</td></tr>
+                }
+              </tbody>
+            </table>
+          </div>
+        </details>
+      }
+    </section>
+  }
+
+  <section class="section-heading review-heading">
+    <div class="register-title">
+      <p class="eyebrow">02 · REVIEW</p>
+      <h2>Transactions</h2>
+      <p class="account-context"><span>Account owner</span><strong>{{ transactionAccountOwner }}</strong>@if (selectedAccount) { <small>{{ selectedAccount.name }}</small> }</p>
+      <p class="pending-review-count"><span>Pending review</span><strong>{{ pendingReviewCount }}</strong><small>selected account scope</small></p>
+    </div>
+    <div class="register-filters">
+      <label><span>Month</span><input class="transaction-month-filter" type="month" [(ngModel)]="transactionMonth" (change)="selectTransactionMonth(transactionMonth)" aria-label="Transaction month" /></label>
+      <label><span>From</span><input type="date" [(ngModel)]="startDate" [max]="endDate || null" (change)="transactionDateChanged()" /></label>
+      <label><span>Through</span><input type="date" [(ngModel)]="endDate" [min]="startDate || null" (change)="transactionDateChanged()" /></label>
+      <label><span>State</span><select [(ngModel)]="selectedTransactionState" (change)="refresh()"><option value="PENDING">Pending</option><option value="POSTED">Posted</option><option value="EXCLUDED">Excluded</option></select></label>
+      <label class="search-box"><span>Search</span><input [(ngModel)]="search" (ngModelChange)="refresh()" placeholder="Payee, description, memo, amount" /></label>
+    </div>
+  </section>
+  @if (dateFilterError) { <p class="filter-error" role="alert">{{ dateFilterError }}</p> }
+  <section class="selection-toolbar">
+    <div class="selection-actions">
+      <span>{{ selectedTransactionIds.size }} selected</span>
+      @if (selectedTransactionState === 'PENDING') {
+        <div class="category-picker bulk-category-picker">
+          <span class="category-filter-label">Category filter</span>
+          <button type="button" class="category-picker-trigger" aria-haspopup="listbox" [attr.aria-expanded]="activeCategoryPicker === 'bulk'" [attr.title]="bulkCategoryId ? categoryPath(bulkCategoryId) : null" (click)="openCategoryPicker('bulk')">{{ categoryPickerLabel(bulkCategoryId) }}</button>
+          @if (activeCategoryPicker === 'bulk') {
+            <div class="category-picker-popover" role="dialog" aria-label="Choose category for selected transactions">
+              <div class="category-picker-heading"><span>Choose category</span><div><button type="button" class="picker-clear" (click)="clearCategory('bulk')" [disabled]="!bulkCategoryId">Clear filter</button><button type="button" class="picker-cancel" (click)="closeCategoryPicker()">Cancel</button></div></div>
+              <input #categorySearchInput [(ngModel)]="categorySearch" (keydown)="handleCategoryPickerKeydown($event, 'bulk')" placeholder="Find a category" aria-label="Find category" />
+              <div class="category-picker-results" role="listbox">
+                @for (category of filteredCategoryAccounts; track category.id; let index = $index) {
+                  <button type="button" role="option" [class.active]="categoryPickerIndex === index" [attr.aria-selected]="bulkCategoryId === category.id" (click)="chooseCategory('bulk', category.id)"><strong>{{ categoryPath(category.id) }}</strong><small>{{ category.type }}</small></button>
+                } @empty { <p>No active categories match “{{ categorySearch }}”.</p> }
+              </div>
+            </div>
+          }
+        </div>
+        <button class="primary-button" (click)="bulkPost()" [disabled]="!hasSelectedAccount || selectedTransactionIds.size === 0">Post selected</button>
+        <button class="quiet-button" (click)="bulkCategorize()" [disabled]="!hasSelectedAccount || selectedTransactionIds.size === 0 || !bulkCategoryId">Categorize selected</button>
+        <button class="quiet-button" (click)="bulkExclude()" [disabled]="!hasSelectedAccount || selectedTransactionIds.size === 0">Exclude selected</button>
+      } @else if (selectedTransactionState === 'EXCLUDED') {
+        <button class="quiet-button" (click)="deleteSelectedExcluded()" [disabled]="!hasSelectedAccount || selectedTransactionIds.size === 0">Delete All</button>
+        <button class="quiet-button" (click)="bulkUndo()" [disabled]="!hasSelectedAccount || selectedTransactionIds.size === 0">Undo selected to Pending</button>
+      } @else {
+        <button class="quiet-button" (click)="bulkUndo()" [disabled]="!hasSelectedAccount || selectedTransactionIds.size === 0">Undo selected to Pending</button>
+      }
+      <button class="quiet-button" (click)="clearTransactionFilters()">Clear</button>
+    </div>
+  </section>
+
+  <section class="table-card">
+    @if (transactions.length === 0) {
+      <div class="empty-state">
+        <span class="empty-icon">+</span>
+        <h3>No transactions match this view.</h3>
+        <p>Adjust the account, date, state, or search filters.</p>
+      </div>
+    } @else {
+      <div class="table-scroll">
+        <table class="pending-ledger">
+          <colgroup>
+            <col class="select-column" />
+            <col class="date-column" />
+            <col class="source-column" />
+            <col class="category-column" />
+            <col class="amount-column" />
+            <col class="actions-column" />
+          </colgroup>
+          <thead>
+            <tr>
+              <th class="select-header"><input type="checkbox" aria-label="Select all visible transactions" [checked]="allVisibleTransactionsSelected" [indeterminate]="someVisibleTransactionsSelected" [disabled]="!hasSelectedAccount" (change)="toggleAllVisibleTransactions()" /></th>
+              <th class="sortable-header" data-sort-column="DATE_ACCOUNT" [attr.aria-sort]="transactionSortAria('DATE_ACCOUNT')"><button type="button" class="sort-header" [attr.aria-label]="transactionSortAction('DATE_ACCOUNT', 'date and account')" (click)="sortTransactions('DATE_ACCOUNT')"><span>Date / account</span><span class="sort-indicator" aria-hidden="true">{{ transactionSortIndicator('DATE_ACCOUNT') }}</span></button></th>
+              <th class="sortable-header" data-sort-column="SOURCE" [attr.aria-sort]="transactionSortAria('SOURCE')"><button type="button" class="sort-header" [attr.aria-label]="transactionSortAction('SOURCE', 'source transaction')" (click)="sortTransactions('SOURCE')"><span>Source transaction</span><span class="sort-indicator" aria-hidden="true">{{ transactionSortIndicator('SOURCE') }}</span></button></th>
+              <th class="sortable-header" data-sort-column="CATEGORY" [attr.aria-sort]="transactionSortAria('CATEGORY')"><button type="button" class="sort-header" [attr.aria-label]="transactionSortAction('CATEGORY', 'categorization')" (click)="sortTransactions('CATEGORY')"><span>Categorization</span><span class="sort-indicator" aria-hidden="true">{{ transactionSortIndicator('CATEGORY') }}</span></button></th>
+              <th class="sortable-header amount" data-sort-column="AMOUNT" [attr.aria-sort]="transactionSortAria('AMOUNT')"><button type="button" class="sort-header" [attr.aria-label]="transactionSortAction('AMOUNT', 'amount')" (click)="sortTransactions('AMOUNT')"><span>Amount</span><span class="sort-indicator" aria-hidden="true">{{ transactionSortIndicator('AMOUNT') }}</span></button></th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (transaction of transactions; track transaction.id) {
+              <tr [class.unresolved-row]="transaction.state === 'PENDING' && !selectedCategoryIds[transaction.id] && !hasExclusionSuggestion(transaction)" [class.exclusion-suggested-row]="transaction.state === 'PENDING' && hasExclusionSuggestion(transaction)">
+                <td><input type="checkbox" [checked]="selectedTransactionIds.has(transaction.id)" [disabled]="!hasSelectedAccount" (change)="toggleTransaction(transaction.id)" /></td>
+                <td class="date-account-cell"><strong>{{ transaction.postingDate }}</strong><small>{{ accountName(transaction.accountId) }}</small></td>
+                <td class="source-cell"><strong>{{ transaction.description }}</strong><small>{{ transaction.payee || 'Unresolved payee' }}</small></td>
+                <td class="category-cell">
+                  @if (transaction.state === 'PENDING') {
+                    <div class="category-summary">
+                      <strong class="category-tooltip-target" [attr.title]="selectedCategoryIds[transaction.id] ? categoryPath(selectedCategoryIds[transaction.id]) : null" [attr.data-tooltip]="selectedCategoryIds[transaction.id] ? categoryPath(selectedCategoryIds[transaction.id]) : null">{{ selectedCategoryIds[transaction.id] ? categoryName(selectedCategoryIds[transaction.id]) : (hasExclusionSuggestion(transaction) ? 'No category needed for exclusion' : 'Unresolved') }}</strong>@if (!selectedCategoryIds[transaction.id] && !hasExclusionSuggestion(transaction)) { <span class="needs-category">Needs category</span> }
+                      <span class="state-badge pending">Pending</span>
+                    </div>
+                    @if (hasExclusionSuggestion(transaction)) {
+                      <div class="exclusion-suggestion" role="note"><strong>Suggested action: Exclude</strong><span>{{ exclusionSuggestionNote(transaction) }}</span></div>
+                    } @else {
+                      <small class="rule-rationale">{{ categorySelectionNote(transaction) }}</small>
+                    }
+                    <div class="category-editor">
+                      <div class="category-picker category-tooltip-target" [attr.title]="selectedCategoryIds[transaction.id] ? categoryPath(selectedCategoryIds[transaction.id]) : null" [attr.data-tooltip]="selectedCategoryIds[transaction.id] ? categoryPath(selectedCategoryIds[transaction.id]) : null">
+                        <button type="button" class="category-picker-trigger" aria-haspopup="listbox" [attr.aria-expanded]="activeCategoryPicker === transaction.id" [disabled]="!hasSelectedAccount" [attr.title]="selectedCategoryIds[transaction.id] ? categoryPath(selectedCategoryIds[transaction.id]) : null" (click)="openCategoryPicker(transaction.id)">{{ categoryPickerLabel(selectedCategoryIds[transaction.id]) }}</button>
+                        @if (activeCategoryPicker === transaction.id) {
+                          <div class="category-picker-popover" role="dialog" [attr.aria-label]="'Choose category for ' + transaction.description">
+                            <div class="category-picker-heading"><span>Choose category</span><div><button type="button" class="picker-clear" (click)="clearCategory(transaction.id)" [disabled]="!selectedCategoryIds[transaction.id]">Clear category</button><button type="button" class="picker-cancel" (click)="closeCategoryPicker()">Cancel</button></div></div>
+                            <input #categorySearchInput [(ngModel)]="categorySearch" (keydown)="handleCategoryPickerKeydown($event, transaction.id)" placeholder="Find a category" aria-label="Find category" />
+                            <div class="category-picker-results" role="listbox">
+                              @for (category of filteredCategoryAccounts; track category.id; let index = $index) {
+                                <button type="button" role="option" [class.active]="categoryPickerIndex === index" [attr.aria-selected]="selectedCategoryIds[transaction.id] === category.id" (click)="chooseCategory(transaction.id, category.id)"><strong>{{ categoryPath(category.id) }}</strong><small>{{ category.type }}</small></button>
+                              } @empty { <p>No active categories match “{{ categorySearch }}”.</p> }
+                            </div>
+                          </div>
+                        }
+                      </div>
+                      <button type="button" class="rule-link-button" (click)="openRuleForTransaction(transaction)">{{ transactionRuleActionLabel(transaction) }}</button>
+                    </div>
+                  } @else if (transaction.state === 'POSTED') {
+                    <div class="category-summary"><strong class="category-tooltip-target" [attr.title]="transaction.splits.length && transaction.splits[0].chartAccountId ? categoryPath(transaction.splits[0].chartAccountId) : null" [attr.data-tooltip]="transaction.splits.length && transaction.splits[0].chartAccountId ? categoryPath(transaction.splits[0].chartAccountId) : null">Posted: {{ selectedCategoryName(transaction) }}</strong><span class="state-badge posted">Posted</span></div>
+                    <small class="rule-rationale">{{ transaction.rationale || 'Included in account balances and reports.' }}</small>
+                  } @else if (transaction.state === 'MATCHED_TRANSFER') {
+                    <div class="category-summary"><strong>Matched transfer</strong><span class="state-badge posted">Matched</span></div>
+                    <small class="rule-rationale">{{ transaction.rationale || 'Matched to an equal-and-opposite transaction in another account.' }}</small>
+                  } @else {
+                    <div class="category-summary"><strong>Excluded</strong><span class="state-badge excluded">Excluded</span></div>
+                    <small class="rule-rationale">{{ transaction.exclusionReason || 'Excluded from accounting activity.' }}</small>
+                  }
+                </td>
+                <td class="amount">{{ money(transaction.amount) }}</td>
+                <td class="actions">
+                  @if (transaction.state === 'PENDING') {
+                    @if (hasTransferSuggestion(transaction)) { <button class="transfer" (click)="matchTransfer(transaction)" [disabled]="!hasSelectedAccount">Match transfer</button> } @else { <button class="post-action" (click)="post(transaction)" [disabled]="!hasSelectedAccount || !selectedCategoryIds[transaction.id] || hasExclusionSuggestion(transaction)" [attr.title]="hasExclusionSuggestion(transaction) ? 'Unavailable because the matched rule recommends exclusion.' : null">Post</button> }<button class="danger" [class.suggested-exclude-action]="hasExclusionSuggestion(transaction)" (click)="exclude(transaction)" [disabled]="!hasSelectedAccount">{{ hasExclusionSuggestion(transaction) ? 'Exclude — suggested' : 'Exclude' }}</button>
+                  } @else {
+                    <button class="undo" [attr.aria-label]="(transaction.state === 'MATCHED_TRANSFER' ? 'Unmatch ' : 'Undo ') + transaction.description + ' to Pending'" (click)="undo(transaction)" [disabled]="!hasSelectedAccount">{{ transaction.state === 'MATCHED_TRANSFER' ? 'Unmatch' : 'Undo' }}</button>@if (transaction.state === 'MATCHED_TRANSFER') { <button class="danger" (click)="exclude(transaction)" [disabled]="!hasSelectedAccount">Exclude</button> } @if (transaction.state === 'EXCLUDED') { <button class="danger" [attr.aria-label]="'Permanently delete ' + transaction.description" (click)="deleteExcluded(transaction)" [disabled]="!hasSelectedAccount">Delete</button> }
+                  }
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    }
+  </section>
+  </div>
+  }
+
+  @if (workspaceView === 'CHART') {
+  <section id="chart-workspace" class="chart-workspace workspace-panel" role="tabpanel" aria-labelledby="chart-workspace-tab">
+    <header class="chart-heading">
+      <div><p class="eyebrow">CHART OF ACCOUNTS</p><h2>Accounting categories</h2><p>{{ managedChartAccountCount }} accounts define transaction categories and report hierarchy.</p></div>
+      <button type="button" class="primary-button" (click)="openNewChartAccount()">New account</button>
+    </header>
+
+    <div class="chart-toolbar">
+      <label class="chart-search"><span>Search</span><input [(ngModel)]="chartSearch" placeholder="Account name, type, detail, or description" /></label>
+      <label><span>Account type</span><select [(ngModel)]="chartTypeFilter"><option value="ALL">All account types</option>@for (type of chartAccountTypes; track type.value) { <option [value]="type.value">{{ type.label }}</option> }</select></label>
+      <label><span>Status</span><select [(ngModel)]="chartStatusFilter"><option value="ACTIVE">Active</option><option value="ARCHIVED">Archived</option><option value="ALL">All</option></select></label>
+      <div class="chart-exchange-actions">
+        <button type="button" class="quiet-button" (click)="exportChartAccounts()">Export accounts</button>
+        <label class="quiet-file-button">Import accounts<input type="file" accept=".csv,.xls,.xlsx" (change)="importChartFile($event)" /></label>
+      </div>
+    </div>
+
+    <div class="chart-table-wrap">
+      <table class="chart-table">
+        <thead><tr><th [attr.aria-sort]="chartSortAria('NAME')"><button type="button" class="sort-header" (click)="sortChartAccounts('NAME')" [attr.aria-label]="chartSortAction('NAME', 'account name')">Account name</button></th><th [attr.aria-sort]="chartSortAria('TYPE')"><button type="button" class="sort-header" (click)="sortChartAccounts('TYPE')" [attr.aria-label]="chartSortAction('TYPE', 'account type')">Account type</button></th><th [attr.aria-sort]="chartSortAria('DETAIL')"><button type="button" class="sort-header" (click)="sortChartAccounts('DETAIL')" [attr.aria-label]="chartSortAction('DETAIL', 'detail type')">Detail type</button></th><th>Description</th><th [attr.aria-sort]="chartSortAria('STATUS')"><button type="button" class="sort-header" (click)="sortChartAccounts('STATUS')" [attr.aria-label]="chartSortAction('STATUS', 'status')">Status</button></th><th>Actions</th></tr></thead>
+        <tbody>
+          @for (account of filteredChartAccounts; track account.id) {
+            <tr [class.archived-chart-account]="account.archived">
+              <td><div class="chart-account-name" [style.--chart-depth]="chartAccountDepth(account)"><span class="chart-branch" aria-hidden="true">{{ account.parentId ? '↳' : '' }}</span><strong>{{ chartAccountLeafName(account) }}</strong>@if (account.locked) { <span class="chart-lock" title="Locked account">Locked</span> }</div><small [title]="account.name">{{ account.name }}</small></td>
+              <td>{{ chartAccountTypeLabel(account.accountType) }}</td>
+              <td>{{ account.detailType }}</td>
+              <td class="chart-description" [title]="account.description || ''">{{ account.description || '—' }}</td>
+              <td><span class="chart-status" [class.archived]="account.archived">{{ account.archived ? 'Archived' : 'Active' }}</span></td>
+              <td class="chart-actions"><button type="button" (click)="editChartAccount(account.id)">Edit</button><button type="button" [class.danger]="!account.archived" (click)="toggleChartAccountArchived(account)">{{ account.archived ? 'Restore' : 'Archive' }}</button></td>
+            </tr>
+          } @empty { <tr><td colspan="6" class="chart-empty">No accounts match this view.</td></tr> }
+        </tbody>
+      </table>
+    </div>
+  </section>
+  }
+
+  @if (workspaceView === 'RULES') {
+  <section id="rules-workspace" class="rules-workspace workspace-panel" role="tabpanel" aria-labelledby="rules-workspace-tab">
+    <div class="rules-heading">
+      <div>
+        <p class="eyebrow">RULES</p>
+        <h2>Categorization rules</h2>
+        <p>{{ ruleCount }} rules evaluate Pending transactions in priority order. Posted transactions never change.</p>
+      </div>
+      <button type="button" class="primary-button new-rule-button" (click)="openNewRule()">New rule</button>
+    </div>
+
+    <div class="rules-toolbar">
+      <label class="rule-search"><span>Search</span><input [(ngModel)]="ruleSearch" placeholder="Rule name, condition, account, or category" /></label>
+      <label><span>Status</span><select [(ngModel)]="ruleStatusFilter"><option value="ALL">All rules</option><option value="ENABLED">Enabled</option><option value="DISABLED">Disabled</option></select></label>
+      <div class="rule-exchange-actions">
+        <button type="button" class="quiet-button" (click)="exportRules('XLSX')">Export XLSX</button>
+        <button type="button" class="quiet-button" (click)="exportRules('CSV')">Export CSV</button>
+        <label class="quiet-file-button">Import rules<input type="file" accept=".csv,.xls,.xlsx" (change)="importRulesFile($event)" /></label>
+        @if (ruleImportPreview) { <button type="button" class="primary-button" [disabled]="!ruleImportPreview.valid" (click)="commitRulesImport()">Replace rules</button> }
+      </div>
+    </div>
+
+    @if (ruleImportPreview) {
+      <div class="rule-import-preview" [class.invalid]="!ruleImportPreview.valid">
+        <strong>{{ ruleImportPreview.valid ? 'Validated replacement ready' : 'Rule import needs correction' }}</strong>
+        <span>{{ ruleImportPreview.importedCount }} new · {{ ruleImportPreview.updatedCount }} updated · {{ ruleImportPreview.disabledCount }} disabled · {{ ruleImportErrorCount }} errors</span>
+        @if (ruleImportPreview.issues.length) {
+          <ul>
+            @for (issue of ruleImportPreview.issues; track $index) { <li [class.warning]="issue.severity === 'WARNING'">Row {{ issue.rowNumber }} · {{ issue.code }} — {{ issue.message }}</li> }
+          </ul>
+        }
+      </div>
+    }
+
+    <div class="rules-table-wrap">
+      <table class="rules-table">
+        <thead><tr><th>Priority</th><th>Rule name</th><th>Applied to</th><th>Conditions</th><th>Settings</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          @for (rule of filteredRules; track rule.id) {
+            <tr [class.disabled-rule]="!rule.enabled">
+              <td class="rule-priority">{{ rule.priority }}</td>
+              <td><strong>{{ rule.name }}</strong></td>
+              <td>{{ ruleAccountScope(rule) }}</td>
+              <td class="rule-summary-cell" [title]="ruleConditionsSummary(rule)">{{ ruleConditionsSummary(rule) }}</td>
+              <td class="rule-summary-cell" [title]="ruleOutputSummary(rule)">{{ ruleOutputSummary(rule) }}</td>
+              <td><span class="rule-status" [class.disabled]="!rule.enabled">{{ rule.enabled ? 'Enabled' : 'Disabled' }}</span></td>
+              <td class="rule-actions"><button type="button" (click)="editRule(rule.id)">Edit</button><button type="button" (click)="copyRule(rule.id)">Copy</button><button type="button" (click)="toggleRuleEnabled(rule)">{{ rule.enabled ? 'Disable' : 'Enable' }}</button><button type="button" class="danger" (click)="deleteRule(rule)">Delete</button></td>
+            </tr>
+          } @empty {
+            <tr><td colspan="7" class="rules-empty">No rules match this view.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+  }
+
+  @if (workspaceView === 'REPORTS') {
+  <section id="reports-workspace" class="report-workspace workspace-panel" role="tabpanel" aria-labelledby="reports-workspace-tab">
+    <div class="report-heading">
+      <div>
+        <p class="eyebrow">03 · REPORTS</p>
+        <h2>Profit and loss reports</h2>
+        <p>Posted activity only. Click any Summary amount to inspect the exact contributing detail.</p>
+      </div>
+      <div class="report-total"><span>{{ reportBasis === 'SCHEDULE_C' ? 'Schedule C net profit' : 'Unadjusted net profit' }}</span><strong>{{ reportNetProfitMoney() }}</strong><small>{{ reportBasis === 'SCHEDULE_C' ? 'Removed tax' : 'Schedule C adjustment available' }}: {{ reportRemovedTaxMoney() }}</small></div>
+    </div>
+
+    <div class="report-basis-switch" role="group" aria-label="Profit and loss basis">
+      <button type="button" [class.active-report-basis]="reportBasis === 'UNADJUSTED'" (click)="selectReportBasis('UNADJUSTED')">Unadjusted P/L</button>
+      <button type="button" [class.active-report-basis]="reportBasis === 'SCHEDULE_C'" (click)="selectReportBasis('SCHEDULE_C')">Schedule C-ready</button>
+      <span>{{ reportBasis === 'SCHEDULE_C' ? 'Tax settings are applied to this report.' : 'Posted books before Schedule C tax adjustments.' }}</span>
+    </div>
+
+    <div class="report-toolbar">
+      <div class="report-date-controls">
+        <label><span>From</span><input type="date" [(ngModel)]="reportStartDate" [max]="reportEndDate || null" (change)="reportDateChanged()" /></label>
+        <label><span>Through</span><input type="date" [(ngModel)]="reportEndDate" [min]="reportStartDate || null" (change)="reportDateChanged()" /></label>
+        <label><span>Group by</span><select [(ngModel)]="reportGrouping" (change)="loadReports()"><option value="MONTH">Month</option><option value="YEAR">Year</option></select></label>
+      </div>
+      <div class="report-actions">
+        <button type="button" [class.active-report-tab]="reportView === 'SUMMARY'" (click)="selectReportView('SUMMARY')">P/L Summary</button>
+        <button type="button" [class.active-report-tab]="reportView === 'DETAIL'" (click)="selectReportView('DETAIL')">P/L Detail</button>
+        <button type="button" class="quiet-button" (click)="downloadReport('CSV')">Summary CSV</button>
+        <button type="button" class="quiet-button" (click)="downloadReport('XLSX')">Summary XLSX</button>
+        <button type="button" class="quiet-button" (click)="downloadReport('PRINT')">Print Preview</button>
+      </div>
+    </div>
+
+    @if (reportView === 'SUMMARY') {
+      <div class="report-subtoolbar">
+        <details class="report-filter-panel">
+          <summary>Report-only category exclusions <span>{{ reportExcludedCategoryIds.size }} excluded</span></summary>
+          <div class="report-category-list">
+            @for (category of reportCategoryOptions; track category.id) {
+              <label><input type="checkbox" [checked]="reportExcludedCategoryIds.has(category.id)" (change)="toggleReportCategory(category.id)" /><span [title]="categoryPath(category.id)">{{ categoryPath(category.id) }}</span></label>
+            }
+          </div>
+          <button type="button" class="quiet-button" (click)="clearReportExclusions()" [disabled]="reportExcludedCategoryIds.size === 0">Clear exclusions</button>
+        </details>
+        <details class="report-filter-panel">
+          <summary>Schedule C settings <span>{{ reportTaxYear }} · {{ report.includeFederalIncomeTax ? 'federal included' : 'federal excluded' }} · {{ report.includeStateLocalIncomeTax ? 'state/local included' : 'state/local excluded' }}</span></summary>
+          <div class="tax-settings-grid">
+            <label><input type="checkbox" [(ngModel)]="reportTaxSettings.includeFederalIncomeTax" /> Include federal income-tax expense</label>
+            <label><input type="checkbox" [(ngModel)]="reportTaxSettings.includeStateLocalIncomeTax" /> Include state/local income-tax expense</label>
+            <button type="button" class="primary-button" (click)="saveReportTaxSettings()">Save Schedule C settings</button>
+          </div>
+          <p class="report-settings-note">Configured tax accounts: {{ reportTaxAccountNames }}.</p>
+          <p class="report-settings-note">These settings affect the Schedule C-ready view and its exports. The unadjusted P/L and posted books are unchanged. Removed tax: {{ reportRemovedTaxMoney() }}.</p>
+          @if (hasRemovedTax) { <button type="button" class="quiet-button" (click)="showRemovedTaxDetail()">Show removed-tax detail</button> }
+        </details>
+      </div>
+
+      <div class="report-table-wrap">
+        <table class="report-table">
+          <thead><tr><th>Profit and loss</th>@for (period of reportVisiblePeriods; track period) { <th class="amount"><span>{{ period }}</span></th> }<th class="amount">Total</th></tr></thead>
+          <tbody>
+            @for (row of reportSummaryDisplayRows; track row.id) {
+              <tr [class.report-group-row]="row.kind === 'GROUP'" [class.report-account-row]="row.kind === 'ACCOUNT'" [class.report-subtotal-row]="row.kind === 'SUBTOTAL'" [class.report-total-row]="row.kind === 'SYNTHETIC'">
+                <th [style.padding-left.px]="12 + row.depth * 20"><button type="button" class="report-cell-label" (click)="selectReportSummaryRow(row)" [title]="'Show detail for ' + row.label">@if (row.kind === 'GROUP') { <span class="report-disclosure" aria-hidden="true">⌄</span> }{{ row.label }}</button></th>
+                @if (row.showAmounts) {
+                  @for (period of reportVisiblePeriods; track period) { <td class="amount"><button type="button" class="report-amount" (click)="selectReportSummaryRow(row, period)">{{ reportCellValue(row.valueCell, period) }}</button></td> }
+                  <td class="amount"><button type="button" class="report-amount" (click)="selectReportSummaryRow(row)">{{ reportCellValue(row.valueCell) }}</button></td>
+                } @else {
+                  @for (period of reportVisiblePeriods; track period) { <td class="amount report-group-empty"></td> }
+                  <td class="amount report-group-empty"></td>
+                }
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+      <div class="report-footnote"><span>{{ reportDetailCount }} posted detail rows · {{ reportExceptions }} exceptions</span><span>Reconciliation difference: {{ reportReconciliationMoney() }}</span></div>
+    } @else {
+      <div class="detail-selection-bar"><span><strong>P/L Detail</strong> · {{ reportSelectionLabel }}</span><button type="button" class="quiet-button" (click)="clearReportDetailSelection()" [disabled]="!reportSelectedCell">Show all detail</button><button type="button" class="quiet-button" (click)="downloadDetail('CSV')">Detail CSV</button><button type="button" class="quiet-button" (click)="downloadDetail('XLSX')">Detail XLSX</button></div>
+      <div class="detail-filters">
+        <label class="search-box"><span>Search detail</span><input [(ngModel)]="reportDetailSearch" (ngModelChange)="loadReportDetailSelection()" placeholder="Description, payee, memo, category" /></label>
+        <label><span>Account</span><select [(ngModel)]="reportDetailAccountId" (ngModelChange)="loadReportDetailSelection()"><option value="">All accounts</option>@for (account of accounts; track account.id) { <option [value]="account.id">{{ account.name }}</option> }</select></label>
+        <label><span>Category</span><select [(ngModel)]="reportDetailCategoryId" (ngModelChange)="loadReportDetailSelection()"><option value="">All categories</option>@for (category of reportCategoryOptions; track category.id) { <option [value]="category.id">{{ categoryPath(category.id) }}</option> }</select></label>
+      </div>
+      <div class="report-table-wrap detail-table-wrap">
+        <table class="report-table detail-table">
+          <thead><tr><th class="sortable-header" [attr.aria-sort]="reportDetailSortAria('DATE')"><button type="button" class="sort-header" (click)="sortReportDetail('DATE')" [attr.aria-label]="reportDetailSortAction('DATE', 'date')">Date</button></th><th class="sortable-header" [attr.aria-sort]="reportDetailSortAria('ACCOUNT')"><button type="button" class="sort-header" (click)="sortReportDetail('ACCOUNT')" [attr.aria-label]="reportDetailSortAction('ACCOUNT', 'account')">Account</button></th><th class="sortable-header" [attr.aria-sort]="reportDetailSortAria('DESCRIPTION')"><button type="button" class="sort-header" (click)="sortReportDetail('DESCRIPTION')" [attr.aria-label]="reportDetailSortAction('DESCRIPTION', 'description')">Description</button></th><th>Payee / memo</th><th class="sortable-header" [attr.aria-sort]="reportDetailSortAria('CATEGORY')"><button type="button" class="sort-header" (click)="sortReportDetail('CATEGORY')" [attr.aria-label]="reportDetailSortAction('CATEGORY', 'category')">GL category</button></th><th class="sortable-header amount" [attr.aria-sort]="reportDetailSortAria('AMOUNT')"><button type="button" class="sort-header" (click)="sortReportDetail('AMOUNT')" [attr.aria-label]="reportDetailSortAction('AMOUNT', 'P/L contribution')">P/L contribution</button></th><th>Source batch</th></tr></thead>
+          <tbody>
+            @for (row of filteredReportDetailRows; track row.transactionId + ':' + row.chartAccountId) {
+              <tr><td>{{ row.postingDate }}</td><td>{{ accountName(row.accountId) }}</td><td [title]="row.description || ''">{{ row.description || '—' }}</td><td>{{ row.payee || '—' }}@if (row.memo) { <small>{{ row.memo }}</small> }</td><td [title]="categoryPath(row.chartAccountId)">{{ categoryPath(row.chartAccountId) }}</td><td class="amount">{{ detailAmountMoney(row) }}</td><td>{{ row.sourceBatchId || '—' }}</td></tr>
+            } @empty { <tr><td colspan="7" class="report-empty">No posted detail matches this report selection.</td></tr> }
+          </tbody>
+        </table>
+      </div>
+      <div class="report-footnote"><span>{{ filteredReportDetailRows.length }} displayed detail rows</span><span>P/L contribution signs reconcile to the selected Summary amount. Transfers and Excluded/Pending rows are omitted.</span></div>
+    }
+  </section>
+  }
+
+  @if (workspaceView === 'DATA') {
+  <section id="data-workspace" class="data-safety-workspace workspace-panel" role="tabpanel" aria-labelledby="data-workspace-tab">
+    <header class="data-safety-heading">
+      <div><p class="eyebrow">04 · DATA SAFETY</p><h2>Database and backups</h2><p>Plain SQLite backups stay local and can be inspected with standard SQLite tools.</p></div>
+      <span class="database-mode" [class.unavailable]="!databaseLocations.desktopAvailable">{{ databaseLocations.desktopAvailable ? 'Desktop SQLite active' : 'Desktop application required' }}</span>
+    </header>
+
+    <div class="location-list">
+      <div class="location-row"><div><span>Current database</span><strong>{{ databaseLocations.currentDatabasePath || 'Available in the desktop application' }}</strong><small>The live file used when TallyStick starts.</small></div><button type="button" class="quiet-button" (click)="relocateCurrentDatabase()" [disabled]="!databaseLocations.desktopAvailable || !databaseLocations.backupDirectory || databaseOperationBusy">Move database</button></div>
+      <div class="location-row"><div><span>Backup folder</span><strong>{{ databaseLocations.backupDirectory || 'Not configured' }}</strong><small>Timestamped verified SQLite copies are written here.</small></div><button type="button" class="quiet-button" (click)="chooseBackupDirectory()" [disabled]="!databaseLocations.desktopAvailable || databaseOperationBusy">Choose folder</button></div>
+      <div class="location-row latest-backup"><div><span>Latest verified backup</span><strong>{{ databaseLocations.latestVerifiedBackupPath || 'No verified backup recorded' }}</strong><small>{{ databaseLocations.latestVerifiedBackupAtUtc || 'Back Up Now records the first successful backup.' }}</small></div></div>
+    </div>
+
+    <div class="data-safety-actions">
+      <button type="button" class="primary-button" (click)="backupDatabaseNow()" [disabled]="!databaseLocations.desktopAvailable || !databaseLocations.backupDirectory || databaseOperationBusy">Back Up Now</button>
+      <button type="button" class="quiet-button" (click)="restoreDatabaseBackup()" [disabled]="!databaseLocations.desktopAvailable || !databaseLocations.backupDirectory || databaseOperationBusy">Restore from backup</button>
+    </div>
+    <p class="data-safety-note">Restore and relocation first create a verified safety backup. Restore copies the selected backup into the live location and never modifies the selected backup file. The application restarts after activation.</p>
+    @if (databaseOperationError) { <p class="data-safety-error" role="alert">{{ databaseOperationError }}</p> }
+  </section>
+  }
+
+  @if (financialAccountDraft) {
+    <div class="account-editor-backdrop" (click)="closeFinancialAccountEditor()">
+      <aside class="account-editor-panel" role="dialog" aria-modal="true" [attr.aria-label]="financialAccountDraft.id ? 'Edit bank account' : 'Add bank account'" (click)="$event.stopPropagation()">
+        <header class="account-editor-header">
+          <div><p class="eyebrow">BANK AND SOURCE ACCOUNTS</p><h2>{{ financialAccountDraft.id ? 'Edit account' : 'Add account' }}</h2><p>Accounts receive imported transactions. Categories remain managed separately in Chart of Accounts.</p></div>
+          <button type="button" class="account-editor-close" aria-label="Close bank account editor" (click)="closeFinancialAccountEditor()">×</button>
+        </header>
+        <div class="account-editor-body">
+          <label class="account-name-field"><span>Account name</span><input [(ngModel)]="financialAccountDraft.name" placeholder="Operating Checking" /></label>
+          <div class="account-type-grid">
+            <label><span>Account type</span><select [(ngModel)]="financialAccountDraft.type" (change)="financialAccountTypeChanged()">@for (type of financialAccountTypes; track type.value) { <option [value]="type.value">{{ type.label }}</option> }</select></label>
+            <label><span>Detail type</span><select [(ngModel)]="financialAccountDraft.detailType">@for (detail of financialAccountDetailTypes; track detail) { <option [value]="detail">{{ detail }}</option> }</select></label>
+          </div>
+          <label class="account-parent-field"><span>Parent account <small>Optional</small></span><select [(ngModel)]="financialAccountDraft.parentAccountId"><option [ngValue]="undefined">Not a subaccount</option>@for (parent of compatibleFinancialAccountParents; track parent.id) { <option [value]="parent.id">{{ parent.name }}</option> }</select></label>
+          <div class="account-path-preview"><span>Account path</span><strong>{{ financialAccountDraftPath }}</strong></div>
+          <div class="account-type-grid">
+            <label><span>Institution or entity</span><input [(ngModel)]="financialAccountDraft.institutionOrEntity" placeholder="Bank, card issuer, or marketplace" /></label>
+            <label><span>Last four <small>Optional</small></span><input [(ngModel)]="financialAccountDraft.lastFour" inputmode="numeric" maxlength="4" placeholder="0000" /></label>
+          </div>
+          <label><span>Description <small>Optional</small></span><textarea rows="3" [(ngModel)]="financialAccountDraft.description" placeholder="What this account is used for"></textarea></label>
+          <div class="account-balance-grid">
+            <label><span>Opening balance</span><input [(ngModel)]="financialAccountDraft.openingBalanceText" inputmode="decimal" placeholder="0.00" /></label>
+            <label><span>Opening balance date</span><input type="date" [(ngModel)]="financialAccountDraft.openingBalanceDate" /></label>
+          </div>
+          @if (financialAccountDraft.id) {
+            <div class="account-current-balance"><span>Current calculated balance</span><strong>{{ financialAccountCurrentBalance }}</strong><small>Opening balance plus Posted and matched-transfer activity.</small></div>
+          }
+          <div class="account-state-controls">
+            <label><input type="checkbox" [(ngModel)]="financialAccountDraft.locked" /><span>Lock account</span><small>Locked accounts cannot be archived.</small></label>
+            @if (financialAccountDraft.id) { <label><input type="checkbox" [(ngModel)]="financialAccountDraft.archived" /><span>Archived</span><small>History remains reportable; new imports are blocked.</small></label> }
+          </div>
+          @if (financialAccountDraft.locked && financialAccountDraft.archived) { <p class="account-editor-error" role="alert">An archived account cannot remain locked. Clear Lock account or restore the account before saving.</p> }
+          @if (financialAccountLastFourInvalid) { <p class="account-editor-error" role="alert">Last four must contain exactly four digits.</p> }
+          @if (financialAccountError) { <p class="account-editor-error" role="alert">{{ financialAccountError }}</p> }
+        </div>
+        <footer class="account-editor-footer"><button type="button" class="quiet-button" (click)="closeFinancialAccountEditor()">Cancel</button><button type="button" class="primary-button" [disabled]="!financialAccountDraftValid" (click)="saveFinancialAccount()">Save account</button></footer>
+      </aside>
+    </div>
+  }
+
+  @if (chartDraft) {
+    <div class="chart-editor-backdrop" (click)="closeChartAccountEditor()">
+      <aside class="chart-editor-panel" role="dialog" aria-modal="true" [attr.aria-label]="chartDraft.id ? 'Edit account' : 'New account'" (click)="$event.stopPropagation()">
+        <header class="chart-editor-header"><div><p class="eyebrow">CHART OF ACCOUNTS</p><h2>{{ chartDraft.id ? 'Edit account' : 'New account' }}</h2><p>Stable account IDs keep existing transactions, rules, and reports connected.</p></div><button type="button" class="chart-editor-close" aria-label="Close account editor" (click)="closeChartAccountEditor()">×</button></header>
+        <div class="chart-editor-body">
+          <label class="chart-name-field"><span>Account name</span><input [(ngModel)]="chartDraft.name" placeholder="Account name" /></label>
+          <div class="chart-type-grid">
+            <label><span>Account type</span><select [(ngModel)]="chartDraft.accountType" (change)="chartAccountTypeChanged()">@for (type of chartAccountTypes; track type.value) { <option [value]="type.value">{{ type.label }}</option> }</select></label>
+            <label><span>Detail type</span><input [(ngModel)]="chartDraft.detailType" [attr.list]="'detail-types-' + chartDraft.accountType" /><datalist [id]="'detail-types-' + chartDraft.accountType">@for (detail of chartDetailTypes; track detail) { <option [value]="detail"></option> }</datalist></label>
+          </div>
+          <label class="chart-parent-field"><span>Parent account <small>Optional</small></span><select [(ngModel)]="chartDraft.parentId"><option [ngValue]="undefined">Not a subaccount</option>@for (parent of compatibleChartParents; track parent.id) { <option [value]="parent.id">{{ parent.name }}</option> }</select></label>
+          <div class="chart-path-preview"><span>Account path</span><strong>{{ chartDraftPath }}</strong></div>
+          <label><span>Description</span><textarea rows="3" [(ngModel)]="chartDraft.description" placeholder="What this account is used for"></textarea></label>
+          <label class="chart-order-field"><span>Display order</span><input type="number" step="1" [(ngModel)]="chartDraft.displayOrder" /></label>
+          <div class="chart-state-controls">
+            <label><input type="checkbox" [(ngModel)]="chartDraft.locked" /><span>Lock account</span><small>Locked accounts cannot be archived.</small></label>
+            @if (chartDraft.id) { <label><input type="checkbox" [(ngModel)]="chartDraft.archived" /><span>Archived</span><small>Historical references remain available.</small></label> }
+          </div>
+          @if (chartDraft.locked && chartDraft.archived) { <p class="chart-editor-error" role="alert">An archived account cannot remain locked. Clear Lock account or restore the account before saving.</p> }
+          @if (chartAccountError) { <p class="chart-editor-error" role="alert">{{ chartAccountError }}</p> }
+        </div>
+        <footer class="chart-editor-footer"><button type="button" class="quiet-button" (click)="closeChartAccountEditor()">Cancel</button><button type="button" class="primary-button" [disabled]="!chartDraftValid" (click)="saveChartAccount()">Save account</button></footer>
+      </aside>
+    </div>
+  }
+
+  @if (ruleDraft) {
+    <div class="rule-editor-backdrop" (click)="closeRuleEditor()">
+      <aside class="rule-editor-panel" role="dialog" aria-modal="true" [attr.aria-label]="ruleEditorTitle" (click)="$event.stopPropagation()">
+        <header class="rule-editor-header"><div><p class="eyebrow">RULE EDITOR</p><h2>{{ ruleEditorTitle }}</h2><p>Rules apply only to Pending transactions.</p></div><button type="button" class="rule-editor-close" aria-label="Close rule editor" (click)="closeRuleEditor()">×</button></header>
+        <div class="rule-editor-body">
+          <label class="rule-name-field"><span>Rule name</span><input [(ngModel)]="ruleDraft.name" placeholder="Name this rule" /></label>
+          <div class="rule-editor-meta">
+            <label><span>Priority</span><input type="number" min="1" [(ngModel)]="ruleDraft.priority" /></label>
+            <label class="rule-enabled-toggle"><input type="checkbox" [(ngModel)]="ruleDraft.enabled" /><span>Enabled</span></label>
+            <label><span>Match</span><select [(ngModel)]="ruleDraft.matchMode"><option value="ALL">All conditions</option><option value="ANY">Any condition</option></select></label>
+          </div>
+
+          <section class="rule-editor-section">
+            <div class="rule-editor-section-heading"><div><h3>Apply when</h3><p>Choose the account, direction, and transaction text or amount that identifies this activity.</p></div><button type="button" class="quiet-button" (click)="addRuleCondition()">Add condition</button></div>
+            <div class="rule-condition-list">
+              @for (condition of ruleDraft.conditions; track $index; let index = $index) {
+                <div class="rule-condition-row">
+                  <label><span>Field</span><select [(ngModel)]="condition.field" (change)="ruleConditionFieldChanged(condition)">@for (field of ruleConditionFields; track field) { <option [value]="field">{{ ruleFieldLabel(field) }}</option> }</select></label>
+                  <label><span>Operator</span><select [(ngModel)]="condition.operator">@for (operator of ruleOperatorsFor(condition); track operator) { <option [value]="operator">{{ ruleOperatorLabel(operator) }}</option> }</select></label>
+                  @if (condition.field === 'ACCOUNT') {
+                    <label class="condition-value"><span>Value</span><select [(ngModel)]="condition.value">@for (account of accounts; track account.id) { <option [value]="account.id">{{ account.name }}</option> }</select></label>
+                  } @else if (condition.field === 'DIRECTION') {
+                    <label class="condition-value"><span>Value</span><select [(ngModel)]="condition.value"><option value="OUT">Money out</option><option value="IN">Money in</option></select></label>
+                  } @else if (condition.field === 'SOURCE_TYPE') {
+                    <label class="condition-value"><span>Value</span><select [(ngModel)]="condition.value"><option value="IMPORT">Imported</option><option value="MANUAL">Manual</option></select></label>
+                  } @else {
+                    <label class="condition-value"><span>{{ condition.field === 'AMOUNT' ? 'Value in cents' : 'Value' }}</span><input [(ngModel)]="condition.value" /></label>
+                  }
+                  @if (condition.operator === 'RANGE') { <label><span>Through</span><input [(ngModel)]="condition.secondValue" /></label> }
+                  <label class="condition-negate"><input type="checkbox" [(ngModel)]="condition.negate" /><span>Not</span></label>
+                  <button type="button" class="remove-condition" [disabled]="ruleDraft.conditions.length === 1" (click)="removeRuleCondition(index)" aria-label="Remove condition">×</button>
+                </div>
+              }
+            </div>
+          </section>
+
+          <section class="rule-editor-section">
+            <div class="rule-editor-section-heading"><div><h3>Then set</h3><p>Configure the category and optional transaction details suggested during Pending review.</p></div></div>
+            <div class="rule-output-grid">
+              <div class="rule-category-field">
+                <span>Category</span>
+                <div class="category-picker category-tooltip-target" [attr.title]="ruleDraft.chartAccountId ? categoryPath(ruleDraft.chartAccountId) : null" [attr.data-tooltip]="ruleDraft.chartAccountId ? categoryPath(ruleDraft.chartAccountId) : null">
+                  <button type="button" class="category-picker-trigger" aria-label="Rule category" aria-haspopup="listbox" [attr.aria-expanded]="activeCategoryPicker === 'rule'" [attr.title]="ruleDraft.chartAccountId ? categoryPath(ruleDraft.chartAccountId) : null" (click)="openCategoryPicker('rule')">{{ categoryPickerLabel(ruleDraft.chartAccountId) }}</button>
+                  @if (activeCategoryPicker === 'rule') {
+                    <div class="category-picker-popover" role="dialog" aria-label="Choose rule category">
+                      <div class="category-picker-heading"><span>Choose category</span><div><button type="button" class="picker-clear" (click)="clearCategory('rule')" [disabled]="!ruleDraft.chartAccountId">Clear category</button><button type="button" class="picker-cancel" (click)="closeCategoryPicker()">Cancel</button></div></div>
+                      <input #categorySearchInput [(ngModel)]="categorySearch" (keydown)="handleCategoryPickerKeydown($event, 'rule')" placeholder="Find a category" aria-label="Find rule category" />
+                      <div class="category-picker-results" role="listbox" aria-label="Rule categories">
+                        @for (category of filteredCategoryAccounts; track category.id; let index = $index) {
+                          <button type="button" role="option" [class.active]="categoryPickerIndex === index" [attr.aria-selected]="ruleDraft.chartAccountId === category.id" (click)="chooseCategory('rule', category.id)"><strong>{{ categoryPath(category.id) }}</strong><small>{{ category.type }}</small></button>
+                        } @empty { <p>No active categories match “{{ categorySearch }}”.</p> }
+                      </div>
+                    </div>
+                  }
+                </div>
+              </div>
+              <label><span>Payee</span><input [(ngModel)]="ruleDraft.payee" placeholder="Optional payee" /></label>
+              <label class="rule-memo"><span>Memo</span><textarea [(ngModel)]="ruleDraft.memo" rows="3" placeholder="Optional memo"></textarea></label>
+              <label><span>Tags</span><input [(ngModel)]="ruleTagsText" placeholder="Comma-separated tags" /></label>
+              <label class="rule-enabled-toggle"><input type="checkbox" [(ngModel)]="ruleDraft.suggestExclude" /><span>Suggest exclusion instead of posting</span></label>
+            </div>
+          </section>
+
+          <section class="rule-test-panel">
+            <button type="button" class="quiet-button" [disabled]="!ruleDraftValid" (click)="testRuleDraft()">Test rule</button>
+            @if (ruleTestMessage) { <strong>{{ ruleTestMessage }}</strong> }
+            @if (matchingRuleTestTransactions.length) { <ul>@for (transaction of matchingRuleTestTransactions; track transaction.id) { <li><span>{{ transaction.postingDate }} · {{ accountName(transaction.accountId) }}</span><strong>{{ transaction.description }}</strong><span>{{ money(transaction.amount) }}</span></li> }</ul> }
+          </section>
+        </div>
+        <footer class="rule-editor-footer"><button type="button" class="quiet-button" (click)="closeRuleEditor()">Cancel</button><button type="button" class="primary-button" [disabled]="!ruleDraftValid" (click)="saveRuleDraft()">Save rule</button></footer>
+      </aside>
+    </div>
+  }
+
+  <footer><span>Angular application services · SQLite boundary ready</span><span>Cash basis · {{ reportTaxYear }}</span></footer>
+</main>
+</div>
+<router-outlet />

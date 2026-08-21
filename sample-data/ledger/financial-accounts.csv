@@ -1,0 +1,7 @@
+Financial Account ID,Name,Legacy Type,Legacy Detail Type,Accounting Account Type,Account Role,Import Capability,Classification Status,Opening Balance Minor,Opening Balance Date,Opening Balance Source,Archived,Locked,Description
+fin-bank-operating,Operating checking,BANK,Checking,BANK,TRACK_TRANSACTIONS,CSV_EXCEL_QBO_OFX,READY,1200000,2025-01-01,DERIVED_EQUITY,false,false,Primary fictional operating account.
+fin-bank-savings,Business savings (archived),BANK,Savings,BANK,TRACK_TRANSACTIONS,CSV_EXCEL_QBO_OFX,READY,500000,2025-01-01,DERIVED_EQUITY,true,false,Nonzero archived account for historical reporting.
+fin-card,Business rewards card,CREDIT_CARD,Credit Card,CREDIT_CARD,TRACK_TRANSACTIONS,CSV_EXCEL_QBO_OFX,READY,-120000,2025-01-01,DERIVED_EQUITY,false,false,Charges are negative; payments are positive.
+fin-marketplace,Marketplace clearing,ENTITY,Marketplace,OTHER_CURRENT_ASSET,TRACK_TRANSACTIONS,AMAZON_SUMMARY,MAPPED,0,2025-01-01,LEDGER_ACTIVITY,false,false,Legacy Entity sample mapped structurally to Other Current Asset.
+fin-inventory,Inventory tracking,ENTITY,Clearing account,OTHER_CURRENT_ASSET,TRACK_TRANSACTIONS,CSV_EXCEL,MAPPED,400000,2025-01-01,DERIVED_EQUITY,false,false,Inventory asset tracked with transfers and year-end COGS activity.
+fin-legacy-clearing,Legacy clearing (review required),ENTITY,Other transactions,OTHER_CURRENT_ASSET,TRACK_TRANSACTIONS,NONE,REVIEW_REQUIRED,12500,2025-01-01,DERIVED_EQUITY,false,false,Nonzero migration-review account for warning coverage.

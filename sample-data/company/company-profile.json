@@ -1,0 +1,22 @@
+{
+  "companyId": "company-demo-outfitters",
+  "legalName": "Example Outfitters LLC",
+  "displayName": "Example Outfitters",
+  "dbaName": "Example Trail Supply",
+  "entityType": "LLC",
+  "address": {
+    "line1": "100 Example Way",
+    "city": "Sample City",
+    "region": "CA",
+    "postalCode": "90000",
+    "countryCode": "US"
+  },
+  "phone": "+1-555-0100",
+  "email": "books@example.com",
+  "taxIdentifierMasked": "**-***0000",
+  "baseCurrency": "USD",
+  "fiscalYearStartMonth": 1,
+  "accountingBasis": "ACCRUAL",
+  "activeTaxYear": 2026,
+  "sampleOnly": true
+}
