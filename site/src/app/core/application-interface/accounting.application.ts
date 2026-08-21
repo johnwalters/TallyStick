@@ -28,6 +28,9 @@ import {
   PreviewAccountPlacementResult,
   RevealCompanyTaxIdentifierResult,
   UpdateCompanyProfileCommand,
+  SaveGenericAccountInput,
+  SaveGenericAccountResult,
+  ValidateGenericAccountResult,
 } from '../domain-model/balance-sheet.types';
 
 export interface SaveAccountCommand {
@@ -85,6 +88,8 @@ export interface AccountingApplication {
   updateCompanyProfile(command: UpdateCompanyProfileCommand): CompanyProfile;
   revealCompanyTaxIdentifier(): RevealCompanyTaxIdentifierResult;
   getAccountTypeCatalog(): GetAccountTypeCatalogResult;
+  validateGenericAccount(command: SaveGenericAccountInput): ValidateGenericAccountResult;
+  saveGenericAccount(command: SaveGenericAccountInput): SaveGenericAccountResult;
   previewAccountPlacement(command: PreviewAccountPlacementCommand): PreviewAccountPlacementResult;
   getBalanceSheet(query: BalanceSheetQuery): BalanceSheetReport;
   getBalanceSheetDetail(command: GetBalanceSheetDetailCommand): BalanceSheetDetail;

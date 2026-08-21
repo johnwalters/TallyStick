@@ -401,6 +401,9 @@ export interface AccountPlacementWarning {
 
 export interface GetAccountPlacementPreviewCommand {
   readonly accountType: AccountingAccountType;
+  readonly accountRole?: AccountRole;
+  readonly accountId?: string;
+  readonly accountName?: string;
   readonly parentId?: string;
   readonly asOfDate: string;
 }
@@ -415,7 +418,7 @@ export interface AccountPlacementPreview {
   readonly warnings: readonly AccountPlacementWarning[];
 }
 
-export type AccountReferenceKind = 'TRANSACTION' | 'SPLIT' | 'RULE' | 'TAX_SETTING' | 'PARENT' | 'CHILD' | 'IMPORT_MAPPING' | 'TRANSFER';
+export type AccountReferenceKind = 'TRANSACTION' | 'SPLIT' | 'RULE' | 'TAX_SETTING' | 'PARENT' | 'CHILD' | 'IMPORT_MAPPING' | 'TRANSFER' | 'LOCK_STATE' | 'REPORT_EFFECT';
 
 export interface AccountReference {
   readonly kind: AccountReferenceKind;
@@ -427,6 +430,40 @@ export interface ValidateAccountReferencesCommand {
   readonly accountId: string;
   readonly proposedAccountType: AccountingAccountType;
   readonly proposedDetailType: string;
+}
+
+export interface SaveGenericAccountCommand {
+  readonly accountId?: string;
+  readonly currentRole?: AccountRole;
+  readonly requestedRole: AccountRole;
+  readonly accountType: AccountingAccountType;
+  readonly detailType: string;
+  readonly name: string;
+  readonly parentId?: string;
+  readonly description?: string;
+  readonly importCapability: ImportCapability;
+  readonly openingBalanceSource: OpeningBalanceSource;
+  readonly openingBalanceMinor: bigint;
+  readonly openingBalanceDate: string;
+  readonly institutionOrEntity?: string;
+  readonly lastFour?: string;
+  readonly displayOrder?: number;
+  readonly locked?: boolean;
+  readonly confirmedReferenceIds?: readonly string[];
+}
+
+export interface AccountChangeValidation {
+  readonly valid: boolean;
+  readonly blockingReferences: readonly AccountReference[];
+  readonly confirmationReferences: readonly AccountReference[];
+}
+
+export interface GenericAccountSaveResult {
+  readonly role: AccountRole;
+  readonly accountId: string;
+  readonly created: boolean;
+  readonly classificationStatus: ClassificationStatus;
+  readonly affectedReferences: readonly AccountReference[];
 }
 
 export interface AccountReferenceValidationResult {

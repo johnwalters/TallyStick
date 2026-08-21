@@ -1,10 +1,14 @@
 import {
   AccountPlacementPreview,
+  AccountChangeValidation,
+  AccountReference,
   AccountRole,
   AccountTypeGroupDefinition,
   AccountingAccountType,
   BalanceSheetSection,
   GetAccountPlacementPreviewCommand,
+  GenericAccountSaveResult,
+  SaveGenericAccountCommand,
 } from './account-taxonomy';
 
 export type AccountingBasis = 'CASH' | 'ACCRUAL' | 'MODIFIED_CASH';
@@ -263,6 +267,9 @@ export interface BalanceSheetPrintPreviewResult {
 export type GetAccountTypeCatalogResult = readonly AccountTypeGroupDefinition[];
 export type PreviewAccountPlacementCommand = GetAccountPlacementPreviewCommand;
 export type PreviewAccountPlacementResult = AccountPlacementPreview;
+export type ValidateGenericAccountResult = AccountChangeValidation;
+export type SaveGenericAccountResult = GenericAccountSaveResult;
+export type SaveGenericAccountInput = SaveGenericAccountCommand;
 
 export const COMPANY_FAILURE_CODES = [
   'COMPANY_PROFILE_NOT_FOUND',
@@ -315,6 +322,7 @@ export interface BalanceSheetFailure {
   readonly field?: string;
   readonly accountId?: string;
   readonly detailKey?: BalanceSheetDetailKey;
+  readonly references?: readonly AccountReference[];
   readonly retryable: boolean;
 }
 

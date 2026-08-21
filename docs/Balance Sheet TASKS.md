@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Phase 3 in progress; Company Settings service and focused UI complete, generic account service pending |
+| Overall status | Phase 3 in progress; Company Settings and generic account services complete, unified account editor pending |
 | Current phase | Phase 3 — Company Settings and generic account management |
-| Next task | `BS-SLICE-08-ACCOUNT-SERVICE` — generic account classification, validation, and placement service |
+| Next task | `BS-SLICE-09-ACCOUNT-UI` — unified generic account editor behavior |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | `npm run test:ci`: Company Settings editor, identity formatting, masking, keyboard, concurrency, fixture oracle, and 140 ChromeHeadless tests passed; production build also passed |
+| Last verified Balance Sheet test | `npm run test:ci`: exhaustive generic account routing, taxonomy, references, placement, opening modes, fixture oracle, and 147 ChromeHeadless tests passed; production build and 8 desktop-host tests also passed |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -166,26 +166,26 @@ Execution is divided into token-conscious, independently testable units in the [
 
 ### Generic account service and editor
 
-- [ ] **BS3-009** Implement the grouped shared Account Type/Detail Type catalog service.
-- [ ] **BS3-010** Add user-facing Account use choices for Track transactions directly and Category only, routing saves to the existing financial or Chart store.
-- [ ] **BS3-011** Restrict financial-source roles to supported Asset/Liability types and keep Equity/Income/Expense account creation in the Chart role.
-- [ ] **BS3-012** Separate import eligibility and supported source kinds from accounting Account Type.
-- [ ] **BS3-013** Preserve the role of existing accounts during edit and reject unsupported cross-store conversion clearly.
+- [x] **BS3-009** Implement the grouped shared Account Type/Detail Type catalog service.
+- [x] **BS3-010** Add user-facing Account use choices for Track transactions directly and Category only, routing saves to the existing financial or Chart store.
+- [x] **BS3-011** Restrict financial-source roles to supported Asset/Liability types and keep Equity/Income/Expense account creation in the Chart role.
+- [x] **BS3-012** Separate import eligibility and supported source kinds from accounting Account Type.
+- [x] **BS3-013** Preserve the role of existing accounts during edit and reject unsupported cross-store conversion clearly.
 - [ ] **BS3-014** Filter Detail Type and compatible parent choices immediately when Account Type changes.
 - [ ] **BS3-015** Preserve and label valid imported/custom detail types instead of silently replacing them.
 - [ ] **BS3-016** Implement live Balance Sheet placement/path/current-balance preview for Asset, Liability, and Equity accounts.
 - [ ] **BS3-017** Show Current Earnings behavior instead of a Balance Sheet line for Income, COGS, Expense, Other Income, and Other Expense accounts.
-- [ ] **BS3-018** Validate all transactions, splits, rules, tax settings, mappings, transfers, parent/children, lock state, and report effects before a type/detail/parent change.
+- [x] **BS3-018** Validate all transactions, splits, rules, tax settings, mappings, transfers, parent/children, lock state, and report effects before a type/detail/parent change.
 - [ ] **BS3-019** Display every blocking reference and preserve the stable account ID on all accepted edits.
-- [ ] **BS3-020** Enforce `DERIVED_EQUITY` versus `LEDGER_ACTIVITY` opening-balance mutual exclusion.
+- [x] **BS3-020** Enforce `DERIVED_EQUITY` versus `LEDGER_ACTIVITY` opening-balance mutual exclusion.
 
 ### Company/account verification
 
 - [x] **BS3-021** Test company validation, masking, concurrency, audit history, migration values, and ledger non-mutation.
 - [ ] **BS3-022** Test two neutral company identities throughout header, reports, exports, print, and accountant package.
-- [ ] **BS3-023** Test every standard Account Type/Detail Type and parent compatibility path.
-- [ ] **BS3-024** Test import capability independently from classification, including marketplace/clearing source accounts.
-- [ ] **BS3-025** Test placement previews, Current Earnings notices, reference rejection, role preservation, and stable IDs.
+- [x] **BS3-023** Test every standard Account Type/Detail Type and parent compatibility path.
+- [x] **BS3-024** Test import capability independently from classification, including marketplace/clearing source accounts.
+- [x] **BS3-025** Test placement previews, Current Earnings notices, reference rejection, role preservation, and stable IDs.
 - [ ] **BS3-026** Add browser coverage for company and account editors, including keyboard use and error states.
 - [ ] **BS3-GATE** Exit gate: Company Settings drive required product identity, the complete generic taxonomy is editable, and account/migration acceptance A15–A19 passes outside the final full-suite run.
 
@@ -338,3 +338,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS2-005–BS2-007, BS2-016–BS2-017, BS2-021–BS2-022, BS2-GATE | Activated schema 6 with separate empty-database bootstrap and schema-5 migration paths; persisted masked Company Settings and generic financial classifications; added deterministic isolated report snapshots/database revisions; carried schema-6 metadata through portable data and backup bundles; and verified backup, restore, relocation, corrupt/incomplete/future-schema rejection, Electron host validation, and isolated smoke. `npm run test:ci` passed all 132 ChromeHeadless tests with 79.21% statements, 64.35% branches, 87.55% functions, and 86.64% lines; production build, all 8 desktop-host tests, and Electron smoke passed. |
 | 2026-08-21 | BS3-001–BS3-003, BS3-021 | Added masked Company Settings reads, normalized validated transactional optimistic updates, explicit tax-identifier reveal/set/clear, sanitized audit history, and SQLite reopen coverage while proving ledger non-mutation. `npm run test:ci` passed all 137 ChromeHeadless tests with 79.84% statements, 65.03% branches, 88.41% functions, and 87.17% lines; production build and all 8 desktop-host tests passed. |
 | 2026-08-21 | BS3-004–BS3-006, BS3-008 | Added the accessible Company Settings side panel with masked explicit tax reveal, validation, save/cancel/Escape behavior, stale-edit recovery, dynamic application identity, and a reusable tax-free report/export identity formatter. Two neutral identities and blank optional output were verified. `npm run test:ci` passed all 140 ChromeHeadless tests with 79.84% statements, 65.49% branches, 88.44% functions, and 87.28% lines; production build passed. |
+| 2026-08-21 | BS3-009–BS3-013, BS3-018, BS3-020, BS3-023–BS3-025 | Added the generic account application service with exhaustive grouped catalog, role-aware two-store routing, import/classification separation, stable-ID edits, custom-detail retention, compatible hierarchy validation, exact affected/blocking references, confirmation requirements, as-of placement/current-balance previews, Current Earnings behavior, and mutually exclusive opening modes. `npm run test:ci` passed all 147 ChromeHeadless tests with 80.29% statements, 66.18% branches, 88.68% functions, and 87.74% lines; production build and all 8 desktop-host tests passed. |

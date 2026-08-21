@@ -35,11 +35,11 @@ import {
   RevealCompanyTaxIdentifierResult,
   UpdateCompanyProfileCommand,
 } from '../domain-model/balance-sheet.types';
-import { ACCOUNT_TYPE_GROUPS } from '../domain-model/account-taxonomy';
 import { DATABASE_LIFECYCLE_GATEWAY } from '../database-lifecycle/database-lifecycle.gateway';
 import { ImportPipelineService } from '../import-services/import-pipeline.service';
 import { BackupBundleService, CURRENT_BACKUP_SCHEMA_VERSION } from '../backup-services/backup-bundle.service';
 import { CompanyProfileService } from './company-profile.service';
+import { AccountClassificationService } from './account-classification.service';
 import { ACCOUNTING_REPOSITORY, AccountingRepository } from '../repository-gateways/accounting.repository';
 import {
   addMoney,
@@ -73,6 +73,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
   private readonly backupBundles = inject(BackupBundleService);
   private readonly databaseLifecycle = inject(DATABASE_LIFECYCLE_GATEWAY);
   private readonly companyProfiles = inject(CompanyProfileService);
+  private readonly accountClassifications = inject(AccountClassificationService);
   private readonly previews = new Map<string, ImportPreview>();
   private readonly rulePreviews = new Map<string, RuleImportPreview>();
 
@@ -97,11 +98,19 @@ export class DefaultAccountingApplication implements AccountingApplication {
   }
 
   getAccountTypeCatalog() {
-    return structuredClone(ACCOUNT_TYPE_GROUPS);
+    return this.accountClassifications.getCatalog();
   }
 
-  previewAccountPlacement(_command: PreviewAccountPlacementCommand): PreviewAccountPlacementResult {
-    return this.balanceSheetNotImplemented('previewAccountPlacement');
+  validateGenericAccount(command: import('../domain-model/balance-sheet.types').SaveGenericAccountInput) {
+    return this.accountClassifications.validate(command);
+  }
+
+  saveGenericAccount(command: import('../domain-model/balance-sheet.types').SaveGenericAccountInput) {
+    return this.accountClassifications.save(command);
+  }
+
+  previewAccountPlacement(command: PreviewAccountPlacementCommand): PreviewAccountPlacementResult {
+    return this.accountClassifications.preview(command);
   }
 
   getBalanceSheet(_query: BalanceSheetQuery): BalanceSheetReport {
