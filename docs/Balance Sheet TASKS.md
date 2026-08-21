@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Phase 1 shared contracts and domain catalog complete |
+| Overall status | Phase 2 in progress; schema-6 migration registered and verified, activation pending persistence/recovery mapping |
 | Current phase | Phase 2 — schema 6, migration, repositories, and recovery compatibility |
-| Next task | `BS-SLICE-04-SCHEMA-6-MIGRATION` — schema metadata, indexes, and transactional migration |
+| Next task | `BS-SLICE-05-PERSISTENCE-RECOVERY` — schema-6 repository mapping, activation, and recovery compatibility |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | `npm run test:ci`: public-contract validations, 2-company A1–A19 oracle, and 126 ChromeHeadless tests passed |
+| Last verified Balance Sheet test | `npm run test:ci`: transactional schema-6 migration/rollback, fixture oracle, and 130 ChromeHeadless tests passed |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -62,7 +62,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | --- | --- | --- |
 | 0 | Accepted documentation and verified implementation baseline | Complete |
 | 1 | Shared company, account-taxonomy, and Balance Sheet contracts | Complete |
-| 2 | Schema 6, migrations, repositories, and backup compatibility | Not started |
+| 2 | Schema 6, migrations, repositories, and backup compatibility | In progress |
 | 3 | Company Settings and generic account management | Not started |
 | 4 | Balance Sheet calculation, hierarchy, warnings, and drill-down | Not started |
 | 5 | Balance Sheet workspace and interaction | Not started |
@@ -119,32 +119,32 @@ Execution is divided into token-conscious, independently testable units in the [
 
 ### Schema and persistence
 
-- [ ] **BS2-001** Add schema-6 `company_profile` storage with required legal/display names and optional DBA, entity, address, contact, website, and local tax identifier fields.
-- [ ] **BS2-002** Add financial-account `account_type`, `classification_status`, `import_enabled`, supported-source-kinds, and `opening_balance_source` fields.
-- [ ] **BS2-003** Keep the legacy financial `type` column as migration provenance while making generic `account_type` authoritative for new behavior.
-- [ ] **BS2-004** Add report-query indexes for transaction state/date/account, transfer date/account, split transaction/chart account, and chart hierarchy/display order.
+- [x] **BS2-001** Add schema-6 `company_profile` storage with required legal/display names and optional DBA, entity, address, contact, website, and local tax identifier fields.
+- [x] **BS2-002** Add financial-account `account_type`, `classification_status`, `import_enabled`, supported-source-kinds, and `opening_balance_source` fields.
+- [x] **BS2-003** Keep the legacy financial `type` column as migration provenance while making generic `account_type` authoritative for new behavior.
+- [x] **BS2-004** Add report-query indexes for transaction state/date/account, transfer date/account, split transaction/chart account, and chart hierarchy/display order.
 - [ ] **BS2-005** Implement company-profile repository mapping with full tax identifier excluded from normal reads.
 - [ ] **BS2-006** Extend financial and Chart account repository mappings for shared classification and preserved custom detail metadata.
 - [ ] **BS2-007** Add repository/query support for one consistent as-of report snapshot and database revision.
 
 ### Migration
 
-- [ ] **BS2-008** Seed company legal/display names from the existing company row without changing currency, fiscal year, accounting basis, or tax year.
-- [ ] **BS2-009** Migrate legacy Bank accounts to generic Bank classifications and retain their compatible detail types and import capability.
-- [ ] **BS2-010** Migrate legacy Credit Card accounts to generic Credit Card classifications and import capability.
-- [ ] **BS2-011** Migrate structurally identified marketplace/clearing Entity accounts to Other Current Assets without using account-name assumptions.
-- [ ] **BS2-012** Migrate ambiguous Entity accounts to review-required Other Current Asset/Clearing classifications and retain visible warnings.
-- [ ] **BS2-013** Preserve all stable IDs, parent links, transactions, splits, transfers, rules, mappings, opening data, lock/archive state, and audit history.
-- [ ] **BS2-014** Record correlated migration audit events and retain original type/detail provenance.
-- [ ] **BS2-015** Validate foreign keys, cycles, record counts, required profile fields, and classification compatibility before commit; roll back completely on failure.
+- [x] **BS2-008** Seed company legal/display names from the existing company row without changing currency, fiscal year, accounting basis, or tax year.
+- [x] **BS2-009** Migrate legacy Bank accounts to generic Bank classifications and retain their compatible detail types and import capability.
+- [x] **BS2-010** Migrate legacy Credit Card accounts to generic Credit Card classifications and import capability.
+- [x] **BS2-011** Migrate structurally identified marketplace/clearing Entity accounts to Other Current Assets without using account-name assumptions.
+- [x] **BS2-012** Migrate ambiguous Entity accounts to review-required Other Current Asset/Clearing classifications and retain visible warnings.
+- [x] **BS2-013** Preserve all stable IDs, parent links, transactions, splits, transfers, rules, mappings, opening data, lock/archive state, and audit history.
+- [x] **BS2-014** Record correlated migration audit events and retain original type/detail provenance.
+- [x] **BS2-015** Validate foreign keys, cycles, record counts, required profile fields, and classification compatibility before commit; roll back completely on failure.
 
 ### Recovery and migration verification
 
 - [ ] **BS2-016** Update the shared current-schema constant to 6 only after migrations are registered.
 - [ ] **BS2-017** Update backup, restore, portable-export, Electron validator, temporary database, and smoke-fixture schema acceptance through that shared constant.
-- [ ] **BS2-018** Test schema-5-to-6 migration, close/reopen, and idempotent subsequent startup.
-- [ ] **BS2-019** Test migration with generic names proving no customer, institution, marketplace, or special account-name dependency.
-- [ ] **BS2-020** Test preservation of all referenced records and exact pre/post ledger/report totals.
+- [x] **BS2-018** Test schema-5-to-6 migration, close/reopen, and idempotent subsequent startup.
+- [x] **BS2-019** Test migration with generic names proving no customer, institution, marketplace, or special account-name dependency.
+- [x] **BS2-020** Test preservation of all referenced records and exact pre/post ledger/report totals.
 - [ ] **BS2-021** Test corrupt/incompatible migration rollback and verified pre-migration recovery behavior.
 - [ ] **BS2-022** Test schema-6 backup, restore, relocation, future-schema rejection, and integrity checks.
 - [ ] **BS2-GATE** Exit gate: migration and recovery tests pass, schema-5 data reopens as schema 6 without ledger drift, and backup/restore accepts the new schema.
@@ -334,3 +334,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS0-008–BS0-GATE | No unresolved product or architecture decision found. All Phase 0 artifacts and required baseline commands passed; production Balance Sheet behavior remains intentionally unimplemented. |
 | 2026-08-21 | BS1-002–BS1-006, BS1-013–BS1-014 | Added the exhaustive 15-type grouped catalog, shared legacy Chart catalog projection, custom-detail preservation, typed validation/contracts, and 10 focused taxonomy tests. `npm run test:ci` passed boundary and fixture checks plus all 116 ChromeHeadless tests; coverage 78.98% statements, 63.49% branches, 88.43% functions, and 86.70% lines. Production build and all 7 desktop-host tests also passed. |
 | 2026-08-21 | BS1-001, BS1-007–BS1-012, BS1-015–BS1-GATE | Added immutable Company/Balance Sheet/detail/export contracts, bigint money, semantic branded identities, typed failures, `AccountingApplication` operations, and a contract-only feature facade. `npm run test:ci` passed strengthened production-facade/desktop boundaries, the fixture oracle, and all 126 ChromeHeadless tests; coverage 79.11% statements, 63.72% branches, 87.70% functions, and 86.51% lines. Production build and all 7 desktop-host tests passed. |
+| 2026-08-21 | BS2-001–BS2-004, BS2-008–BS2-015, BS2-018–BS2-020 | Registered transactional schema-5-to-6 migration with Company Settings storage, financial classification, report indexes, structural legacy mapping, correlated provenance audit, integrity/count/cycle validation, exact ledger/report-input preservation, idempotent reopen, and complete rollback. `npm run test:ci` passed all 130 ChromeHeadless tests with 79.36% statements, 63.70% branches, 87.80% functions, and 86.90% lines; production build and all 7 desktop-host tests passed. Shared current-schema activation intentionally remains at 5 for Slice 05 repository/recovery compatibility. |
