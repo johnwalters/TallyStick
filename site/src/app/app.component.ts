@@ -2,7 +2,7 @@ import { Component, ElementRef, Inject, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterOutlet } from '@angular/router';
 import { ACCOUNTING_APPLICATION, AccountingApplication, ProfitLossCell, ProfitLossReport, ProfitLossSectionKey, ReportDetailRow, ReportDrilldownQuery, ReportExportDisclosure, SaveAccountCommand, SaveChartAccountCommand, ScheduleCReadyReport, TransactionSuggestion } from './core/application-interface/accounting.application';
-import { AccountType, CHART_ACCOUNT_TYPES, ChartAccount, ChartAccountKind, FINANCIAL_ACCOUNT_TYPES, formatMoney, FinancialAccount, ImportPreview, ImportRowDisposition, RuleCondition, TaxYearSettings, Transaction, TransactionRule, TransactionState } from './core/domain-model/accounting.types';
+import { AccountType, CHART_ACCOUNT_TYPES, ChartAccount, ChartAccountKind, FINANCIAL_ACCOUNT_TYPES, formatMoney, FinancialAccount, ImportPreview, ImportRowDisposition, money, RuleCondition, TaxYearSettings, Transaction, TransactionRule, TransactionState } from './core/domain-model/accounting.types';
 import { AccountFacade } from './features/accounts/account.facade';
 import { ImportFacade } from './features/imports/import.facade';
 import { ReportFacade } from './features/reports/report.facade';
@@ -12,6 +12,7 @@ import { RuleFacade } from './features/rules/rule.facade';
 import { BackupFacade } from './features/backups/backup.facade';
 import { ChartAccountFacade } from './features/chart-accounts/chart-account.facade';
 import { BalanceSheetContractError, CompanyProfile, reportCompanyIdentity, ReportCompanyIdentity, UpdateCompanyProfileCommand } from './core/domain-model/balance-sheet.types';
+import { AccountChangeValidation, AccountRole, AccountingAccountType, AccountTypeGroupDefinition, ImportSourceKind, SaveGenericAccountCommand } from './core/domain-model/account-taxonomy';
 
 type TransactionSortColumn = 'DATE_ACCOUNT' | 'SOURCE' | 'CATEGORY' | 'AMOUNT';
 type TransactionSortDirection = 'ASC' | 'DESC';
@@ -78,6 +79,26 @@ interface CompanyProfileDraft {
   activeTaxYear: number;
 }
 
+interface GenericAccountDraft {
+  accountId?: string;
+  currentRole?: AccountRole;
+  requestedRole: AccountRole;
+  accountType: AccountingAccountType;
+  detailType: string;
+  name: string;
+  parentId?: string;
+  description: string;
+  importEnabled: boolean;
+  supportedSourceKinds: ImportSourceKind[];
+  openingBalanceSource: 'DERIVED_EQUITY' | 'LEDGER_ACTIVITY';
+  openingBalanceText: string;
+  openingBalanceDate: string;
+  institutionOrEntity: string;
+  lastFour: string;
+  displayOrder: number;
+  locked: boolean;
+}
+
 const TRANSACTION_VIEW_STORAGE_KEY = 'accounting.transaction-view.v1';
 
 @Component({
@@ -97,6 +118,13 @@ export class AppComponent {
   companyTaxIdentifierRevealed = false;
   companyTaxIdentifierDirty = false;
   companyEditorError = '';
+  genericAccountCatalog: readonly AccountTypeGroupDefinition[] = [];
+  genericAccountDraft?: GenericAccountDraft;
+  genericAccountPreview?: ReturnType<AccountingApplication['previewAccountPlacement']>;
+  genericAccountValidation?: AccountChangeValidation;
+  genericAccountError = '';
+  genericAccountReferencesConfirmed = false;
+  private genericAccountPriorType?: AccountingAccountType;
   accounts: FinancialAccount[] = [];
   financialAccountDraft?: FinancialAccountDraft;
   transactions: Transaction[] = [];
@@ -169,6 +197,7 @@ export class AppComponent {
     private readonly chartAccountFacade: ChartAccountFacade,
   ) {
     this.companyProfile = this.accounting.getCompanyProfile();
+    this.genericAccountCatalog = this.accounting.getAccountTypeCatalog();
     const reportYear = this.accounting.getCompany().activeTaxYear;
     this.reportStartDate = `${reportYear}-01-01`;
     this.reportEndDate = `${reportYear}-12-31`;
@@ -382,6 +411,201 @@ export class AppComponent {
       if (!/^[A-Za-z0-9][A-Za-z0-9 .-]{2,31}$/.test(value) || value.replace(/[^A-Za-z0-9]/g, '').length < 4) return false;
     }
     return true;
+  }
+
+  openNewGenericAccount(role: AccountRole): void {
+    const year = this.accounting.getCompany().activeTaxYear;
+    const accountType: AccountingAccountType = role === 'FINANCIAL_SOURCE' ? 'BANK' : 'EXPENSE';
+    const definition = this.genericAccountDefinition(accountType)!;
+    this.genericAccountDraft = {
+      requestedRole: role, accountType, detailType: definition.detailTypes[0].value, name: '', parentId: undefined,
+      description: '', importEnabled: role === 'FINANCIAL_SOURCE' && definition.importCapabilityDefault,
+      supportedSourceKinds: role === 'FINANCIAL_SOURCE' && definition.importCapabilityDefault ? [...definition.supportedImportSourceKinds] : [],
+      openingBalanceSource: 'DERIVED_EQUITY', openingBalanceText: '0.00', openingBalanceDate: `${year}-01-01`,
+      institutionOrEntity: '', lastFour: '', displayOrder: 100, locked: false,
+    };
+    this.genericAccountPriorType = accountType;
+    this.genericAccountReferencesConfirmed = false;
+    this.refreshGenericAccountReview();
+  }
+
+  editGenericFinancialAccount(id: string): void {
+    const account = this.accounts.find(candidate => candidate.id === id);
+    if (!account) { this.statusMessage = 'That account no longer exists.'; return; }
+    this.genericAccountDraft = {
+      accountId: account.id, currentRole: 'FINANCIAL_SOURCE', requestedRole: 'FINANCIAL_SOURCE', accountType: account.accountType,
+      detailType: account.detailType, name: account.name, parentId: account.parentAccountId, description: account.description ?? '',
+      importEnabled: account.importEnabled, supportedSourceKinds: [...account.supportedSourceKinds], openingBalanceSource: account.openingBalanceSource,
+      openingBalanceText: this.minorUnitsToInput(account.openingBalance.minorUnits), openingBalanceDate: account.openingBalanceDate,
+      institutionOrEntity: account.institutionOrEntity, lastFour: account.lastFour ?? '', displayOrder: 100, locked: account.locked,
+    };
+    this.genericAccountPriorType = account.accountType;
+    this.genericAccountReferencesConfirmed = false;
+    this.refreshGenericAccountReview();
+  }
+
+  editGenericChartAccount(id: string): void {
+    const account = this.chartAccountFacade.accounts().find(candidate => candidate.id === id);
+    if (!account) { this.statusMessage = 'That account no longer exists.'; return; }
+    this.genericAccountDraft = {
+      accountId: account.id, currentRole: 'CHART', requestedRole: 'CHART', accountType: account.accountType,
+      detailType: account.detailType, name: this.chartAccountLeafName(account), parentId: account.parentId, description: account.description ?? '',
+      importEnabled: false, supportedSourceKinds: [], openingBalanceSource: 'DERIVED_EQUITY', openingBalanceText: '0.00',
+      openingBalanceDate: `${this.accounting.getCompany().activeTaxYear}-01-01`, institutionOrEntity: '', lastFour: '',
+      displayOrder: account.displayOrder, locked: account.locked,
+    };
+    this.genericAccountPriorType = account.accountType;
+    this.genericAccountReferencesConfirmed = false;
+    this.refreshGenericAccountReview();
+  }
+
+  closeGenericAccountEditor(): void {
+    this.genericAccountDraft = undefined;
+    this.genericAccountPreview = undefined;
+    this.genericAccountValidation = undefined;
+    this.genericAccountError = '';
+    this.genericAccountReferencesConfirmed = false;
+  }
+
+  genericAccountRoleChanged(): void {
+    const draft = this.genericAccountDraft;
+    if (!draft || draft.currentRole) return;
+    if (draft.requestedRole === 'FINANCIAL_SOURCE' && !['ASSET', 'LIABILITY'].includes(this.genericAccountDefinition(draft.accountType)?.reportingGroup ?? '')) {
+      draft.accountType = 'BANK';
+    }
+    this.applyGenericAccountTypeDefaults();
+  }
+
+  genericAccountTypeChanged(): void {
+    const draft = this.genericAccountDraft;
+    if (!draft) return;
+    const detailCompatible = this.genericAccountDefinition(draft.accountType)?.detailTypes.some(detail => detail.value === draft.detailType);
+    const parentCompatible = !draft.parentId || this.genericCompatibleParents.some(parent => parent.id === draft.parentId);
+    if (draft.accountId && (!detailCompatible || !parentCompatible)) {
+      const confirmed = window.confirm('Changing Account Type will clear an incompatible Detail Type or parent. Continue?');
+      if (!confirmed && this.genericAccountPriorType) {
+        draft.accountType = this.genericAccountPriorType;
+        this.refreshGenericAccountReview();
+        return;
+      }
+    }
+    this.genericAccountPriorType = draft.accountType;
+    this.applyGenericAccountTypeDefaults();
+  }
+
+  genericImportEnabledChanged(): void {
+    const draft = this.genericAccountDraft;
+    if (!draft) return;
+    const definition = this.genericAccountDefinition(draft.accountType);
+    draft.supportedSourceKinds = draft.importEnabled ? [...(definition?.supportedImportSourceKinds ?? [])] : [];
+    this.refreshGenericAccountReview();
+  }
+
+  toggleGenericImportKind(kind: ImportSourceKind, enabled: boolean): void {
+    const draft = this.genericAccountDraft;
+    if (!draft) return;
+    const selected = new Set(draft.supportedSourceKinds);
+    if (enabled) selected.add(kind); else selected.delete(kind);
+    draft.supportedSourceKinds = [...selected];
+    this.refreshGenericAccountReview();
+  }
+
+  refreshGenericAccountReview(): void {
+    const command = this.genericAccountCommand();
+    this.genericAccountError = '';
+    this.genericAccountPreview = undefined;
+    this.genericAccountValidation = undefined;
+    this.genericAccountReferencesConfirmed = false;
+    if (!command) { this.genericAccountError = 'Opening balance must be a valid amount with no more than two decimal places.'; return; }
+    try {
+      this.genericAccountPreview = this.accounting.previewAccountPlacement({
+        accountType: command.accountType, accountRole: command.requestedRole, accountId: command.accountId,
+        accountName: command.name || 'New account', parentId: command.parentId, asOfDate: `${this.accounting.getCompany().activeTaxYear}-12-31`,
+      });
+      this.genericAccountValidation = this.accounting.validateGenericAccount(command);
+    } catch (error) {
+      this.genericAccountError = error instanceof Error ? error.message : 'The account settings are not valid.';
+    }
+  }
+
+  saveGenericAccount(): void {
+    const command = this.genericAccountCommand();
+    if (!command || !this.genericAccountDraftValid) return;
+    const confirmedReferenceIds = this.genericAccountReferencesConfirmed
+      ? this.genericAccountValidation?.confirmationReferences.map(reference => reference.referenceId)
+      : undefined;
+    try {
+      const result = this.accounting.saveGenericAccount({ ...command, confirmedReferenceIds });
+      this.statusMessage = `${result.created ? 'Created' : 'Updated'} ${result.role === 'FINANCIAL_SOURCE' ? 'source' : 'Chart'} account ${command.name.trim()}.`;
+      this.closeGenericAccountEditor();
+      this.refresh();
+    } catch (error) {
+      if (error instanceof BalanceSheetContractError && error.failure.references) {
+        this.genericAccountValidation = { valid: false, blockingReferences: error.failure.references, confirmationReferences: [] };
+      }
+      this.genericAccountError = error instanceof Error ? error.message : 'Unable to save account.';
+    }
+  }
+
+  get genericAccountTypeOptions(): readonly AccountTypeGroupDefinition[] {
+    if (this.genericAccountDraft?.requestedRole !== 'FINANCIAL_SOURCE') return this.genericAccountCatalog;
+    return this.genericAccountCatalog.map(group => ({ ...group, accountTypes: group.accountTypes.filter(type => ['ASSET', 'LIABILITY'].includes(type.reportingGroup)) })).filter(group => group.accountTypes.length);
+  }
+
+  get genericDetailOptions(): Array<{ value: string; custom: boolean }> {
+    const draft = this.genericAccountDraft;
+    if (!draft) return [];
+    const options = (this.genericAccountDefinition(draft.accountType)?.detailTypes ?? []).map(detail => ({ value: detail.value, custom: false }));
+    if (draft.accountId && draft.detailType && !options.some(option => option.value === draft.detailType)) options.unshift({ value: draft.detailType, custom: true });
+    return options;
+  }
+
+  get genericCompatibleParents(): Array<{ id: string; name: string }> {
+    const draft = this.genericAccountDraft;
+    const definition = draft ? this.genericAccountDefinition(draft.accountType) : undefined;
+    if (!draft || !definition) return [];
+    const source = draft.requestedRole === 'FINANCIAL_SOURCE'
+      ? this.accounts.map(account => ({ id: account.id, name: account.name, accountType: account.accountType, archived: account.archived }))
+      : this.chartAccountFacade.accounts().map(account => ({ id: account.id, name: account.name, accountType: account.accountType, archived: account.archived }));
+    return source.filter(account => account.id !== draft.accountId && !account.archived && definition.validParentAccountTypes.includes(account.accountType));
+  }
+
+  get genericAccountIsCustomDetail(): boolean { return Boolean(this.genericDetailOptions.find(option => option.value === this.genericAccountDraft?.detailType)?.custom); }
+  get genericSupportedImportKinds(): readonly ImportSourceKind[] { return this.genericAccountDefinition(this.genericAccountDraft?.accountType)?.supportedImportSourceKinds ?? []; }
+  get genericAccountCurrentBalance(): string { return this.genericAccountPreview?.currentBalanceMinor === undefined ? '' : formatMoney(money(this.genericAccountPreview.currentBalanceMinor)); }
+  get genericAccountDraftValid(): boolean {
+    const draft = this.genericAccountDraft;
+    if (!draft || !draft.name.trim() || !draft.detailType || !this.genericAccountPreview || !this.genericAccountValidation?.valid || this.genericAccountValidation.blockingReferences.length) return false;
+    if (this.genericAccountValidation.confirmationReferences.length && !this.genericAccountReferencesConfirmed) return false;
+    return true;
+  }
+
+  private applyGenericAccountTypeDefaults(): void {
+    const draft = this.genericAccountDraft;
+    const definition = draft ? this.genericAccountDefinition(draft.accountType) : undefined;
+    if (!draft || !definition) return;
+    if (!definition.detailTypes.some(detail => detail.value === draft.detailType)) draft.detailType = definition.detailTypes[0]?.value ?? '';
+    if (!this.genericCompatibleParents.some(parent => parent.id === draft.parentId)) draft.parentId = undefined;
+    draft.importEnabled = draft.requestedRole === 'FINANCIAL_SOURCE' && definition.importCapabilityDefault;
+    draft.supportedSourceKinds = draft.importEnabled ? [...definition.supportedImportSourceKinds] : [];
+    this.refreshGenericAccountReview();
+  }
+
+  private genericAccountDefinition(accountType?: AccountingAccountType) {
+    return this.genericAccountCatalog.flatMap(group => group.accountTypes).find(type => type.accountType === accountType);
+  }
+
+  private genericAccountCommand(): SaveGenericAccountCommand | undefined {
+    const draft = this.genericAccountDraft;
+    const openingBalanceMinor = draft ? this.parseMoneyInput(draft.openingBalanceText) : undefined;
+    if (!draft || openingBalanceMinor === undefined) return undefined;
+    return {
+      accountId: draft.accountId, currentRole: draft.currentRole, requestedRole: draft.requestedRole,
+      accountType: draft.accountType, detailType: draft.detailType, name: draft.name, parentId: draft.parentId,
+      description: draft.description, importCapability: { enabled: draft.importEnabled, supportedSourceKinds: draft.importEnabled ? draft.supportedSourceKinds : [] },
+      openingBalanceSource: draft.openingBalanceSource, openingBalanceMinor, openingBalanceDate: draft.openingBalanceDate,
+      institutionOrEntity: draft.institutionOrEntity, lastFour: draft.lastFour, displayOrder: draft.displayOrder, locked: draft.locked,
+    };
   }
 
   async chooseBackupDirectory(): Promise<void> {

@@ -8,6 +8,7 @@ import { BackupBundleService } from './core/backup-services/backup-bundle.servic
 import { ACCOUNTING_REPOSITORY } from './core/repository-gateways/accounting.repository';
 import { ImportFacade } from './features/imports/import.facade';
 import * as XLSX from 'xlsx';
+import { money, newId, nowUtc } from './core/domain-model/accounting.types';
 
 describe('AppComponent', () => {
   beforeEach(async () => {
@@ -167,6 +168,122 @@ describe('AppComponent', () => {
     const updated = component.accounts.find(account => account.id === created.id)!;
     expect(updated).toEqual(jasmine.objectContaining({ id: created.id, name: 'Operating Reserve', detailType: 'Money Market', description: 'Updated reserve' }));
     expect(component.statusMessage).toBe('Updated account Operating Reserve.');
+  });
+
+  it('creates a category through the grouped unified editor with live Current Earnings placement', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CHART');
+    fixture.detectChanges();
+
+    (fixture.nativeElement.querySelector('.chart-heading .primary-button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const panel = fixture.nativeElement.querySelector('.generic-account-editor-panel') as HTMLElement;
+    expect(panel.getAttribute('role')).toBe('dialog');
+    expect(panel.querySelectorAll('select[name="genericAccountType"] optgroup')).toHaveSize(5);
+    expect(panel.textContent).toContain('Category only');
+    expect(panel.textContent).toContain('Current Earnings');
+    expect(panel.textContent).toContain('does not appear as an individual Balance Sheet line');
+
+    component.genericAccountDraft!.name = 'Web services';
+    component.genericAccountDraft!.detailType = 'Other business expenses';
+    component.refreshGenericAccountReview();
+    fixture.detectChanges();
+    expect(component.genericAccountDraftValid).toBeTrue();
+    (panel.querySelector('.generic-account-editor-footer .primary-button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    const created = component.filteredChartAccounts.find(account => account.name === 'Web services');
+    expect(created).toEqual(jasmine.objectContaining({ accountType: 'EXPENSE', detailType: 'Other business expenses' }));
+  });
+
+  it('preserves an imported detail and stable ID, fixes role during edit, and cancels by keyboard', () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const created = application.saveGenericAccount({
+      requestedRole: 'CHART', accountType: 'EXPENSE', detailType: 'Advertising', name: 'Imported category',
+      importCapability: { enabled: false, supportedSourceKinds: [] }, openingBalanceSource: 'DERIVED_EQUITY',
+      openingBalanceMinor: 0n, openingBalanceDate: '2026-01-01', displayOrder: 100, locked: false,
+    });
+    application.saveGenericAccount({
+      accountId: created.accountId, currentRole: 'CHART', requestedRole: 'CHART', accountType: 'EXPENSE', detailType: 'Legacy imported subtype', name: 'Imported category',
+      importCapability: { enabled: false, supportedSourceKinds: [] }, openingBalanceSource: 'DERIVED_EQUITY',
+      openingBalanceMinor: 0n, openingBalanceDate: '2026-01-01', displayOrder: 100, locked: false,
+    });
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.editGenericChartAccount(created.accountId);
+    fixture.detectChanges();
+
+    const panel = fixture.nativeElement.querySelector('.generic-account-editor-panel') as HTMLElement;
+    expect(panel.textContent).toContain('Category only');
+    expect(panel.textContent).toContain('role of an existing account cannot be changed');
+    expect(panel.querySelector('.custom-detail-note')?.textContent).toContain('Imported/custom detail retained');
+    expect(Array.from(panel.querySelectorAll('select[name="genericDetailType"] option')).map(option => option.textContent)).toContain('Legacy imported subtype — Imported/custom');
+
+    component.genericAccountDraft!.name = 'Imported category updated';
+    component.refreshGenericAccountReview();
+    component.saveGenericAccount();
+    expect(application.listChartAccounts().find(account => account.id === created.accountId)?.name).toBe('Imported category updated');
+    expect(application.listChartAccounts().find(account => account.id === created.accountId)?.detailType).toBe('Legacy imported subtype');
+
+    component.editGenericChartAccount(created.accountId);
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.generic-account-editor-panel') as HTMLElement).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(component.genericAccountDraft).toBeUndefined();
+  });
+
+  it('shows opening-mode errors and every blocking reference before save', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.openNewGenericAccount('FINANCIAL_SOURCE');
+    component.genericAccountDraft!.name = 'Ledger opening conflict';
+    component.genericAccountDraft!.openingBalanceSource = 'LEDGER_ACTIVITY';
+    component.genericAccountDraft!.openingBalanceText = '1.00';
+    component.refreshGenericAccountReview();
+    fixture.detectChanges();
+    expect(component.genericAccountError).toContain('zero stored opening balance');
+    expect((fixture.nativeElement.querySelector('.generic-account-editor-footer .primary-button') as HTMLButtonElement).disabled).toBeTrue();
+    component.closeGenericAccountEditor();
+
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    const target = application.saveGenericAccount({
+      requestedRole: 'CHART', accountType: 'EXPENSE', detailType: 'Advertising', name: 'Locked referenced category',
+      importCapability: { enabled: false, supportedSourceKinds: [] }, openingBalanceSource: 'DERIVED_EQUITY', openingBalanceMinor: 0n,
+      openingBalanceDate: '2026-01-01', displayOrder: 101, locked: true,
+    });
+    const child = application.saveGenericAccount({
+      requestedRole: 'CHART', accountType: 'EXPENSE', detailType: 'Advertising', name: 'Referenced child', parentId: target.accountId,
+      importCapability: { enabled: false, supportedSourceKinds: [] }, openingBalanceSource: 'DERIVED_EQUITY', openingBalanceMinor: 0n,
+      openingBalanceDate: '2026-01-01', displayOrder: 102, locked: false,
+    });
+    const sourceId = application.listAccounts()[0].id;
+    const transactionId = newId();
+    repository.transactions.set(transactionId, {
+      id: transactionId, accountId: sourceId, postingDate: '2026-02-01', amount: money(-500n), rawDescription: 'Referenced posting', description: 'Referenced posting',
+      state: 'POSTED', splits: [{ id: 'blocking-split', chartAccountId: target.accountId, amount: money(-500n) }], categorizationSource: 'MANUAL', createdAtUtc: nowUtc(), modifiedAtUtc: nowUtc(),
+    });
+    repository.rules.set('blocking-rule', { id: 'blocking-rule', name: 'Referenced category rule', enabled: true, priority: 1, conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'posting' }], chartAccountId: target.accountId, matchMode: 'ALL' });
+    repository.taxSettings.set(2026, { taxYear: 2026, federalIncomeTaxAccountIds: [target.accountId], stateLocalIncomeTaxAccountIds: [], includeFederalIncomeTax: false, includeStateLocalIncomeTax: true });
+    component.refresh();
+    component.editGenericChartAccount(target.accountId);
+    spyOn(window, 'confirm').and.returnValue(true);
+    component.genericAccountDraft!.accountType = 'BANK';
+    component.genericAccountTypeChanged();
+    fixture.detectChanges();
+
+    const blocking = [...fixture.nativeElement.querySelectorAll('.account-reference-list.blocking li')] as HTMLElement[];
+    expect(blocking.map(item => item.textContent)).toEqual(jasmine.arrayWithExactContents([
+      jasmine.stringMatching(/LOCK_STATE.*Locked referenced category/),
+      jasmine.stringMatching(new RegExp(`CHILD.*Referenced child.*${child.accountId}`)),
+      jasmine.stringMatching(/TAX_SETTING.*2026/),
+    ]));
+    expect(fixture.nativeElement.querySelector('.account-reference-list.confirmation')?.textContent).toContain('Referenced posting');
+    expect(fixture.nativeElement.querySelector('.account-reference-list.confirmation')?.textContent).toContain('Referenced category rule');
+    expect((fixture.nativeElement.querySelector('.generic-account-editor-footer .primary-button') as HTMLButtonElement).disabled).toBeTrue();
   });
 
   it('shows exactly one icon-led Transactions, Chart, Rules, Profit & Loss, or Backups sidebar workspace', () => {

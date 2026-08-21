@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Phase 3 in progress; Company Settings and generic account services complete, unified account editor pending |
-| Current phase | Phase 3 — Company Settings and generic account management |
-| Next task | `BS-SLICE-09-ACCOUNT-UI` — unified generic account editor behavior |
+| Overall status | Slices 7–9 complete; cross-output identity and final Phase 3 acceptance remain open for downstream report/output slices |
+| Current phase | Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down |
+| Next task | `BS-SLICE-10-SOURCE-BALANCES` — source-account balances and transaction-state rules |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | `npm run test:ci`: exhaustive generic account routing, taxonomy, references, placement, opening modes, fixture oracle, and 147 ChromeHeadless tests passed; production build and 8 desktop-host tests also passed |
+| Last verified Balance Sheet test | `npm run test:ci`: unified account editor creation/editing, keyboard use, custom details, placement, opening conflict, complete references, fixture oracle, and 150 ChromeHeadless tests passed; production build also passed |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -171,12 +171,12 @@ Execution is divided into token-conscious, independently testable units in the [
 - [x] **BS3-011** Restrict financial-source roles to supported Asset/Liability types and keep Equity/Income/Expense account creation in the Chart role.
 - [x] **BS3-012** Separate import eligibility and supported source kinds from accounting Account Type.
 - [x] **BS3-013** Preserve the role of existing accounts during edit and reject unsupported cross-store conversion clearly.
-- [ ] **BS3-014** Filter Detail Type and compatible parent choices immediately when Account Type changes.
-- [ ] **BS3-015** Preserve and label valid imported/custom detail types instead of silently replacing them.
-- [ ] **BS3-016** Implement live Balance Sheet placement/path/current-balance preview for Asset, Liability, and Equity accounts.
-- [ ] **BS3-017** Show Current Earnings behavior instead of a Balance Sheet line for Income, COGS, Expense, Other Income, and Other Expense accounts.
+- [x] **BS3-014** Filter Detail Type and compatible parent choices immediately when Account Type changes.
+- [x] **BS3-015** Preserve and label valid imported/custom detail types instead of silently replacing them.
+- [x] **BS3-016** Implement live Balance Sheet placement/path/current-balance preview for Asset, Liability, and Equity accounts.
+- [x] **BS3-017** Show Current Earnings behavior instead of a Balance Sheet line for Income, COGS, Expense, Other Income, and Other Expense accounts.
 - [x] **BS3-018** Validate all transactions, splits, rules, tax settings, mappings, transfers, parent/children, lock state, and report effects before a type/detail/parent change.
-- [ ] **BS3-019** Display every blocking reference and preserve the stable account ID on all accepted edits.
+- [x] **BS3-019** Display every blocking reference and preserve the stable account ID on all accepted edits.
 - [x] **BS3-020** Enforce `DERIVED_EQUITY` versus `LEDGER_ACTIVITY` opening-balance mutual exclusion.
 
 ### Company/account verification
@@ -186,7 +186,7 @@ Execution is divided into token-conscious, independently testable units in the [
 - [x] **BS3-023** Test every standard Account Type/Detail Type and parent compatibility path.
 - [x] **BS3-024** Test import capability independently from classification, including marketplace/clearing source accounts.
 - [x] **BS3-025** Test placement previews, Current Earnings notices, reference rejection, role preservation, and stable IDs.
-- [ ] **BS3-026** Add browser coverage for company and account editors, including keyboard use and error states.
+- [x] **BS3-026** Add browser coverage for company and account editors, including keyboard use and error states.
 - [ ] **BS3-GATE** Exit gate: Company Settings drive required product identity, the complete generic taxonomy is editable, and account/migration acceptance A15–A19 passes outside the final full-suite run.
 
 ## Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down
@@ -339,3 +339,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS3-001–BS3-003, BS3-021 | Added masked Company Settings reads, normalized validated transactional optimistic updates, explicit tax-identifier reveal/set/clear, sanitized audit history, and SQLite reopen coverage while proving ledger non-mutation. `npm run test:ci` passed all 137 ChromeHeadless tests with 79.84% statements, 65.03% branches, 88.41% functions, and 87.17% lines; production build and all 8 desktop-host tests passed. |
 | 2026-08-21 | BS3-004–BS3-006, BS3-008 | Added the accessible Company Settings side panel with masked explicit tax reveal, validation, save/cancel/Escape behavior, stale-edit recovery, dynamic application identity, and a reusable tax-free report/export identity formatter. Two neutral identities and blank optional output were verified. `npm run test:ci` passed all 140 ChromeHeadless tests with 79.84% statements, 65.49% branches, 88.44% functions, and 87.28% lines; production build passed. |
 | 2026-08-21 | BS3-009–BS3-013, BS3-018, BS3-020, BS3-023–BS3-025 | Added the generic account application service with exhaustive grouped catalog, role-aware two-store routing, import/classification separation, stable-ID edits, custom-detail retention, compatible hierarchy validation, exact affected/blocking references, confirmation requirements, as-of placement/current-balance previews, Current Earnings behavior, and mutually exclusive opening modes. `npm run test:ci` passed all 147 ChromeHeadless tests with 80.29% statements, 66.18% branches, 88.68% functions, and 87.74% lines; production build and all 8 desktop-host tests passed. |
+| 2026-08-21 | BS3-014–BS3-017, BS3-019, BS3-026 | Replaced user-facing source/Chart Add and Edit actions with one accessible role-aware editor using grouped Account Types, immediate detail/parent filtering, imported/custom labels, immutable existing roles, live Balance Sheet or Current Earnings placement, as-of balances, opening-mode validation, and complete blocking/confirmation reference lists. Browser tests cover creation, stable-ID edit, Escape cancellation, custom retention, placement, opening conflict, and reference display. `npm run test:ci` passed all 150 ChromeHeadless tests with 80.01% statements, 66.01% branches, 88.71% functions, and 87.38% lines; production build passed. A15/A18 cross-output acceptance remains open until report/output slices exist. |

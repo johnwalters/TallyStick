@@ -35,7 +35,7 @@
       <p class="eyebrow">01 · ACCOUNTS</p>
       <h2>Account overview</h2>
     </div>
-    <button type="button" class="primary-button" (click)="openNewFinancialAccount()">Add account</button>
+    <button type="button" class="primary-button" (click)="openNewGenericAccount('FINANCIAL_SOURCE')">Add account</button>
   </section>
 
   <section class="account-grid">
@@ -46,7 +46,7 @@
           <strong>{{ account.name }}</strong>
           <span>{{ money(account.calculatedBalance || account.openingBalance) }}</span>
         </button>
-        <button type="button" class="account-edit-button" [attr.aria-label]="'Edit ' + account.name" (click)="editFinancialAccount(account.id)">Edit</button>
+        <button type="button" class="account-edit-button" [attr.aria-label]="'Edit ' + account.name" (click)="editGenericFinancialAccount(account.id)">Edit</button>
       </div>
     }
   </section>
@@ -230,7 +230,7 @@
   <section id="chart-workspace" class="chart-workspace workspace-panel" role="tabpanel" aria-labelledby="chart-workspace-tab">
     <header class="chart-heading">
       <div><p class="eyebrow">CHART OF ACCOUNTS</p><h2>Accounting categories</h2><p>{{ managedChartAccountCount }} accounts define transaction categories and report hierarchy.</p></div>
-      <button type="button" class="primary-button" (click)="openNewChartAccount()">New account</button>
+      <button type="button" class="primary-button" (click)="openNewGenericAccount('CHART')">New account</button>
     </header>
 
     <div class="chart-toolbar">
@@ -254,7 +254,7 @@
               <td>{{ account.detailType }}</td>
               <td class="chart-description" [title]="account.description || ''">{{ account.description || '—' }}</td>
               <td><span class="chart-status" [class.archived]="account.archived">{{ account.archived ? 'Archived' : 'Active' }}</span></td>
-              <td class="chart-actions"><button type="button" (click)="editChartAccount(account.id)">Edit</button><button type="button" [class.danger]="!account.archived" (click)="toggleChartAccountArchived(account)">{{ account.archived ? 'Restore' : 'Archive' }}</button></td>
+              <td class="chart-actions"><button type="button" (click)="editGenericChartAccount(account.id)">Edit</button><button type="button" [class.danger]="!account.archived" (click)="toggleChartAccountArchived(account)">{{ account.archived ? 'Restore' : 'Archive' }}</button></td>
             </tr>
           } @empty { <tr><td colspan="6" class="chart-empty">No accounts match this view.</td></tr> }
         </tbody>
@@ -438,6 +438,61 @@
     <p class="data-safety-note">Restore and relocation first create a verified safety backup. Restore copies the selected backup into the live location and never modifies the selected backup file. The application restarts after activation.</p>
     @if (databaseOperationError) { <p class="data-safety-error" role="alert">{{ databaseOperationError }}</p> }
   </section>
+  }
+
+  @if (genericAccountDraft) {
+    <div class="generic-account-editor-backdrop" (click)="closeGenericAccountEditor()">
+      <aside class="generic-account-editor-panel" role="dialog" aria-modal="true" aria-labelledby="generic-account-editor-title" tabindex="-1" (keydown.escape)="closeGenericAccountEditor()" (click)="$event.stopPropagation()">
+        <header class="generic-account-editor-header">
+          <div><p class="eyebrow">ACCOUNT CLASSIFICATION</p><h2 id="generic-account-editor-title">{{ genericAccountDraft.accountId ? 'Edit account' : 'New account' }}</h2><p>One taxonomy controls statement placement while source and category roles remain distinct.</p></div>
+          <button type="button" class="generic-account-editor-close" aria-label="Close account editor" (click)="closeGenericAccountEditor()">×</button>
+        </header>
+        <form class="generic-account-editor-form" (ngSubmit)="saveGenericAccount()">
+          <div class="generic-account-editor-body">
+            @if (!genericAccountDraft.currentRole) {
+              <fieldset class="account-use-choice"><legend>Account use</legend><label><input type="radio" name="genericAccountRole" value="FINANCIAL_SOURCE" [(ngModel)]="genericAccountDraft.requestedRole" (change)="genericAccountRoleChanged()" /><span><strong>Track transactions directly</strong><small>Imports and source-account activity</small></span></label><label><input type="radio" name="genericAccountRole" value="CHART" [(ngModel)]="genericAccountDraft.requestedRole" (change)="genericAccountRoleChanged()" /><span><strong>Category only</strong><small>Posting splits and reports</small></span></label></fieldset>
+            } @else {
+              <div class="account-role-fixed"><span>Account use</span><strong>{{ genericAccountDraft.currentRole === 'FINANCIAL_SOURCE' ? 'Track transactions directly' : 'Category only' }}</strong><small>The role of an existing account cannot be changed.</small></div>
+            }
+
+            <label class="generic-account-name"><span>Account name</span><input name="genericAccountName" required [(ngModel)]="genericAccountDraft.name" (ngModelChange)="refreshGenericAccountReview()" /></label>
+            <div class="generic-account-field-grid">
+              <label><span>Account type</span><select name="genericAccountType" [(ngModel)]="genericAccountDraft.accountType" (change)="genericAccountTypeChanged()">@for (group of genericAccountTypeOptions; track group.reportingGroup) { <optgroup [label]="group.label">@for (type of group.accountTypes; track type.accountType) { <option [value]="type.accountType">{{ type.label }}</option> }</optgroup> }</select></label>
+              <label><span>Detail type</span><select name="genericDetailType" [(ngModel)]="genericAccountDraft.detailType" (change)="refreshGenericAccountReview()">@for (detail of genericDetailOptions; track detail.value) { <option [value]="detail.value">{{ detail.value }}{{ detail.custom ? ' — Imported/custom' : '' }}</option> }</select>@if (genericAccountIsCustomDetail) { <small class="custom-detail-note">Imported/custom detail retained for this account.</small> }</label>
+            </div>
+            <label><span>Parent account <small>Optional</small></span><select name="genericParent" [(ngModel)]="genericAccountDraft.parentId" (change)="refreshGenericAccountReview()"><option [ngValue]="undefined">Not a subaccount</option>@for (parent of genericCompatibleParents; track parent.id) { <option [value]="parent.id">{{ parent.name }}</option> }</select></label>
+            <label><span>Description <small>Optional</small></span><textarea name="genericDescription" rows="2" [(ngModel)]="genericAccountDraft.description"></textarea></label>
+
+            @if (genericAccountDraft.requestedRole === 'FINANCIAL_SOURCE') {
+              <section class="generic-account-section" aria-labelledby="generic-source-heading"><h3 id="generic-source-heading">Source account</h3>
+                <div class="generic-account-field-grid"><label><span>Institution or entity</span><input name="genericInstitution" [(ngModel)]="genericAccountDraft.institutionOrEntity" /></label><label><span>Last four <small>Optional</small></span><input name="genericLastFour" maxlength="4" inputmode="numeric" [(ngModel)]="genericAccountDraft.lastFour" (ngModelChange)="refreshGenericAccountReview()" /></label></div>
+                <label class="generic-import-toggle"><input type="checkbox" name="genericImportEnabled" [(ngModel)]="genericAccountDraft.importEnabled" (change)="genericImportEnabledChanged()" /><span><strong>Enable imports</strong><small>Import capability is independent from statement classification.</small></span></label>
+                @if (genericAccountDraft.importEnabled) { <fieldset class="generic-import-kinds"><legend>Supported import files</legend>@for (kind of genericSupportedImportKinds; track kind) { <label><input type="checkbox" [checked]="genericAccountDraft.supportedSourceKinds.includes(kind)" (change)="toggleGenericImportKind(kind, $any($event.target).checked)" /><span>{{ kind }}</span></label> }</fieldset> }
+                <div class="generic-account-field-grid"><label><span>Opening balance mode</span><select name="genericOpeningMode" [(ngModel)]="genericAccountDraft.openingBalanceSource" (change)="refreshGenericAccountReview()"><option value="DERIVED_EQUITY">Derived Opening Balance Equity</option><option value="LEDGER_ACTIVITY">Ledger activity</option></select></label><label><span>Opening balance</span><input name="genericOpeningBalance" inputmode="decimal" [(ngModel)]="genericAccountDraft.openingBalanceText" (ngModelChange)="refreshGenericAccountReview()" /></label></div>
+                <label><span>Opening balance date</span><input name="genericOpeningDate" type="date" [(ngModel)]="genericAccountDraft.openingBalanceDate" (change)="refreshGenericAccountReview()" /></label>
+              </section>
+            } @else {
+              <label class="generic-display-order"><span>Display order</span><input name="genericDisplayOrder" type="number" step="1" [(ngModel)]="genericAccountDraft.displayOrder" (ngModelChange)="refreshGenericAccountReview()" /></label>
+            }
+
+            @if (genericAccountPreview) {
+              <section class="generic-placement-preview" aria-live="polite"><div><span>Statement placement</span><strong>{{ genericAccountPreview.fullPath }}</strong></div>@if (genericAccountPreview.behavior === 'CURRENT_EARNINGS') { <p><strong>Current Earnings</strong><small>This Income or Expense account contributes through earnings and does not appear as an individual Balance Sheet line.</small></p> } @else { <p><strong>{{ genericAccountCurrentBalance || '$0.00' }}</strong><small>Current balance as of {{ genericAccountPreview.asOfDate }}</small></p> }</section>
+            }
+
+            @if (genericAccountValidation; as validation) {
+              @if (validation.blockingReferences.length) {
+                <section class="account-reference-list blocking" role="alert"><h3>Resolve before saving</h3><p>Every incompatible reference is listed below.</p><ul>@for (reference of validation.blockingReferences; track reference.kind + reference.referenceId) { <li><strong>{{ reference.kind }}</strong><span>{{ reference.label }}</span><code>{{ reference.referenceId }}</code></li> }</ul></section>
+              }
+              @if (validation.confirmationReferences.length) {
+                <section class="account-reference-list confirmation"><h3>Review affected references</h3><p>The change remains in the same account store and preserves its stable ID, but affects these linked records.</p><ul>@for (reference of validation.confirmationReferences; track reference.kind + reference.referenceId) { <li><strong>{{ reference.kind }}</strong><span>{{ reference.label }}</span><code>{{ reference.referenceId }}</code></li> }</ul><label class="reference-confirmation"><input type="checkbox" name="genericReferenceConfirmation" [(ngModel)]="genericAccountReferencesConfirmed" /><span>I reviewed all affected references and want to keep this account ID.</span></label></section>
+              }
+            }
+            @if (genericAccountError) { <p class="generic-account-error" role="alert">{{ genericAccountError }}</p> }
+          </div>
+          <footer class="generic-account-editor-footer"><button type="button" class="quiet-button" (click)="closeGenericAccountEditor()">Cancel</button><button type="submit" class="primary-button" [disabled]="!genericAccountDraftValid">Save account</button></footer>
+        </form>
+      </aside>
+    </div>
   }
 
   @if (financialAccountDraft) {
