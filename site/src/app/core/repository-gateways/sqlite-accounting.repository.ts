@@ -13,7 +13,13 @@ import {
   TransactionRule,
   TransferMatch,
 } from '../domain-model/accounting.types';
-import { AccountingRepository } from './accounting.repository';
+import { CompanyProfile, databaseRevision } from '../domain-model/balance-sheet.types';
+import {
+  AccountingRepository,
+  BalanceSheetRepositorySnapshot,
+  PersistedCompanyProfile,
+  TaxIdentifierPersistence,
+} from './accounting.repository';
 
 // sql.js returns dynamically shaped rows; the column names are constrained by
 // the schema and mapped immediately into typed domain objects below.
@@ -21,6 +27,8 @@ type SqlRow = any;
 
 interface RepositorySnapshot {
   company: Company;
+  companyProfile?: CompanyProfile;
+  taxIdentifier?: string;
   accounts: Map<string, FinancialAccount>;
   chartAccounts: Map<string, ChartAccount>;
   transactions: Map<string, Transaction>;
@@ -60,6 +68,8 @@ export class SqliteAccountingRepository implements AccountingRepository {
   audit: AuditEvent[] = [];
 
   private initialized = false;
+  private companyProfile?: CompanyProfile;
+  private taxIdentifier?: string;
 
   constructor(private readonly database: SqliteDatabaseGateway) {}
 
@@ -97,6 +107,41 @@ export class SqliteAccountingRepository implements AccountingRepository {
     return this.database.exportBytes();
   }
 
+  getCompanyProfile(): CompanyProfile | undefined {
+    return this.companyProfile ? structuredClone(this.companyProfile) : undefined;
+  }
+
+  saveCompanyProfile(profile: CompanyProfile, taxIdentifier: TaxIdentifierPersistence): void {
+    this.companyProfile = structuredClone(profile);
+    if (taxIdentifier.mode === 'SET') this.taxIdentifier = taxIdentifier.value;
+    if (taxIdentifier.mode === 'CLEAR') this.taxIdentifier = undefined;
+  }
+
+  revealCompanyTaxIdentifier(): string | undefined {
+    return this.taxIdentifier;
+  }
+
+  exportCompanyProfile(): PersistedCompanyProfile | undefined {
+    if (!this.companyProfile) return undefined;
+    const { maskedTaxIdentifier: _masked, ...profile } = this.companyProfile;
+    return structuredClone({ ...profile, taxIdentifier: this.taxIdentifier });
+  }
+
+  readBalanceSheetSnapshot(asOfDate: string): BalanceSheetRepositorySnapshot {
+    this.requireInitialized();
+    const bytes = this.database.exportBytes();
+    return structuredClone({
+      asOfDate,
+      databaseRevision: databaseRevision(`sqlite:${this.database.schemaVersion()}:${this.hashBytes(bytes)}`),
+      company: this.company,
+      companyProfile: this.companyProfile,
+      accounts: [...this.accounts.values()],
+      chartAccounts: [...this.chartAccounts.values()],
+      transactions: [...this.transactions.values()],
+      transfers: [...this.transfers.values()],
+    });
+  }
+
   private loadState(): void {
     const company = this.database.execute('SELECT id, name, currency, fiscal_year_start_month, accounting_basis, active_tax_year FROM company LIMIT 1')[0] as SqlRow | undefined;
     if (company) {
@@ -110,11 +155,50 @@ export class SqliteAccountingRepository implements AccountingRepository {
       };
     }
 
+    const profile = this.database.execute('SELECT * FROM company_profile LIMIT 1')[0] as SqlRow | undefined;
+    if (profile) {
+      this.taxIdentifier = this.optionalString(profile.tax_identifier);
+      const address = {
+        line1: this.optionalString(profile.address_line_1),
+        line2: this.optionalString(profile.address_line_2),
+        locality: this.optionalString(profile.locality),
+        region: this.optionalString(profile.region),
+        postalCode: this.optionalString(profile.postal_code),
+        countryCode: this.optionalString(profile.country_code),
+      };
+      this.companyProfile = {
+        companyId: String(profile.company_id),
+        legalName: String(profile.legal_name),
+        displayName: String(profile.display_name),
+        doingBusinessAs: this.optionalString(profile.doing_business_as),
+        entityType: this.optionalString(profile.entity_type),
+        address: Object.values(address).some(Boolean) ? address : undefined,
+        phone: this.optionalString(profile.phone),
+        email: this.optionalString(profile.email),
+        website: this.optionalString(profile.website),
+        maskedTaxIdentifier: this.maskTaxIdentifier(this.taxIdentifier),
+        currencyCode: String(this.company.currency),
+        fiscalYearStartMonth: this.company.fiscalYearStartMonth,
+        accountingBasis: this.company.accountingBasis,
+        activeTaxYear: this.company.activeTaxYear,
+        createdAt: String(profile.created_at),
+        modifiedAt: String(profile.modified_at),
+      };
+    } else {
+      this.companyProfile = undefined;
+      this.taxIdentifier = undefined;
+    }
+
     this.accounts = new Map(this.database.execute('SELECT * FROM financial_account ORDER BY name').map(row => {
       const item = row as SqlRow;
       return [String(item.id), {
         id: String(item.id),
         type: String(item.type) as FinancialAccount['type'],
+        accountType: String(item.account_type) as FinancialAccount['accountType'],
+        classificationStatus: String(item.classification_status) as FinancialAccount['classificationStatus'],
+        importEnabled: this.boolean(item.import_enabled),
+        supportedSourceKinds: this.parseJson(item.supported_source_kinds_json, []),
+        openingBalanceSource: String(item.opening_balance_source) as FinancialAccount['openingBalanceSource'],
         detailType: String(item.detail_type),
         name: String(item.name),
         institutionOrEntity: String(item.institution_or_entity),
@@ -277,6 +361,7 @@ export class SqliteAccountingRepository implements AccountingRepository {
     this.database.execute('DELETE FROM transaction_rule');
     this.database.execute('DELETE FROM tax_year_settings');
     this.database.execute('DELETE FROM audit_event');
+    this.database.execute('DELETE FROM company_profile');
     this.database.execute('UPDATE chart_account SET parent_id = NULL');
     this.database.execute('DELETE FROM chart_account');
     this.database.execute('DELETE FROM financial_account');
@@ -285,9 +370,28 @@ export class SqliteAccountingRepository implements AccountingRepository {
     this.database.execute('INSERT INTO company(id, name, currency, fiscal_year_start_month, accounting_basis, active_tax_year) VALUES (?, ?, ?, ?, ?, ?)', [
       this.company.id, this.company.name, this.company.currency, this.company.fiscalYearStartMonth, this.company.accountingBasis, this.company.activeTaxYear,
     ]);
+    const profile = this.ensureCompanyProfile();
+    this.database.execute(`INSERT INTO company_profile(
+      company_id, legal_name, display_name, doing_business_as, entity_type,
+      address_line_1, address_line_2, locality, region, postal_code, country_code,
+      phone, email, website, tax_identifier, created_at, modified_at
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+      profile.companyId, profile.legalName, profile.displayName, profile.doingBusinessAs ?? null, profile.entityType ?? null,
+      profile.address?.line1 ?? null, profile.address?.line2 ?? null, profile.address?.locality ?? null,
+      profile.address?.region ?? null, profile.address?.postalCode ?? null, profile.address?.countryCode ?? null,
+      profile.phone ?? null, profile.email ?? null, profile.website ?? null, this.taxIdentifier ?? null,
+      profile.createdAt, profile.modifiedAt,
+    ]);
     for (const account of this.accounts.values()) {
-      this.database.execute('INSERT INTO financial_account(id, type, detail_type, name, institution_or_entity, last_four, parent_account_id, description, opening_balance_minor, opening_balance_date, archived, locked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
-        account.id, account.type, account.detailType, account.name, account.institutionOrEntity, account.lastFour ?? null, account.parentAccountId ?? null, account.description ?? null, account.openingBalance.minorUnits, account.openingBalanceDate, account.archived ? 1 : 0, account.locked ? 1 : 0,
+      this.database.execute(`INSERT INTO financial_account(
+        id, type, account_type, classification_status, import_enabled, supported_source_kinds_json, opening_balance_source,
+        detail_type, name, institution_or_entity, last_four, parent_account_id, description,
+        opening_balance_minor, opening_balance_date, archived, locked
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [
+        account.id, account.type, account.accountType, account.classificationStatus, account.importEnabled ? 1 : 0,
+        this.json(account.supportedSourceKinds), account.openingBalanceSource, account.detailType, account.name,
+        account.institutionOrEntity, account.lastFour ?? null, account.parentAccountId ?? null, account.description ?? null,
+        account.openingBalance.minorUnits, account.openingBalanceDate, account.archived ? 1 : 0, account.locked ? 1 : 0,
       ]);
     }
     for (const account of this.chartAccounts.values()) {
@@ -335,6 +439,8 @@ export class SqliteAccountingRepository implements AccountingRepository {
   private snapshot(): RepositorySnapshot {
     return structuredClone({
       company: this.company,
+      companyProfile: this.companyProfile,
+      taxIdentifier: this.taxIdentifier,
       accounts: this.accounts,
       chartAccounts: this.chartAccounts,
       transactions: this.transactions,
@@ -348,6 +454,8 @@ export class SqliteAccountingRepository implements AccountingRepository {
 
   private restore(snapshot: RepositorySnapshot): void {
     this.company = snapshot.company;
+    this.companyProfile = snapshot.companyProfile;
+    this.taxIdentifier = snapshot.taxIdentifier;
     this.accounts = snapshot.accounts;
     this.chartAccounts = snapshot.chartAccounts;
     this.transactions = snapshot.transactions;
@@ -364,6 +472,53 @@ export class SqliteAccountingRepository implements AccountingRepository {
 
   private boolean(value: unknown): boolean {
     return Number(value) === 1;
+  }
+
+  private optionalString(value: unknown): string | undefined {
+    return value === null || value === undefined || String(value).trim() === '' ? undefined : String(value);
+  }
+
+  private maskTaxIdentifier(value?: string): string | undefined {
+    if (!value) return undefined;
+    const visible = value.replace(/\W/g, '').slice(-4);
+    return visible ? `•••• ${visible}` : '••••';
+  }
+
+  private ensureCompanyProfile(): CompanyProfile {
+    if (this.companyProfile) {
+      this.companyProfile = {
+        ...this.companyProfile,
+        companyId: this.company.id,
+        currencyCode: this.company.currency,
+        fiscalYearStartMonth: this.company.fiscalYearStartMonth,
+        accountingBasis: this.company.accountingBasis,
+        activeTaxYear: this.company.activeTaxYear,
+        maskedTaxIdentifier: this.maskTaxIdentifier(this.taxIdentifier),
+      };
+      return this.companyProfile;
+    }
+    const timestamp = new Date().toISOString();
+    this.companyProfile = {
+      companyId: this.company.id,
+      legalName: this.company.name,
+      displayName: this.company.name,
+      currencyCode: this.company.currency,
+      fiscalYearStartMonth: this.company.fiscalYearStartMonth,
+      accountingBasis: this.company.accountingBasis,
+      activeTaxYear: this.company.activeTaxYear,
+      createdAt: timestamp,
+      modifiedAt: timestamp,
+    };
+    return this.companyProfile;
+  }
+
+  private hashBytes(bytes: Uint8Array): string {
+    let hash = 2166136261;
+    for (const byte of bytes) {
+      hash ^= byte;
+      hash = Math.imul(hash, 16777619);
+    }
+    return (hash >>> 0).toString(16);
   }
 
   private bigInt(value: unknown): bigint {

@@ -18,6 +18,14 @@ async function databaseBytes(companyId: string, schemaVersion = CURRENT_SQLITE_S
   const database = new (await sql()).Database();
   database.run(`PRAGMA foreign_keys = ON; CREATE TABLE schema_version(version INTEGER NOT NULL); INSERT INTO schema_version VALUES (${schemaVersion}); CREATE TABLE company(id TEXT PRIMARY KEY, name TEXT NOT NULL);`);
   database.run('INSERT INTO company(id, name) VALUES (?, ?)', [companyId, `Company ${companyId}`]);
+  if (schemaVersion === CURRENT_SQLITE_SCHEMA_VERSION && schemaVersion >= 6) {
+    database.run(`CREATE TABLE company_profile (
+      company_id TEXT PRIMARY KEY REFERENCES company(id), legal_name TEXT NOT NULL, display_name TEXT NOT NULL,
+      tax_identifier TEXT, created_at TEXT NOT NULL, modified_at TEXT NOT NULL
+    )`);
+    database.run(`INSERT INTO company_profile(company_id, legal_name, display_name, tax_identifier, created_at, modified_at)
+      VALUES (?, ?, ?, ?, ?, ?)`, [companyId, `Company ${companyId}`, `Display ${companyId}`, '99-9999999', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z']);
+  }
   const bytes = database.export();
   database.close();
   return bytes;
@@ -70,11 +78,24 @@ test('uses the configured UTC default for backup filenames and audit timestamps'
 test('accepts the current schema and rejects a future unsupported schema', async () => {
   const setup = await fixture();
   try {
+    await setup.manager.backup(await databaseBytes('pre-migration-schema', 5));
     await setup.manager.backup(await databaseBytes('current-schema', CURRENT_SQLITE_SCHEMA_VERSION));
     await assert.rejects(
       async () => setup.manager.backup(await databaseBytes('future-schema', CURRENT_SQLITE_SCHEMA_VERSION + 1)),
       new RegExp(`Unsupported SQLite schema version: ${CURRENT_SQLITE_SCHEMA_VERSION + 1}`),
     );
+  } finally { await rm(setup.root, { recursive: true, force: true }); }
+});
+
+test('rejects an incomplete schema-6 profile before writing a backup', async () => {
+  const setup = await fixture();
+  try {
+    const database = new (await sql()).Database();
+    database.run(`CREATE TABLE schema_version(version INTEGER NOT NULL); INSERT INTO schema_version VALUES (${CURRENT_SQLITE_SCHEMA_VERSION}); CREATE TABLE company(id TEXT PRIMARY KEY, name TEXT NOT NULL); INSERT INTO company VALUES ('incomplete', 'Incomplete');`);
+    const bytes = database.export();
+    database.close();
+    await assert.rejects(() => setup.manager.backup(bytes), /valid company profile/);
+    assert.deepEqual(await readdir(setup.backupDirectory), []);
   } finally { await rm(setup.root, { recursive: true, force: true }); }
 });
 

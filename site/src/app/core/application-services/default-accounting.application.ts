@@ -1096,6 +1096,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
       version: 1,
       exportedAtUtc: nowUtc(),
       company: this.repository.company,
+      companyProfile: this.repository.exportCompanyProfile(),
       accounts: [...this.repository.accounts.values()],
       chartAccounts: [...this.repository.chartAccounts.values()],
       transactions: [...this.repository.transactions.values()],
@@ -1114,6 +1115,14 @@ export class DefaultAccountingApplication implements AccountingApplication {
     if (parsed?.version !== 1 || !Array.isArray(parsed.accounts) || !Array.isArray(parsed.transactions)) throw new AccountingError('BACKUP_INVALID_VERSION', 'Backup version or required records are unsupported.');
     this.repository.transaction(() => {
       this.repository.company = this.hydrate(parsed.company);
+      if (parsed.companyProfile) {
+        const persisted = this.hydrate(parsed.companyProfile);
+        const { taxIdentifier, ...profile } = persisted;
+        this.repository.saveCompanyProfile(
+          { ...profile, maskedTaxIdentifier: this.maskTaxIdentifier(taxIdentifier) },
+          taxIdentifier ? { mode: 'SET', value: taxIdentifier } : { mode: 'CLEAR' },
+        );
+      }
       this.repository.accounts = new Map(parsed.accounts.map((item: any) => [item.id, this.hydrate(item)]));
       this.repository.chartAccounts = new Map((parsed.chartAccounts ?? []).map((item: any) => [item.id, this.hydrate(item)]));
       this.repository.transactions = new Map(parsed.transactions.map((item: any) => [item.id, this.hydrate(item)]));
@@ -1479,9 +1488,16 @@ export class DefaultAccountingApplication implements AccountingApplication {
 
   private buildFinancialAccount(id: string, command: SaveAccountCommand, archived: boolean): FinancialAccount {
     const definition = FINANCIAL_ACCOUNT_TYPES.find(type => type.value === command.type);
+    const accountType = command.type === 'BANK' ? 'BANK' : command.type === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'OTHER_CURRENT_ASSET';
+    const supportedSourceKinds = command.type === 'ENTITY' ? ['CSV', 'EXCEL', 'AMAZON'] as const : ['CSV', 'EXCEL', 'QBO_OFX'] as const;
     return {
       id,
       type: command.type,
+      accountType,
+      classificationStatus: 'CONFIRMED',
+      importEnabled: true,
+      supportedSourceKinds: [...supportedSourceKinds],
+      openingBalanceSource: 'DERIVED_EQUITY',
       detailType: command.detailType?.trim() || definition?.detailTypes[0] || '',
       name: command.name.trim(),
       institutionOrEntity: command.institutionOrEntity.trim(),
@@ -1767,11 +1783,29 @@ export class DefaultAccountingApplication implements AccountingApplication {
   }
 
   private seed(): void {
-    if (this.repository.accounts.size) return;
+    if (this.repository.accounts.size && this.repository.getCompanyProfile()) return;
     this.repository.transaction(() => {
+      if (!this.repository.getCompanyProfile()) {
+        const timestamp = nowUtc();
+        this.repository.saveCompanyProfile({
+          companyId: this.repository.company.id,
+          legalName: this.repository.company.name,
+          displayName: this.repository.company.name,
+          currencyCode: this.repository.company.currency,
+          fiscalYearStartMonth: this.repository.company.fiscalYearStartMonth,
+          accountingBasis: this.repository.company.accountingBasis,
+          activeTaxYear: this.repository.company.activeTaxYear,
+          createdAt: timestamp,
+          modifiedAt: timestamp,
+        }, { mode: 'PRESERVE' });
+      }
+      if (this.repository.accounts.size) return;
       for (const [name, type] of [['Operating Checking', 'BANK'], ['Business Card', 'CREDIT_CARD'], ['Reserve Checking', 'BANK'], ['Marketplace', 'ENTITY'], ['Other Transactions', 'ENTITY']] as const) {
+        const accountType = type === 'BANK' ? 'BANK' : type === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'OTHER_CURRENT_ASSET';
         const account: FinancialAccount = {
-          id: newId(), type, name, institutionOrEntity: name.split(' ')[0],
+          id: newId(), type, accountType, classificationStatus: type === 'ENTITY' && name === 'Other Transactions' ? 'REVIEW_REQUIRED' : 'CONFIRMED',
+          importEnabled: true, supportedSourceKinds: type === 'ENTITY' ? ['CSV', 'EXCEL', 'AMAZON'] : ['CSV', 'EXCEL', 'QBO_OFX'],
+          openingBalanceSource: 'DERIVED_EQUITY', name, institutionOrEntity: name.split(' ')[0],
           detailType: type === 'BANK' ? 'Checking' : type === 'CREDIT_CARD' ? 'Credit Card' : name === 'Marketplace' ? 'Marketplace' : 'Other transactions',
           openingBalance: money(0n), openingBalanceDate: '2026-01-01', archived: false, locked: false,
         };
@@ -1798,6 +1832,12 @@ export class DefaultAccountingApplication implements AccountingApplication {
       message: `${operation} is defined by the Balance Sheet contract but is not implemented yet.`,
       retryable: false,
     });
+  }
+
+  private maskTaxIdentifier(value?: string): string | undefined {
+    if (!value) return undefined;
+    const visible = value.replace(/\W/g, '').slice(-4);
+    return visible ? `•••• ${visible}` : '••••';
   }
 }
 

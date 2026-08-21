@@ -1,4 +1,10 @@
-import { ACCOUNT_TYPE_CATALOG, AccountingAccountType } from './account-taxonomy';
+import {
+  ACCOUNT_TYPE_CATALOG,
+  AccountingAccountType,
+  ClassificationStatus,
+  ImportSourceKind,
+  OpeningBalanceSource,
+} from './account-taxonomy';
 
 export type Id = string;
 export type CurrencyCode = 'USD' | (string & {});
@@ -89,6 +95,11 @@ export interface Company {
 export interface FinancialAccount {
   id: Id;
   type: AccountType;
+  accountType: AccountingAccountType;
+  classificationStatus: ClassificationStatus;
+  importEnabled: boolean;
+  supportedSourceKinds: ImportSourceKind[];
+  openingBalanceSource: OpeningBalanceSource;
   detailType: string;
   name: string;
   institutionOrEntity: string;

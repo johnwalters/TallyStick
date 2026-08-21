@@ -1,4 +1,5 @@
 import { Database, SqlJsStatic } from 'sql.js';
+import { CURRENT_SQLITE_SCHEMA_VERSION } from '../shared/schema-version';
 
 /**
  * Owns the Electron process's authoritative in-memory SQLite image.
@@ -56,6 +57,19 @@ export class SqliteHostStore {
     if (result.toLowerCase() !== 'ok') {
       database.close();
       throw new Error(`SQLite integrity check failed: ${result}.`);
+    }
+    const versionTable = database.exec(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'`);
+    if (versionTable[0]?.values.length) {
+      const version = Number(database.exec('SELECT version FROM schema_version LIMIT 1')[0]?.values[0]?.[0]);
+      if (!Number.isInteger(version) || version < 1 || version > CURRENT_SQLITE_SCHEMA_VERSION) {
+        database.close();
+        throw new Error(`Unsupported SQLite schema version: ${version || 'missing'}.`);
+      }
+      const foreignKeys = database.exec('PRAGMA foreign_key_check');
+      if (foreignKeys.some(item => item.values.length)) {
+        database.close();
+        throw new Error('SQLite foreign-key check failed.');
+      }
     }
     return database;
   }

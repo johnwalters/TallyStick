@@ -1,5 +1,6 @@
 import { SqliteDatabaseGateway } from './sqlite-database.gateway';
 import initSqlJs from 'sql.js';
+import { SQLITE_MIGRATIONS, SQLITE_V3_MIGRATIONS, SQLITE_V4_MIGRATIONS } from './schema';
 
 describe('SqliteDatabaseGateway', () => {
   it('opens, migrates, executes, transactions, and exports SQLite', async () => {
@@ -12,7 +13,7 @@ describe('SqliteDatabaseGateway', () => {
     expect(gateway.execute('SELECT COUNT(*) AS count FROM financial_account')[0]['count']).toBe(1);
     expect(gateway.integrityCheck().valid).toBeTrue();
     expect(gateway.foreignKeyCheck().valid).toBeTrue();
-    expect(gateway.schemaVersion()).toBe(5);
+    expect(gateway.schemaVersion()).toBe(6);
     gateway.close();
   });
 
@@ -22,20 +23,16 @@ describe('SqliteDatabaseGateway', () => {
     const bytes = first.exportBytes();
     const second = new SqliteDatabaseGateway();
     await second.open(bytes);
-    expect(second.schemaVersion()).toBe(5);
+    expect(second.schemaVersion()).toBe(6);
     expect(second.integrityCheck().valid).toBeTrue();
     second.close();
     first.close();
   });
 
   it('migrates a representative schema-v2 chart to enhanced chart fields with a valid detail type', async () => {
-    const sql = await initSqlJs({ locateFile: file => `assets/${file}` });
-    const legacy = new sql.Database();
+    const legacy = await databaseAtVersion(2);
     legacy.run(`
-      CREATE TABLE schema_version(version INTEGER NOT NULL);
-      INSERT INTO schema_version VALUES (2);
-      CREATE TABLE financial_account (id TEXT PRIMARY KEY, type TEXT NOT NULL, name TEXT NOT NULL UNIQUE, institution_or_entity TEXT NOT NULL, opening_balance_minor TEXT NOT NULL, opening_balance_date TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, last_four TEXT);
-      CREATE TABLE chart_account (id TEXT PRIMARY KEY, name TEXT NOT NULL, parent_id TEXT, type TEXT NOT NULL, display_order INTEGER NOT NULL, archived INTEGER NOT NULL DEFAULT 0);
+      INSERT INTO company VALUES ('company-v2', 'Schema Two Company', 'USD', 1, 'CASH', 2026);
       INSERT INTO chart_account VALUES ('legacy-expense', 'Legacy expense', NULL, 'EXPENSE', 1, 0);
     `);
     const bytes = legacy.export();
@@ -44,7 +41,7 @@ describe('SqliteDatabaseGateway', () => {
     const gateway = new SqliteDatabaseGateway();
     await gateway.open(bytes);
     const migrated = gateway.execute('SELECT account_type, detail_type, description, locked FROM chart_account WHERE id = ?', ['legacy-expense'])[0];
-    expect(gateway.schemaVersion()).toBe(5);
+    expect(gateway.schemaVersion()).toBe(6);
     expect(migrated['account_type']).toBe('EXPENSE');
     expect(migrated['detail_type']).toBe('Advertising');
     expect(migrated['description']).toBeNull();
@@ -53,18 +50,9 @@ describe('SqliteDatabaseGateway', () => {
   });
 
   it('repairs blank detail types when reopening a schema-v3 chart', async () => {
-    const sql = await initSqlJs({ locateFile: file => `assets/${file}` });
-    const legacy = new sql.Database();
+    const legacy = await databaseAtVersion(3);
     legacy.run(`
-      CREATE TABLE schema_version(version INTEGER NOT NULL);
-      INSERT INTO schema_version VALUES (3);
-      CREATE TABLE financial_account (id TEXT PRIMARY KEY, type TEXT NOT NULL, name TEXT NOT NULL UNIQUE, institution_or_entity TEXT NOT NULL, opening_balance_minor TEXT NOT NULL, opening_balance_date TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, last_four TEXT);
-      CREATE TABLE chart_account (
-        id TEXT PRIMARY KEY, name TEXT NOT NULL, parent_id TEXT, type TEXT NOT NULL,
-        display_order INTEGER NOT NULL, archived INTEGER NOT NULL DEFAULT 0,
-        account_type TEXT NOT NULL DEFAULT 'EXPENSE', detail_type TEXT NOT NULL DEFAULT '',
-        description TEXT, locked INTEGER NOT NULL DEFAULT 0
-      );
+      INSERT INTO company VALUES ('company-v3', 'Schema Three Company', 'USD', 1, 'CASH', 2026);
       INSERT INTO chart_account VALUES ('legacy-asset', 'Amazon', NULL, 'ASSET', 1, 0, 'OTHER_ASSET', '', NULL, 0);
     `);
     const bytes = legacy.export();
@@ -72,22 +60,15 @@ describe('SqliteDatabaseGateway', () => {
 
     const gateway = new SqliteDatabaseGateway();
     await gateway.open(bytes);
-    expect(gateway.schemaVersion()).toBe(5);
+    expect(gateway.schemaVersion()).toBe(6);
     expect(gateway.execute('SELECT detail_type FROM chart_account WHERE id = ?', ['legacy-asset'])[0]['detail_type']).toBe('Goodwill');
     gateway.close();
   });
 
   it('migrates schema-v4 financial accounts to editable detail, hierarchy, description, and lock fields', async () => {
-    const sql = await initSqlJs({ locateFile: file => `assets/${file}` });
-    const legacy = new sql.Database();
+    const legacy = await databaseAtVersion(4);
     legacy.run(`
-      CREATE TABLE schema_version(version INTEGER NOT NULL);
-      INSERT INTO schema_version VALUES (4);
-      CREATE TABLE financial_account (
-        id TEXT PRIMARY KEY, type TEXT NOT NULL, name TEXT NOT NULL UNIQUE,
-        institution_or_entity TEXT NOT NULL, opening_balance_minor TEXT NOT NULL,
-        opening_balance_date TEXT NOT NULL, archived INTEGER NOT NULL DEFAULT 0, last_four TEXT
-      );
+      INSERT INTO company VALUES ('company-v4', 'Schema Four Company', 'USD', 1, 'CASH', 2026);
       INSERT INTO financial_account VALUES ('legacy-bank', 'BANK', 'Legacy Checking', 'BofA', '1000', '2026-01-01', 0, '0001');
       INSERT INTO financial_account VALUES ('legacy-card', 'CREDIT_CARD', 'Legacy Card', 'Amex', '0', '2026-01-01', 0, '0002');
       INSERT INTO financial_account VALUES ('legacy-amazon', 'ENTITY', 'Amazon', 'Amazon', '0', '2026-01-01', 0, NULL);
@@ -97,10 +78,10 @@ describe('SqliteDatabaseGateway', () => {
 
     const gateway = new SqliteDatabaseGateway();
     await gateway.open(bytes);
-    expect(gateway.schemaVersion()).toBe(5);
+    expect(gateway.schemaVersion()).toBe(6);
     expect(gateway.execute('SELECT detail_type FROM financial_account WHERE id = ?', ['legacy-bank'])[0]['detail_type']).toBe('Checking');
     expect(gateway.execute('SELECT detail_type FROM financial_account WHERE id = ?', ['legacy-card'])[0]['detail_type']).toBe('Credit Card');
-    expect(gateway.execute('SELECT detail_type FROM financial_account WHERE id = ?', ['legacy-amazon'])[0]['detail_type']).toBe('Marketplace');
+    expect(gateway.execute('SELECT detail_type FROM financial_account WHERE id = ?', ['legacy-amazon'])[0]['detail_type']).toBe('Marketplace clearing');
     const columns = gateway.execute('PRAGMA table_info(financial_account)').map(row => row['name']);
     expect(columns).toEqual(jasmine.arrayContaining(['detail_type', 'parent_account_id', 'description', 'locked']));
     gateway.close();
@@ -137,3 +118,17 @@ describe('SqliteDatabaseGateway', () => {
     gateway.close();
   });
 });
+
+async function databaseAtVersion(version: 2 | 3 | 4) {
+  const sql = await initSqlJs({ locateFile: file => `assets/${file}` });
+  const database = new sql.Database();
+  database.run(SQLITE_MIGRATIONS[0]);
+  database.run('INSERT INTO schema_version(version) VALUES (0)');
+  database.run(SQLITE_MIGRATIONS[1]);
+  SQLITE_MIGRATIONS.slice(2).forEach(statement => database.run(statement));
+  if (version >= 3) SQLITE_V3_MIGRATIONS.forEach(statement => database.run(statement));
+  if (version >= 4) SQLITE_V4_MIGRATIONS.forEach(statement => database.run(statement));
+  database.run('UPDATE schema_version SET version = ?', [version]);
+  database.run('PRAGMA foreign_keys = ON;');
+  return database;
+}

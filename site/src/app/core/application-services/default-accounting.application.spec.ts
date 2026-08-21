@@ -493,6 +493,9 @@ describe('DefaultAccountingApplication', () => {
     app.commitImport(preview.previewToken);
     const payload = app.exportAllData();
     expect(payload).toContain('backup-source.csv');
+    const portable = JSON.parse(payload) as { companyProfile?: { legalName?: string }; accounts: Array<{ accountType?: string; classificationStatus?: string }> };
+    expect(portable.companyProfile?.legalName).toBe('Example Outfitters LLC');
+    expect(portable.accounts.every(item => Boolean(item.accountType) && Boolean(item.classificationStatus))).toBeTrue();
     app.importAllData(payload);
     expect(app.listTransactions({ accountId: account.id }).total).toBe(1);
   });
@@ -527,7 +530,7 @@ describe('DefaultAccountingApplication', () => {
 
   it('verifies backup bundles and emits report exports', () => {
     const bundle = app.createBackupBundle();
-    expect(JSON.parse(bundle).schemaVersion).toBe(5);
+    expect(JSON.parse(bundle).schemaVersion).toBe(6);
     expect(app.verifyBackupBundle(bundle).valid).toBeTrue();
     expect(app.validateBackupBundle(bundle).valid).toBeTrue();
     expect(app.validateBackupBundle(bundle).recordCounts?.['accounts']).toBe(5);

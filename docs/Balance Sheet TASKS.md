@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Phase 2 in progress; schema-6 migration registered and verified, activation pending persistence/recovery mapping |
-| Current phase | Phase 2 — schema 6, migration, repositories, and recovery compatibility |
-| Next task | `BS-SLICE-05-PERSISTENCE-RECOVERY` — schema-6 repository mapping, activation, and recovery compatibility |
+| Overall status | Phase 2 complete; schema 6, repository snapshots, portable data, and recovery paths verified |
+| Current phase | Phase 3 — Company Settings and generic account management |
+| Next task | `BS-SLICE-06-COMPANY-SERVICE` — masked, validated, audited Company Settings service |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | `npm run test:ci`: transactional schema-6 migration/rollback, fixture oracle, and 130 ChromeHeadless tests passed |
+| Last verified Balance Sheet test | `npm run test:ci`: schema-6 migration/repository/recovery coverage, fixture oracle, and 132 ChromeHeadless tests passed; build, 8 desktop-host tests, and Electron smoke also passed |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -62,7 +62,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | --- | --- | --- |
 | 0 | Accepted documentation and verified implementation baseline | Complete |
 | 1 | Shared company, account-taxonomy, and Balance Sheet contracts | Complete |
-| 2 | Schema 6, migrations, repositories, and backup compatibility | In progress |
+| 2 | Schema 6, migrations, repositories, and backup compatibility | Complete |
 | 3 | Company Settings and generic account management | Not started |
 | 4 | Balance Sheet calculation, hierarchy, warnings, and drill-down | Not started |
 | 5 | Balance Sheet workspace and interaction | Not started |
@@ -123,9 +123,9 @@ Execution is divided into token-conscious, independently testable units in the [
 - [x] **BS2-002** Add financial-account `account_type`, `classification_status`, `import_enabled`, supported-source-kinds, and `opening_balance_source` fields.
 - [x] **BS2-003** Keep the legacy financial `type` column as migration provenance while making generic `account_type` authoritative for new behavior.
 - [x] **BS2-004** Add report-query indexes for transaction state/date/account, transfer date/account, split transaction/chart account, and chart hierarchy/display order.
-- [ ] **BS2-005** Implement company-profile repository mapping with full tax identifier excluded from normal reads.
-- [ ] **BS2-006** Extend financial and Chart account repository mappings for shared classification and preserved custom detail metadata.
-- [ ] **BS2-007** Add repository/query support for one consistent as-of report snapshot and database revision.
+- [x] **BS2-005** Implement company-profile repository mapping with full tax identifier excluded from normal reads.
+- [x] **BS2-006** Extend financial and Chart account repository mappings for shared classification and preserved custom detail metadata.
+- [x] **BS2-007** Add repository/query support for one consistent as-of report snapshot and database revision.
 
 ### Migration
 
@@ -140,14 +140,14 @@ Execution is divided into token-conscious, independently testable units in the [
 
 ### Recovery and migration verification
 
-- [ ] **BS2-016** Update the shared current-schema constant to 6 only after migrations are registered.
-- [ ] **BS2-017** Update backup, restore, portable-export, Electron validator, temporary database, and smoke-fixture schema acceptance through that shared constant.
+- [x] **BS2-016** Update the shared current-schema constant to 6 only after migrations are registered.
+- [x] **BS2-017** Update backup, restore, portable-export, Electron validator, temporary database, and smoke-fixture schema acceptance through that shared constant.
 - [x] **BS2-018** Test schema-5-to-6 migration, close/reopen, and idempotent subsequent startup.
 - [x] **BS2-019** Test migration with generic names proving no customer, institution, marketplace, or special account-name dependency.
 - [x] **BS2-020** Test preservation of all referenced records and exact pre/post ledger/report totals.
-- [ ] **BS2-021** Test corrupt/incompatible migration rollback and verified pre-migration recovery behavior.
-- [ ] **BS2-022** Test schema-6 backup, restore, relocation, future-schema rejection, and integrity checks.
-- [ ] **BS2-GATE** Exit gate: migration and recovery tests pass, schema-5 data reopens as schema 6 without ledger drift, and backup/restore accepts the new schema.
+- [x] **BS2-021** Test corrupt/incompatible migration rollback and verified pre-migration recovery behavior.
+- [x] **BS2-022** Test schema-6 backup, restore, relocation, future-schema rejection, and integrity checks.
+- [x] **BS2-GATE** Exit gate: migration and recovery tests pass, schema-5 data reopens as schema 6 without ledger drift, and backup/restore accepts the new schema.
 
 ## Phase 3 — Company Settings and generic account management
 
@@ -335,3 +335,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS1-002–BS1-006, BS1-013–BS1-014 | Added the exhaustive 15-type grouped catalog, shared legacy Chart catalog projection, custom-detail preservation, typed validation/contracts, and 10 focused taxonomy tests. `npm run test:ci` passed boundary and fixture checks plus all 116 ChromeHeadless tests; coverage 78.98% statements, 63.49% branches, 88.43% functions, and 86.70% lines. Production build and all 7 desktop-host tests also passed. |
 | 2026-08-21 | BS1-001, BS1-007–BS1-012, BS1-015–BS1-GATE | Added immutable Company/Balance Sheet/detail/export contracts, bigint money, semantic branded identities, typed failures, `AccountingApplication` operations, and a contract-only feature facade. `npm run test:ci` passed strengthened production-facade/desktop boundaries, the fixture oracle, and all 126 ChromeHeadless tests; coverage 79.11% statements, 63.72% branches, 87.70% functions, and 86.51% lines. Production build and all 7 desktop-host tests passed. |
 | 2026-08-21 | BS2-001–BS2-004, BS2-008–BS2-015, BS2-018–BS2-020 | Registered transactional schema-5-to-6 migration with Company Settings storage, financial classification, report indexes, structural legacy mapping, correlated provenance audit, integrity/count/cycle validation, exact ledger/report-input preservation, idempotent reopen, and complete rollback. `npm run test:ci` passed all 130 ChromeHeadless tests with 79.36% statements, 63.70% branches, 87.80% functions, and 86.90% lines; production build and all 7 desktop-host tests passed. Shared current-schema activation intentionally remains at 5 for Slice 05 repository/recovery compatibility. |
+| 2026-08-21 | BS2-005–BS2-007, BS2-016–BS2-017, BS2-021–BS2-022, BS2-GATE | Activated schema 6 with separate empty-database bootstrap and schema-5 migration paths; persisted masked Company Settings and generic financial classifications; added deterministic isolated report snapshots/database revisions; carried schema-6 metadata through portable data and backup bundles; and verified backup, restore, relocation, corrupt/incomplete/future-schema rejection, Electron host validation, and isolated smoke. `npm run test:ci` passed all 132 ChromeHeadless tests with 79.21% statements, 64.35% branches, 87.55% functions, and 86.64% lines; production build, all 8 desktop-host tests, and Electron smoke passed. |

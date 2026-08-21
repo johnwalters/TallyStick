@@ -1,5 +1,6 @@
 import initSqlJs, { Database } from 'sql.js';
 import { SqliteDatabaseGateway } from './sqlite-database.gateway';
+import { SQLITE_MIGRATIONS, SQLITE_V3_MIGRATIONS, SQLITE_V4_MIGRATIONS, SQLITE_V5_MIGRATIONS } from './schema';
 import { migrateSchema5DatabaseTo6, SCHEMA_6_VERSION } from './schema-v6-migration';
 
 describe('schema 6 migration', () => {
@@ -130,57 +131,69 @@ describe('schema 6 migration', () => {
 });
 
 async function representativeSchema5Database(): Promise<Database> {
-  const gateway = new SqliteDatabaseGateway();
-  await gateway.open();
-  gateway.execute(`INSERT INTO company(id, name, currency, fiscal_year_start_month, accounting_basis, active_tax_year)
+  const sql = await initSqlJs({ locateFile: file => `assets/${file}` });
+  const database = new sql.Database();
+  database.run('PRAGMA foreign_keys = ON;');
+  database.run(SQLITE_MIGRATIONS[0]);
+  database.run('INSERT INTO schema_version(version) VALUES (0)');
+  database.run('BEGIN');
+  try {
+    database.run(SQLITE_MIGRATIONS[1]);
+    SQLITE_MIGRATIONS.slice(2).forEach(statement => database.run(statement));
+    SQLITE_V3_MIGRATIONS.forEach(statement => database.run(statement));
+    SQLITE_V4_MIGRATIONS.forEach(statement => database.run(statement));
+    SQLITE_V5_MIGRATIONS.forEach(statement => database.run(statement));
+    database.run('UPDATE schema_version SET version = 5');
+    database.run('COMMIT');
+  } catch (error) {
+    database.run('ROLLBACK');
+    database.close();
+    throw error;
+  }
+  database.run(`INSERT INTO company(id, name, currency, fiscal_year_start_month, accounting_basis, active_tax_year)
     VALUES (?, ?, ?, ?, ?, ?)`, ['company-1', 'Northstar Workshop LLC', 'USD', 7, 'ACCRUAL', 2026]);
-  gateway.execute(`INSERT INTO financial_account(id, type, detail_type, name, institution_or_entity, opening_balance_minor,
+  database.run(`INSERT INTO financial_account(id, type, detail_type, name, institution_or_entity, opening_balance_minor,
     opening_balance_date, archived, last_four, parent_account_id, description, locked)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['bank-1', 'BANK', 'Money Market', 'Marketplace', 'Neutral Institution', '12345', '2025-12-31', 0, '1234', null, 'Operating funds', 1]);
-  gateway.execute(`INSERT INTO financial_account(id, type, detail_type, name, institution_or_entity, opening_balance_minor,
+  database.run(`INSERT INTO financial_account(id, type, detail_type, name, institution_or_entity, opening_balance_minor,
     opening_balance_date, archived, last_four, parent_account_id, description, locked)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['card-1', 'CREDIT_CARD', 'Credit card', 'Copper Lantern', 'Neutral Card', '-2500', '2025-12-31', 1, '9876', null, 'Archived card', 0]);
-  gateway.execute(`INSERT INTO financial_account(id, type, detail_type, name, institution_or_entity, opening_balance_minor,
+  database.run(`INSERT INTO financial_account(id, type, detail_type, name, institution_or_entity, opening_balance_minor,
     opening_balance_date, archived, parent_account_id, locked)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['entity-metadata', 'ENTITY', 'Marketplace', 'Unrelated Name', 'Neutral Platform', '5000', '2025-12-31', 0, null, 0]);
-  gateway.execute(`INSERT INTO financial_account(id, type, detail_type, name, institution_or_entity, opening_balance_minor,
+  database.run(`INSERT INTO financial_account(id, type, detail_type, name, institution_or_entity, opening_balance_minor,
     opening_balance_date, archived, parent_account_id, locked)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['entity-ambiguous', 'ENTITY', 'Other transactions', 'Checking', 'Neutral Processor', '7500', '2025-12-31', 0, null, 0]);
-  gateway.execute(`INSERT INTO financial_account(id, type, detail_type, name, institution_or_entity, opening_balance_minor,
+  database.run(`INSERT INTO financial_account(id, type, detail_type, name, institution_or_entity, opening_balance_minor,
     opening_balance_date, archived, parent_account_id, locked)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['entity-clearing', 'ENTITY', 'Clearing account', 'Inventory', 'Neutral Clearing', '0', '2025-12-31', 0, null, 0]);
-  gateway.execute(`INSERT INTO chart_account(id, name, parent_id, type, display_order, archived, account_type, detail_type, description, locked)
+  database.run(`INSERT INTO chart_account(id, name, parent_id, type, display_order, archived, account_type, detail_type, description, locked)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['expense-parent', 'Operating Expenses', null, 'EXPENSE', 1, 0, 'EXPENSE', 'Other business expenses', 'Parent', 1]);
-  gateway.execute(`INSERT INTO chart_account(id, name, parent_id, type, display_order, archived, account_type, detail_type, description, locked)
+  database.run(`INSERT INTO chart_account(id, name, parent_id, type, display_order, archived, account_type, detail_type, description, locked)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['expense-child', 'Office Expense', 'expense-parent', 'EXPENSE', 2, 0, 'EXPENSE', 'Office expenses', 'Child', 0]);
-  gateway.execute(`INSERT INTO import_batch(id, destination_account_id, source_kind, source_name, source_hash, mapping_version,
+  database.run(`INSERT INTO import_batch(id, destination_account_id, source_kind, source_name, source_hash, mapping_version,
     accepted_count, rejected_count, skipped_count, warning_count, total_accepted_minor, committed_at_utc)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['batch-1', 'entity-metadata', 'AMAZON', 'neutral.csv', 'hash-1', 'mapping-v1', 1, 0, 0, 0, '-250', '2026-01-15T00:00:00.000Z']);
-  gateway.execute(`INSERT INTO transaction_record(id, account_id, posting_date, amount_minor, currency, raw_description, description,
+  database.run(`INSERT INTO transaction_record(id, account_id, posting_date, amount_minor, currency, raw_description, description,
     state, source_batch_id, transfer_match_id, created_at_utc, modified_at_utc, categorization_source)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['posted-1', 'entity-metadata', '2026-01-15', '-250', 'USD', 'SUPPLIES', 'Supplies', 'POSTED', 'batch-1', null, '2026-01-15T00:00:00.000Z', '2026-01-15T00:00:00.000Z', 'MANUAL']);
-  gateway.execute(`INSERT INTO transaction_record(id, account_id, posting_date, amount_minor, currency, raw_description, description,
+  database.run(`INSERT INTO transaction_record(id, account_id, posting_date, amount_minor, currency, raw_description, description,
     state, transfer_match_id, created_at_utc, modified_at_utc, categorization_source)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['transfer-left', 'bank-1', '2026-02-01', '-1000', 'USD', 'TRANSFER', 'Transfer', 'MATCHED_TRANSFER', 'transfer-1', '2026-02-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z', 'TRANSFER']);
-  gateway.execute(`INSERT INTO transaction_record(id, account_id, posting_date, amount_minor, currency, raw_description, description,
+  database.run(`INSERT INTO transaction_record(id, account_id, posting_date, amount_minor, currency, raw_description, description,
     state, transfer_match_id, created_at_utc, modified_at_utc, categorization_source)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['transfer-right', 'card-1', '2026-02-01', '1000', 'USD', 'TRANSFER', 'Transfer', 'MATCHED_TRANSFER', 'transfer-1', '2026-02-01T00:00:00.000Z', '2026-02-01T00:00:00.000Z', 'TRANSFER']);
-  gateway.execute(`INSERT INTO posting_split(id, transaction_id, chart_account_id, amount_minor, memo)
+  database.run(`INSERT INTO posting_split(id, transaction_id, chart_account_id, amount_minor, memo)
     VALUES (?, ?, ?, ?, ?)`, ['split-1', 'posted-1', 'expense-child', '-250', 'Preserved memo']);
-  gateway.execute(`INSERT INTO transfer_match(id, left_transaction_id, right_transaction_id, confidence, rationale, confirmed_at_utc)
+  database.run(`INSERT INTO transfer_match(id, left_transaction_id, right_transaction_id, confidence, rationale, confirmed_at_utc)
     VALUES (?, ?, ?, ?, ?, ?)`, ['transfer-1', 'transfer-left', 'transfer-right', 1, 'Exact match', '2026-02-01T00:00:00.000Z']);
-  gateway.execute(`INSERT INTO transaction_rule(id, name, enabled, priority, conditions_json, chart_account_id, payee, memo, tags_json, suggest_exclude)
+  database.run(`INSERT INTO transaction_rule(id, name, enabled, priority, conditions_json, chart_account_id, payee, memo, tags_json, suggest_exclude)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['rule-1', 'Office rule', 1, 1, '[]', 'expense-child', 'Supplier', 'Rule memo', '["office"]', 0]);
-  gateway.execute(`INSERT INTO tax_year_settings(tax_year, federal_income_tax_account_ids_json, state_local_income_tax_account_ids_json,
+  database.run(`INSERT INTO tax_year_settings(tax_year, federal_income_tax_account_ids_json, state_local_income_tax_account_ids_json,
     include_federal_income_tax, include_state_local_income_tax, confirmed_at_utc, accountant_note)
     VALUES (?, ?, ?, ?, ?, ?, ?)`, [2026, '[]', '["expense-child"]', 0, 1, '2026-01-01T00:00:00.000Z', 'Preserved note']);
-  gateway.execute(`INSERT INTO audit_event(id, timestamp_utc, operation, entity_type, entity_id, before_json, after_json, reason, correlation_id)
+  database.run(`INSERT INTO audit_event(id, timestamp_utc, operation, entity_type, entity_id, before_json, after_json, reason, correlation_id)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, ['prior-audit', '2026-01-01T00:00:00.000Z', 'CREATE', 'Company', 'company-1', null, '{}', 'Existing history', 'prior-correlation']);
-  const bytes = gateway.exportBytes();
-  gateway.close();
-  const sql = await initSqlJs({ locateFile: file => `assets/${file}` });
-  const database = new sql.Database(bytes);
-  database.run('PRAGMA foreign_keys = ON;');
   return database;
 }
 

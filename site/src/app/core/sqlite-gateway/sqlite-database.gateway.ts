@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { CURRENT_SCHEMA_VERSION, SQLITE_MIGRATIONS, SQLITE_V3_MIGRATIONS, SQLITE_V4_MIGRATIONS, SQLITE_V5_MIGRATIONS } from './schema';
-import { applySchema6Migration, SCHEMA_6_VERSION } from './schema-v6-migration';
+import { applySchema6Bootstrap, applySchema6Migration, SCHEMA_6_VERSION } from './schema-v6-migration';
 
 @Injectable()
 export class SqliteDatabaseGateway {
@@ -102,7 +102,10 @@ export class SqliteDatabaseGateway {
         if (version < 3) SQLITE_V3_MIGRATIONS.forEach(sql => this.database!.run(sql));
         if (version < 4) SQLITE_V4_MIGRATIONS.forEach(sql => this.database!.run(sql));
         if (version < 5) SQLITE_V5_MIGRATIONS.forEach(sql => this.database!.run(sql));
-        if (version < SCHEMA_6_VERSION && CURRENT_SCHEMA_VERSION >= SCHEMA_6_VERSION) applySchema6Migration(this.database);
+        if (version < SCHEMA_6_VERSION && CURRENT_SCHEMA_VERSION >= SCHEMA_6_VERSION) {
+          if (version === 0) applySchema6Bootstrap(this.database);
+          else applySchema6Migration(this.database);
+        }
         this.database.run('UPDATE schema_version SET version = ?', [CURRENT_SCHEMA_VERSION]);
         this.database.run('COMMIT');
       } catch (error) {

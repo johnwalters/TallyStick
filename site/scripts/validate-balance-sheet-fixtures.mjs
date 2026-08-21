@@ -17,7 +17,8 @@ const [oracle, companies, expectedResults, schemaSource] = await Promise.all([
 
 assert.equal(oracle.moneyUnit, 'INTEGER_MINOR_UNITS');
 const currentSchemaVersion = Number(schemaSource.match(/CURRENT_SQLITE_SCHEMA_VERSION\s*=\s*(\d+)/)?.[1]);
-assert.equal(oracle.schema5Baseline.databaseSchemaVersion, currentSchemaVersion, 'Baseline schema version must match the application.');
+assert.equal(oracle.schema5Baseline.databaseSchemaVersion, 5, 'The migration oracle must retain its schema-5 baseline.');
+assert.ok(currentSchemaVersion >= oracle.schema5Baseline.databaseSchemaVersion, 'The application cannot precede the migration baseline.');
 
 const expectedCounts = oracle.schema5Baseline.counts;
 assert.deepEqual(expectedCounts, {
@@ -113,4 +114,4 @@ for (const forbidden of ['john walters', 'annette', 'left shoulder', 'accounting
   assert.equal(fixtureText.includes(forbidden), false, `Fixture contains private-looking text: ${forbidden}`);
 }
 
-console.log(`Balance Sheet fixture oracle passed: ${companies.profiles.length} companies, ${oracle.scenarios.length} scenarios, schema ${currentSchemaVersion}.`);
+console.log(`Balance Sheet fixture oracle passed: ${companies.profiles.length} companies, ${oracle.scenarios.length} scenarios, schema-5 baseline with application schema ${currentSchemaVersion}.`);

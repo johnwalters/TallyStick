@@ -17,8 +17,15 @@ describe('SqliteAccountingRepository', () => {
     repository.transaction(() => {
       repository.accounts.set('bank-1', {
         id: 'bank-1', type: 'BANK', name: 'Checking', institutionOrEntity: 'BofA',
+        accountType: 'BANK', classificationStatus: 'CONFIRMED', importEnabled: true,
+        supportedSourceKinds: ['CSV', 'EXCEL', 'QBO_OFX'], openingBalanceSource: 'DERIVED_EQUITY',
         detailType: 'Checking', description: 'Primary operating account', lastFour: '0001', openingBalance: money(10000n), openingBalanceDate: '2026-01-01', archived: false, locked: true,
       });
+      repository.saveCompanyProfile({
+        companyId: repository.company.id, legalName: 'Example Outfitters LLC', displayName: 'Example Outfitters',
+        currencyCode: 'USD', fiscalYearStartMonth: 1, accountingBasis: 'CASH', activeTaxYear: 2026,
+        createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-01-01T00:00:00.000Z', maskedTaxIdentifier: '•••• 6789',
+      }, { mode: 'SET', value: '12-3456789' });
       repository.chartAccounts.set('expense-1', {
         id: 'expense-1', name: 'Office Expense', type: 'EXPENSE', accountType: 'EXPENSE', detailType: 'Office expenses', displayOrder: 1, archived: false, locked: false,
       });
@@ -36,9 +43,12 @@ describe('SqliteAccountingRepository', () => {
     await reopenedRepository.initialize(bytes);
 
     expect(reopenedRepository.accounts.get('bank-1')?.openingBalance.minorUnits).toBe(10000n);
-    expect(reopenedRepository.accounts.get('bank-1')).toEqual(jasmine.objectContaining({ detailType: 'Checking', description: 'Primary operating account', lastFour: '0001', locked: true }));
+    expect(reopenedRepository.accounts.get('bank-1')).toEqual(jasmine.objectContaining({ accountType: 'BANK', classificationStatus: 'CONFIRMED', importEnabled: true, supportedSourceKinds: ['CSV', 'EXCEL', 'QBO_OFX'], openingBalanceSource: 'DERIVED_EQUITY', detailType: 'Checking', description: 'Primary operating account', lastFour: '0001', locked: true }));
+    expect(reopenedRepository.getCompanyProfile()).toEqual(jasmine.objectContaining({ legalName: 'Example Outfitters LLC', displayName: 'Example Outfitters', maskedTaxIdentifier: '•••• 6789' }));
+    expect(JSON.stringify(reopenedRepository.getCompanyProfile())).not.toContain('12-3456789');
+    expect(reopenedRepository.revealCompanyTaxIdentifier()).toBe('12-3456789');
     expect(reopenedRepository.transactions.get('transaction-1')?.splits[0].amount.minorUnits).toBe(-1250n);
-    expect(reopenedDatabase.execute('SELECT version FROM schema_version')[0]['version']).toBe(5);
+    expect(reopenedDatabase.execute('SELECT version FROM schema_version')[0]['version']).toBe(6);
   });
 
   it('rolls back in-memory and SQLite state when a transaction fails', async () => {
@@ -50,6 +60,8 @@ describe('SqliteAccountingRepository', () => {
     expect(() => repository.transaction(() => {
       repository.accounts.set('will-rollback', {
         id: 'will-rollback', type: 'BANK', name: 'Temporary', institutionOrEntity: 'Test',
+        accountType: 'BANK', classificationStatus: 'CONFIRMED', importEnabled: true,
+        supportedSourceKinds: ['CSV', 'EXCEL', 'QBO_OFX'], openingBalanceSource: 'DERIVED_EQUITY',
         detailType: 'Checking', openingBalance: money(0n), openingBalanceDate: '2026-01-01', archived: false, locked: false,
       });
       throw new Error('injected failure');
@@ -58,6 +70,27 @@ describe('SqliteAccountingRepository', () => {
     expect(repository.accounts.has('will-rollback')).toBeFalse();
     expect(database.exportBytes()).toEqual(initialBytes);
     expect(database.execute('SELECT COUNT(*) AS count FROM financial_account')[0]['count']).toBe(0);
+  });
+
+  it('returns a deterministic isolated report snapshot and changes revision after a committed mutation', async () => {
+    const database = new SqliteDatabaseGateway();
+    const repository = new SqliteAccountingRepository(database);
+    await repository.initialize();
+    repository.transaction(() => {
+      repository.company.name = 'Snapshot Company LLC';
+    });
+
+    const first = repository.readBalanceSheetSnapshot('2026-12-31');
+    const second = repository.readBalanceSheetSnapshot('2026-12-31');
+    expect(second.databaseRevision).toBe(first.databaseRevision);
+    expect(second).toEqual(first);
+
+    repository.transaction(() => {
+      repository.company.activeTaxYear = 2027;
+    });
+    const changed = repository.readBalanceSheetSnapshot('2026-12-31');
+    expect(changed.databaseRevision).not.toBe(first.databaseRevision);
+    expect(first.company.activeTaxYear).not.toBe(changed.company.activeTaxYear);
   });
 
   it('persists the application import, categorization, posting, and report path', async () => {

@@ -118,6 +118,15 @@ export function applySchema6Migration(database: Database, options: MigrationOpti
   validateSchema6(database, beforeCounts, existingAuditCount, legacyAccounts.length + 1);
 }
 
+/** Creates schema-6 metadata for a brand-new, empty database before seeding. */
+export function applySchema6Bootstrap(database: Database): void {
+  const populatedTables = PRESERVED_TABLES.filter(table => tableCount(database, table) > 0);
+  if (populatedTables.length > 0 || tableCount(database, 'audit_event') > 0) {
+    throw new Error(`Schema 6 bootstrap requires an empty database; found data in ${populatedTables.join(', ') || 'audit_event'}.`);
+  }
+  SQLITE_V6_SCHEMA_STATEMENTS.forEach(sql => database.run(sql));
+}
+
 function migrateAccount(database: Database, account: LegacyAccountRow, timestampUtc: string, correlationId: string): void {
   const id = String(account.id);
   const legacyType = String(account.type);

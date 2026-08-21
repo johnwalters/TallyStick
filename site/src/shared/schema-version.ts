@@ -3,4 +3,4 @@
  * narrow Electron database-lifecycle host. Keep compatibility decisions at
  * this shared boundary so backups cannot drift behind application migrations.
  */
-export const CURRENT_SQLITE_SCHEMA_VERSION = 5 as number;
+export const CURRENT_SQLITE_SCHEMA_VERSION = 6 as number;

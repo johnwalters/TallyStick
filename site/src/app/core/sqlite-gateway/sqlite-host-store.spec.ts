@@ -1,5 +1,6 @@
 import initSqlJs from 'sql.js';
 import { SqliteHostStore } from '../../../desktop-host/sqlite-host-store';
+import { CURRENT_SQLITE_SCHEMA_VERSION } from '../../../shared/schema-version';
 
 describe('SqliteHostStore', () => {
   it('returns the latest renderer-written database after a simulated page reload', async () => {
@@ -44,6 +45,23 @@ describe('SqliteHostStore', () => {
     retained.close();
     replacement.close();
     launchDatabase.close();
+    store.close();
+  });
+
+  it('rejects a future schema before replacing the active database', async () => {
+    const sql = await initSqlJs({ locateFile: file => `assets/${file}` });
+    const current = new sql.Database();
+    current.run(`CREATE TABLE schema_version(version INTEGER NOT NULL); INSERT INTO schema_version VALUES (${CURRENT_SQLITE_SCHEMA_VERSION});`);
+    const future = new sql.Database();
+    future.run(`CREATE TABLE schema_version(version INTEGER NOT NULL); INSERT INTO schema_version VALUES (${CURRENT_SQLITE_SCHEMA_VERSION + 1});`);
+    const store = new SqliteHostStore(sql);
+    store.open(current.export(), '/tmp/tallystick.sqlite');
+
+    expect(() => store.persistAndReplace(future.export(), () => undefined)).toThrowError(/Unsupported SQLite schema version/);
+    expect(new sql.Database(store.exportBytes()).exec('SELECT version FROM schema_version')[0].values[0][0]).toBe(CURRENT_SQLITE_SCHEMA_VERSION);
+
+    future.close();
+    current.close();
     store.close();
   });
 });

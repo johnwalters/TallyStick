@@ -119,6 +119,14 @@ export class DatabaseLifecycleManager {
       if (!Number.isInteger(schemaVersion) || schemaVersion < 1 || schemaVersion > CURRENT_SQLITE_SCHEMA_VERSION) throw new Error(`Unsupported SQLite schema version: ${schemaVersion || 'missing'}.`);
       const companyId = database.exec('SELECT id FROM company LIMIT 1')[0]?.values[0]?.[0];
       if (!companyId) throw new Error('The SQLite database does not contain a company record.');
+      if (schemaVersion >= 6) {
+        const profileTable = database.exec(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'company_profile'`)[0]?.values ?? [];
+        if (profileTable.length !== 1) throw new Error('The schema-6 SQLite database does not contain a valid company profile.');
+        const profile = database.exec('SELECT company_id, legal_name, display_name FROM company_profile LIMIT 2')[0]?.values ?? [];
+        if (profile.length !== 1 || profile[0][0] !== companyId || !String(profile[0][1] ?? '').trim() || !String(profile[0][2] ?? '').trim()) {
+          throw new Error('The schema-6 SQLite database does not contain a valid company profile.');
+        }
+      }
     } catch (error) {
       if (error instanceof Error && /SQLite|schema|company/.test(error.message)) throw error;
       throw new Error(`Unable to validate the SQLite database: ${error instanceof Error ? error.message : 'unknown error'}`);
