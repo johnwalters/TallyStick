@@ -1,5 +1,5 @@
 import { Injectable } from '@angular/core';
-import { FinancialAccount, newId } from '../domain-model/accounting.types';
+import { AuditEvent, FinancialAccount, newId } from '../domain-model/accounting.types';
 import { CompanyProfile, databaseRevision } from '../domain-model/balance-sheet.types';
 import {
   AccountingRepository,
@@ -25,7 +25,7 @@ export class InMemoryAccountingRepository implements AccountingRepository {
   rules = new Map();
   transfers = new Map();
   taxSettings = new Map();
-  audit = [];
+  audit: AuditEvent[] = [];
   private profile?: CompanyProfile;
   private taxIdentifier?: string;
 

@@ -39,6 +39,7 @@ import { ACCOUNT_TYPE_GROUPS } from '../domain-model/account-taxonomy';
 import { DATABASE_LIFECYCLE_GATEWAY } from '../database-lifecycle/database-lifecycle.gateway';
 import { ImportPipelineService } from '../import-services/import-pipeline.service';
 import { BackupBundleService, CURRENT_BACKUP_SCHEMA_VERSION } from '../backup-services/backup-bundle.service';
+import { CompanyProfileService } from './company-profile.service';
 import { ACCOUNTING_REPOSITORY, AccountingRepository } from '../repository-gateways/accounting.repository';
 import {
   addMoney,
@@ -71,6 +72,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
   private readonly importer = inject(ImportPipelineService);
   private readonly backupBundles = inject(BackupBundleService);
   private readonly databaseLifecycle = inject(DATABASE_LIFECYCLE_GATEWAY);
+  private readonly companyProfiles = inject(CompanyProfileService);
   private readonly previews = new Map<string, ImportPreview>();
   private readonly rulePreviews = new Map<string, RuleImportPreview>();
 
@@ -83,15 +85,15 @@ export class DefaultAccountingApplication implements AccountingApplication {
   }
 
   getCompanyProfile(): CompanyProfile {
-    return this.balanceSheetNotImplemented('getCompanyProfile');
+    return this.companyProfiles.getCompanyProfile();
   }
 
-  updateCompanyProfile(_command: UpdateCompanyProfileCommand): CompanyProfile {
-    return this.balanceSheetNotImplemented('updateCompanyProfile');
+  updateCompanyProfile(command: UpdateCompanyProfileCommand): CompanyProfile {
+    return this.companyProfiles.updateCompanyProfile(command);
   }
 
   revealCompanyTaxIdentifier(): RevealCompanyTaxIdentifierResult {
-    return this.balanceSheetNotImplemented('revealCompanyTaxIdentifier');
+    return this.companyProfiles.revealCompanyTaxIdentifier();
   }
 
   getAccountTypeCatalog() {
