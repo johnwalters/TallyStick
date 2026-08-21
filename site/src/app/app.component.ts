@@ -11,6 +11,7 @@ import { SetupFacade } from './features/setup/setup.facade';
 import { RuleFacade } from './features/rules/rule.facade';
 import { BackupFacade } from './features/backups/backup.facade';
 import { ChartAccountFacade } from './features/chart-accounts/chart-account.facade';
+import { BalanceSheetContractError, CompanyProfile, reportCompanyIdentity, ReportCompanyIdentity, UpdateCompanyProfileCommand } from './core/domain-model/balance-sheet.types';
 
 type TransactionSortColumn = 'DATE_ACCOUNT' | 'SOURCE' | 'CATEGORY' | 'AMOUNT';
 type TransactionSortDirection = 'ASC' | 'DESC';
@@ -56,6 +57,27 @@ interface FinancialAccountDraft extends Omit<SaveAccountCommand, 'openingBalance
   archived: boolean;
 }
 
+interface CompanyProfileDraft {
+  expectedModifiedAt: string;
+  legalName: string;
+  displayName: string;
+  doingBusinessAs: string;
+  entityType: string;
+  addressLine1: string;
+  addressLine2: string;
+  locality: string;
+  region: string;
+  postalCode: string;
+  countryCode: string;
+  phone: string;
+  email: string;
+  website: string;
+  currencyCode: string;
+  fiscalYearStartMonth: number;
+  accountingBasis: CompanyProfile['accountingBasis'];
+  activeTaxYear: number;
+}
+
 const TRANSACTION_VIEW_STORAGE_KEY = 'accounting.transaction-view.v1';
 
 @Component({
@@ -69,6 +91,12 @@ export class AppComponent {
   @ViewChild('categorySearchInput') categorySearchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('transactionFileInput') transactionFileInput?: ElementRef<HTMLInputElement>;
   readonly title = 'TallyStick';
+  companyProfile: CompanyProfile;
+  companyDraft?: CompanyProfileDraft;
+  companyTaxIdentifier = '';
+  companyTaxIdentifierRevealed = false;
+  companyTaxIdentifierDirty = false;
+  companyEditorError = '';
   accounts: FinancialAccount[] = [];
   financialAccountDraft?: FinancialAccountDraft;
   transactions: Transaction[] = [];
@@ -140,6 +168,7 @@ export class AppComponent {
     private readonly backupFacade: BackupFacade,
     private readonly chartAccountFacade: ChartAccountFacade,
   ) {
+    this.companyProfile = this.accounting.getCompanyProfile();
     const reportYear = this.accounting.getCompany().activeTaxYear;
     this.reportStartDate = `${reportYear}-01-01`;
     this.reportEndDate = `${reportYear}-12-31`;
@@ -244,6 +273,116 @@ export class AppComponent {
   }
 
   toggleNavigation(): void { this.navigationExpanded = !this.navigationExpanded; }
+
+  openCompanySettings(): void {
+    const profile = this.accounting.getCompanyProfile();
+    this.companyProfile = profile;
+    this.companyDraft = {
+      expectedModifiedAt: profile.modifiedAt,
+      legalName: profile.legalName,
+      displayName: profile.displayName,
+      doingBusinessAs: profile.doingBusinessAs ?? '',
+      entityType: profile.entityType ?? '',
+      addressLine1: profile.address?.line1 ?? '',
+      addressLine2: profile.address?.line2 ?? '',
+      locality: profile.address?.locality ?? '',
+      region: profile.address?.region ?? '',
+      postalCode: profile.address?.postalCode ?? '',
+      countryCode: profile.address?.countryCode ?? '',
+      phone: profile.phone ?? '',
+      email: profile.email ?? '',
+      website: profile.website ?? '',
+      currencyCode: profile.currencyCode,
+      fiscalYearStartMonth: profile.fiscalYearStartMonth,
+      accountingBasis: profile.accountingBasis,
+      activeTaxYear: profile.activeTaxYear,
+    };
+    this.companyTaxIdentifier = '';
+    this.companyTaxIdentifierRevealed = false;
+    this.companyTaxIdentifierDirty = false;
+    this.companyEditorError = '';
+  }
+
+  closeCompanySettings(): void {
+    this.companyDraft = undefined;
+    this.companyTaxIdentifier = '';
+    this.companyTaxIdentifierRevealed = false;
+    this.companyTaxIdentifierDirty = false;
+    this.companyEditorError = '';
+  }
+
+  revealCompanyTaxIdentifier(): void {
+    const result = this.accounting.revealCompanyTaxIdentifier();
+    this.companyTaxIdentifier = result.taxIdentifier ?? '';
+    this.companyTaxIdentifierRevealed = true;
+    this.companyTaxIdentifierDirty = false;
+    this.companyEditorError = '';
+  }
+
+  markCompanyTaxIdentifierDirty(value: string): void {
+    this.companyTaxIdentifier = value;
+    this.companyTaxIdentifierDirty = true;
+  }
+
+  saveCompanySettings(): void {
+    const draft = this.companyDraft;
+    if (!draft || !this.companyDraftValid) return;
+    const command: UpdateCompanyProfileCommand = {
+      expectedModifiedAt: draft.expectedModifiedAt,
+      legalName: draft.legalName,
+      displayName: draft.displayName,
+      doingBusinessAs: draft.doingBusinessAs,
+      entityType: draft.entityType,
+      address: {
+        line1: draft.addressLine1,
+        line2: draft.addressLine2,
+        locality: draft.locality,
+        region: draft.region,
+        postalCode: draft.postalCode,
+        countryCode: draft.countryCode,
+      },
+      phone: draft.phone,
+      email: draft.email,
+      website: draft.website,
+      taxIdentifier: this.companyTaxIdentifierDirty ? this.companyTaxIdentifier : undefined,
+      currencyCode: draft.currencyCode,
+      fiscalYearStartMonth: Number(draft.fiscalYearStartMonth),
+      accountingBasis: draft.accountingBasis,
+      activeTaxYear: Number(draft.activeTaxYear),
+    };
+    try {
+      this.companyProfile = this.accounting.updateCompanyProfile(command);
+      this.statusMessage = `Saved company information for ${this.companyProfile.displayName}.`;
+      this.closeCompanySettings();
+    } catch (error) {
+      this.companyEditorError = error instanceof BalanceSheetContractError ? error.failure.message : 'Unable to save company information.';
+    }
+  }
+
+  reloadCompanySettings(): void { this.openCompanySettings(); }
+
+  get companyReportIdentity(): ReportCompanyIdentity { return reportCompanyIdentity(this.companyProfile); }
+
+  get companyDraftValid(): boolean {
+    const draft = this.companyDraft;
+    if (!draft?.legalName.trim()) return false;
+    if (!/^[A-Za-z]{3}$/.test(draft.currencyCode.trim())) return false;
+    if (!Number.isInteger(Number(draft.fiscalYearStartMonth)) || Number(draft.fiscalYearStartMonth) < 1 || Number(draft.fiscalYearStartMonth) > 12) return false;
+    if (!Number.isInteger(Number(draft.activeTaxYear)) || Number(draft.activeTaxYear) < 1000 || Number(draft.activeTaxYear) > 9999) return false;
+    if (draft.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(draft.email.trim())) return false;
+    if (draft.countryCode.trim() && !/^[A-Za-z]{2}$/.test(draft.countryCode.trim())) return false;
+    if (draft.website.trim()) {
+      try {
+        const url = new URL(draft.website.trim());
+        if (!['http:', 'https:'].includes(url.protocol)) return false;
+      } catch { return false; }
+    }
+    if (this.companyTaxIdentifierDirty && this.companyTaxIdentifier.trim()) {
+      const value = this.companyTaxIdentifier.trim();
+      if (!/^[A-Za-z0-9][A-Za-z0-9 .-]{2,31}$/.test(value) || value.replace(/[^A-Za-z0-9]/g, '').length < 4) return false;
+    }
+    return true;
+  }
 
   async chooseBackupDirectory(): Promise<void> {
     const locations = await this.backupFacade.chooseBackupDirectory();

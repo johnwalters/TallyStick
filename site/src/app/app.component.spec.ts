@@ -32,7 +32,8 @@ describe('AppComponent', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     expect(fixture.componentInstance.title).toBe('TallyStick');
-    expect(fixture.nativeElement.querySelector('h1')?.textContent).toContain('TallyStick');
+    expect(fixture.nativeElement.querySelector('.topbar .eyebrow')?.textContent).toContain('TALLYSTICK');
+    expect(fixture.nativeElement.querySelector('h1')?.textContent).toContain('Example Outfitters LLC');
     expect(fixture.nativeElement.querySelector('.hero')).toBeNull();
     expect([...fixture.nativeElement.querySelectorAll('button')].some((button: HTMLButtonElement) => button.textContent?.trim() === 'Refresh')).toBeFalse();
     expect(fixture.nativeElement.querySelector('.pending-review-count')?.textContent).toContain('Pending review');
@@ -42,6 +43,92 @@ describe('AppComponent', () => {
     expect(fixture.nativeElement.querySelectorAll('.account-card')).toHaveSize(5);
     expect(fixture.nativeElement.querySelector('.import-strip h3')?.textContent.trim()).toBe('Upload file');
     expect(fixture.nativeElement.querySelector('#reports-workspace')).toBeNull();
+  });
+
+  it('edits two neutral company identities, refreshes branding, and excludes tax data from standard identity', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+
+    (fixture.nativeElement.querySelector('.company-settings-trigger') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.company-editor-panel')?.getAttribute('role')).toBe('dialog');
+    expect(fixture.nativeElement.querySelector('.company-masked-tax')?.textContent).toContain('Not set');
+    expect(fixture.nativeElement.querySelector('.company-editor-panel')?.textContent).not.toContain('12-3456789');
+
+    component.companyDraft!.legalName = '';
+    fixture.detectChanges();
+    expect((fixture.nativeElement.querySelector('.company-editor-footer .primary-button') as HTMLButtonElement).disabled).toBeTrue();
+    component.companyDraft!.legalName = 'Copper Lantern Studio LLC';
+    component.companyDraft!.displayName = 'Copper Lantern Studio';
+    component.companyDraft!.doingBusinessAs = 'Copper Lantern';
+    component.companyDraft!.addressLine1 = '44 Example Way';
+    component.companyDraft!.locality = 'Portland';
+    component.companyDraft!.region = 'OR';
+    component.companyDraft!.postalCode = '97205';
+    component.companyDraft!.countryCode = 'US';
+    component.companyDraft!.email = 'books@copper-lantern.example';
+    component.revealCompanyTaxIdentifier();
+    component.markCompanyTaxIdentifierDirty('12-3456789');
+    component.saveCompanySettings();
+    fixture.detectChanges();
+
+    expect(fixture.nativeElement.querySelector('.topbar h1')?.textContent).toContain('Copper Lantern Studio');
+    expect(component.companyProfile.maskedTaxIdentifier).toContain('6789');
+    expect(JSON.stringify(component.companyReportIdentity)).toContain('Copper Lantern Studio LLC');
+    expect(JSON.stringify(component.companyReportIdentity)).not.toContain('6789');
+    expect(JSON.stringify(component.companyReportIdentity)).not.toContain('tax');
+
+    component.openCompanySettings();
+    component.companyDraft!.legalName = 'Harbor Thread Works Inc.';
+    component.companyDraft!.displayName = 'Harbor Thread Works';
+    component.companyDraft!.doingBusinessAs = '';
+    component.companyDraft!.addressLine1 = '';
+    component.companyDraft!.locality = '';
+    component.companyDraft!.region = '';
+    component.companyDraft!.postalCode = '';
+    component.companyDraft!.countryCode = '';
+    component.companyDraft!.email = '';
+    component.saveCompanySettings();
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.topbar h1')?.textContent).toContain('Harbor Thread Works');
+    expect(component.companyReportIdentity.addressLines).toEqual([]);
+    expect(component.companyReportIdentity.contactLines).toEqual([]);
+  });
+
+  it('discards company edits on cancel or Escape and presents stale-update recovery', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const original = component.companyProfile;
+
+    component.openCompanySettings();
+    component.companyDraft!.displayName = 'Unsaved Identity';
+    fixture.detectChanges();
+    const panel = fixture.nativeElement.querySelector('.company-editor-panel') as HTMLElement;
+    panel.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(component.companyDraft).toBeUndefined();
+    expect(component.companyProfile.displayName).toBe(original.displayName);
+
+    component.openCompanySettings();
+    component.companyDraft!.displayName = 'Stale Draft';
+    application.updateCompanyProfile({
+      expectedModifiedAt: original.modifiedAt,
+      legalName: original.legalName,
+      displayName: 'Externally Updated Identity',
+      currencyCode: original.currencyCode,
+      fiscalYearStartMonth: original.fiscalYearStartMonth,
+      accountingBasis: original.accountingBasis,
+      activeTaxYear: original.activeTaxYear,
+    });
+    component.saveCompanySettings();
+    fixture.detectChanges();
+    expect(component.companyEditorError).toContain('Reload');
+    expect(fixture.nativeElement.querySelector('.company-editor-error [type="button"]')?.textContent).toContain('Reload company information');
+    component.reloadCompanySettings();
+    expect(component.companyDraft?.displayName).toBe('Externally Updated Identity');
   });
 
   it('adds and edits a populated financial account without changing its stable identity', () => {

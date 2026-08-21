@@ -20,9 +20,12 @@
   <header class="topbar">
     <div>
       <p class="eyebrow">TALLYSTICK</p>
-      <h1>{{ title }}</h1>
+      <h1>{{ companyProfile.displayName }}</h1>
     </div>
-    <div class="status"><span class="status-dot"></span>{{ statusMessage }}</div>
+    <div class="topbar-actions">
+      <button type="button" class="company-settings-trigger" (click)="openCompanySettings()">Company settings</button>
+      <div class="status"><span class="status-dot"></span>{{ statusMessage }}</div>
+    </div>
   </header>
 
   @if (workspaceView === 'TRANSACTIONS') {
@@ -473,6 +476,70 @@
           @if (financialAccountError) { <p class="account-editor-error" role="alert">{{ financialAccountError }}</p> }
         </div>
         <footer class="account-editor-footer"><button type="button" class="quiet-button" (click)="closeFinancialAccountEditor()">Cancel</button><button type="button" class="primary-button" [disabled]="!financialAccountDraftValid" (click)="saveFinancialAccount()">Save account</button></footer>
+      </aside>
+    </div>
+  }
+
+  @if (companyDraft) {
+    <div class="company-editor-backdrop" (click)="closeCompanySettings()">
+      <aside class="company-editor-panel" role="dialog" aria-modal="true" aria-labelledby="company-editor-title" tabindex="-1" (keydown.escape)="closeCompanySettings()" (click)="$event.stopPropagation()">
+        <header class="company-editor-header">
+          <div><p class="eyebrow">APPLICATION SETTINGS</p><h2 id="company-editor-title">Company information</h2><p>Used for application identity and standard report metadata. Tax information is excluded from standard outputs.</p></div>
+          <button type="button" class="company-editor-close" aria-label="Close company settings" (click)="closeCompanySettings()">×</button>
+        </header>
+        <form class="company-editor-form" (ngSubmit)="saveCompanySettings()">
+          <div class="company-editor-body">
+            <section class="company-form-section" aria-labelledby="company-identity-heading">
+              <h3 id="company-identity-heading">Identity</h3>
+              <label><span>Legal name</span><input name="companyLegalName" required [(ngModel)]="companyDraft.legalName" /></label>
+              <div class="company-field-grid">
+                <label><span>Display name <small>Defaults to legal name</small></span><input name="companyDisplayName" [(ngModel)]="companyDraft.displayName" /></label>
+                <label><span>Doing business as <small>Optional</small></span><input name="companyDba" [(ngModel)]="companyDraft.doingBusinessAs" /></label>
+              </div>
+              <label><span>Entity type <small>Optional</small></span><input name="companyEntityType" [(ngModel)]="companyDraft.entityType" placeholder="LLC, corporation, sole proprietor" /></label>
+            </section>
+
+            <section class="company-form-section" aria-labelledby="company-contact-heading">
+              <h3 id="company-contact-heading">Address and contact</h3>
+              <label><span>Address line 1 <small>Optional</small></span><input name="companyAddress1" [(ngModel)]="companyDraft.addressLine1" /></label>
+              <label><span>Address line 2 <small>Optional</small></span><input name="companyAddress2" [(ngModel)]="companyDraft.addressLine2" /></label>
+              <div class="company-field-grid company-locality-grid">
+                <label><span>City</span><input name="companyLocality" [(ngModel)]="companyDraft.locality" /></label>
+                <label><span>State / region</span><input name="companyRegion" [(ngModel)]="companyDraft.region" /></label>
+                <label><span>Postal code</span><input name="companyPostalCode" [(ngModel)]="companyDraft.postalCode" /></label>
+                <label><span>Country code</span><input name="companyCountry" maxlength="2" [(ngModel)]="companyDraft.countryCode" /></label>
+              </div>
+              <div class="company-field-grid">
+                <label><span>Phone</span><input name="companyPhone" type="tel" [(ngModel)]="companyDraft.phone" /></label>
+                <label><span>Email</span><input name="companyEmail" type="email" [(ngModel)]="companyDraft.email" /></label>
+              </div>
+              <label><span>Website</span><input name="companyWebsite" type="url" [(ngModel)]="companyDraft.website" placeholder="https://example.com" /></label>
+            </section>
+
+            <section class="company-form-section" aria-labelledby="company-accounting-heading">
+              <h3 id="company-accounting-heading">Accounting defaults</h3>
+              <div class="company-field-grid">
+                <label><span>Currency</span><input name="companyCurrency" maxlength="3" [(ngModel)]="companyDraft.currencyCode" /></label>
+                <label><span>Fiscal year starts</span><select name="companyFiscalMonth" [(ngModel)]="companyDraft.fiscalYearStartMonth">@for (month of [1,2,3,4,5,6,7,8,9,10,11,12]; track month) { <option [ngValue]="month">{{ month }}</option> }</select></label>
+                <label><span>Accounting basis</span><select name="companyBasis" [(ngModel)]="companyDraft.accountingBasis"><option value="CASH">Cash</option><option value="ACCRUAL">Accrual</option><option value="MODIFIED_CASH">Modified cash</option></select></label>
+                <label><span>Active tax year</span><input name="companyTaxYear" type="number" min="1000" max="9999" [(ngModel)]="companyDraft.activeTaxYear" /></label>
+              </div>
+            </section>
+
+            <section class="company-form-section company-tax-section" aria-labelledby="company-tax-heading">
+              <div class="company-section-heading"><div><h3 id="company-tax-heading">Tax identifier</h3><p>Hidden unless you explicitly reveal it.</p></div>@if (!companyTaxIdentifierRevealed) { <button type="button" class="quiet-button" (click)="revealCompanyTaxIdentifier()">Reveal and edit</button> }</div>
+              @if (companyTaxIdentifierRevealed) {
+                <label><span>Tax identifier</span><input name="companyTaxIdentifier" autocomplete="off" [ngModel]="companyTaxIdentifier" (ngModelChange)="markCompanyTaxIdentifierDirty($event)" /></label>
+              } @else {
+                <div class="company-masked-tax"><span>{{ companyProfile.maskedTaxIdentifier || 'Not set' }}</span><small>Excluded from application state, standard reports, and exports.</small></div>
+              }
+            </section>
+
+            @if (!companyDraftValid) { <p class="company-editor-validation" role="status">Complete required fields and correct invalid email, website, country, currency, year, or tax values before saving.</p> }
+            @if (companyEditorError) { <div class="company-editor-error" role="alert"><span>{{ companyEditorError }}</span>@if (companyEditorError.includes('Reload')) { <button type="button" class="quiet-button" (click)="reloadCompanySettings()">Reload company information</button> }</div> }
+          </div>
+          <footer class="company-editor-footer"><button type="button" class="quiet-button" (click)="closeCompanySettings()">Cancel</button><button type="submit" class="primary-button" [disabled]="!companyDraftValid">Save company</button></footer>
+        </form>
       </aside>
     </div>
   }

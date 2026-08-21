@@ -68,6 +68,31 @@ export interface ReportCompanyIdentity {
   readonly contactLines: readonly string[];
 }
 
+/** Builds the reusable identity used by standard reports and exports. Sensitive tax data is intentionally absent. */
+export function reportCompanyIdentity(profile: CompanyProfile): ReportCompanyIdentity {
+  const localityRegion = [
+    profile.address?.locality,
+    profile.address?.region ? `${profile.address.locality ? ', ' : ''}${profile.address.region}` : undefined,
+    profile.address?.postalCode ? ` ${profile.address.postalCode}` : undefined,
+  ].filter(Boolean).join('');
+  const addressLines = [
+    profile.address?.line1,
+    profile.address?.line2,
+    localityRegion,
+    profile.address?.countryCode,
+  ].filter((line): line is string => Boolean(line?.trim()));
+  const contactLines = [profile.phone, profile.email, profile.website]
+    .filter((line): line is string => Boolean(line?.trim()));
+  return Object.freeze({
+    companyId: profile.companyId,
+    legalName: profile.legalName,
+    displayName: profile.displayName,
+    doingBusinessAs: profile.doingBusinessAs,
+    addressLines: Object.freeze(addressLines),
+    contactLines: Object.freeze(contactLines),
+  });
+}
+
 declare const reportIdBrand: unique symbol;
 declare const databaseRevisionBrand: unique symbol;
 declare const rowIdBrand: unique symbol;

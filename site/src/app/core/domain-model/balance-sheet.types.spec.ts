@@ -14,6 +14,7 @@ import {
   databaseRevision,
   freezeBalanceSheetReport,
   normalizeBalanceSheetQuery,
+  reportCompanyIdentity,
   syntheticBalanceSheetRowId,
   validateBalanceSheetDetail,
   validateReportIdentity,
@@ -104,6 +105,22 @@ describe('Balance Sheet public contracts', () => {
     expect(REPORT_FAILURE_CODES).toContain('REPORT_REVISION_STALE');
     expect(RECONCILIATION_FAILURE_CODES).toContain('REPORT_DETAIL_RECONCILIATION_FAILED');
     expect(EXPORT_FAILURE_CODES).toContain('BALANCE_SHEET_EXPORT_FAILED');
+  });
+
+  it('formats reusable report identity without tax data or blank optional lines', () => {
+    const identity = reportCompanyIdentity({
+      companyId: 'company-1', legalName: 'Copper Lantern Studio LLC', displayName: 'Copper Lantern Studio',
+      doingBusinessAs: 'Copper Lantern', address: { line1: '44 Example Way', locality: 'Portland', region: 'OR', postalCode: '97205', countryCode: 'US' },
+      email: 'books@copper-lantern.example', maskedTaxIdentifier: '•••• 6789', currencyCode: 'USD',
+      fiscalYearStartMonth: 1, accountingBasis: 'CASH', activeTaxYear: 2026,
+      createdAt: '2026-01-01T00:00:00.000Z', modifiedAt: '2026-08-21T20:00:00.000Z',
+    });
+
+    expect(identity.addressLines).toEqual(['44 Example Way', 'Portland, OR 97205', 'US']);
+    expect(identity.contactLines).toEqual(['books@copper-lantern.example']);
+    expect(JSON.stringify(identity)).not.toContain('tax');
+    expect(JSON.stringify(identity)).not.toContain('6789');
+    expect(Object.isFrozen(identity)).toBeTrue();
   });
 });
 

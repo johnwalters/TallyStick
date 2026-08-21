@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Phase 3 in progress; Company Settings service complete, focused UI pending |
+| Overall status | Phase 3 in progress; Company Settings service and focused UI complete, generic account service pending |
 | Current phase | Phase 3 — Company Settings and generic account management |
-| Next task | `BS-SLICE-07-COMPANY-UI` — focused Company Settings editor and reusable access |
+| Next task | `BS-SLICE-08-ACCOUNT-SERVICE` — generic account classification, validation, and placement service |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | `npm run test:ci`: Company Settings validation, masking, concurrency, audit, SQLite roundtrip, fixture oracle, and 137 ChromeHeadless tests passed; build and 8 desktop-host tests also passed |
+| Last verified Balance Sheet test | `npm run test:ci`: Company Settings editor, identity formatting, masking, keyboard, concurrency, fixture oracle, and 140 ChromeHeadless tests passed; production build also passed |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -158,11 +158,11 @@ Execution is divided into token-conscious, independently testable units in the [
 - [x] **BS3-001** Implement `getCompanyProfile` returning a masked reusable profile.
 - [x] **BS3-002** Implement transactional, audited, optimistic-concurrency `updateCompanyProfile` validation.
 - [x] **BS3-003** Implement explicit tax-identifier reveal/edit without placing the full value in general app state, logs, or standard exports.
-- [ ] **BS3-004** Build the focused Company Settings editor with required-field validation, masking, save/cancel, and accessible controls.
-- [ ] **BS3-005** Add reusable Edit company information access from the Balance Sheet header and an application settings entry point.
-- [ ] **BS3-006** Drive application header identity from configured display name while retaining TallyStick product branding separately.
+- [x] **BS3-004** Build the focused Company Settings editor with required-field validation, masking, save/cancel, and accessible controls.
+- [x] **BS3-005** Add reusable Edit company information access from the Balance Sheet header and an application settings entry point.
+- [x] **BS3-006** Drive application header identity from configured display name while retaining TallyStick product branding separately.
 - [ ] **BS3-007** Drive P/L, Balance Sheet, CSV/XLSX metadata, print/PDF, and accountant-package identity from Company Settings.
-- [ ] **BS3-008** Omit blank optional company fields cleanly and exclude the tax identifier from standard outputs.
+- [x] **BS3-008** Omit blank optional company fields cleanly and exclude the tax identifier from standard outputs.
 
 ### Generic account service and editor
 
@@ -337,3 +337,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS2-001–BS2-004, BS2-008–BS2-015, BS2-018–BS2-020 | Registered transactional schema-5-to-6 migration with Company Settings storage, financial classification, report indexes, structural legacy mapping, correlated provenance audit, integrity/count/cycle validation, exact ledger/report-input preservation, idempotent reopen, and complete rollback. `npm run test:ci` passed all 130 ChromeHeadless tests with 79.36% statements, 63.70% branches, 87.80% functions, and 86.90% lines; production build and all 7 desktop-host tests passed. Shared current-schema activation intentionally remains at 5 for Slice 05 repository/recovery compatibility. |
 | 2026-08-21 | BS2-005–BS2-007, BS2-016–BS2-017, BS2-021–BS2-022, BS2-GATE | Activated schema 6 with separate empty-database bootstrap and schema-5 migration paths; persisted masked Company Settings and generic financial classifications; added deterministic isolated report snapshots/database revisions; carried schema-6 metadata through portable data and backup bundles; and verified backup, restore, relocation, corrupt/incomplete/future-schema rejection, Electron host validation, and isolated smoke. `npm run test:ci` passed all 132 ChromeHeadless tests with 79.21% statements, 64.35% branches, 87.55% functions, and 86.64% lines; production build, all 8 desktop-host tests, and Electron smoke passed. |
 | 2026-08-21 | BS3-001–BS3-003, BS3-021 | Added masked Company Settings reads, normalized validated transactional optimistic updates, explicit tax-identifier reveal/set/clear, sanitized audit history, and SQLite reopen coverage while proving ledger non-mutation. `npm run test:ci` passed all 137 ChromeHeadless tests with 79.84% statements, 65.03% branches, 88.41% functions, and 87.17% lines; production build and all 8 desktop-host tests passed. |
+| 2026-08-21 | BS3-004–BS3-006, BS3-008 | Added the accessible Company Settings side panel with masked explicit tax reveal, validation, save/cancel/Escape behavior, stale-edit recovery, dynamic application identity, and a reusable tax-free report/export identity formatter. Two neutral identities and blank optional output were verified. `npm run test:ci` passed all 140 ChromeHeadless tests with 79.84% statements, 65.49% branches, 88.44% functions, and 87.28% lines; production build passed. |
