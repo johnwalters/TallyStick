@@ -10,6 +10,8 @@
 4. [Application Product Specification](PRODUCT_SPEC.md) controls existing application-wide behavior outside this feature.
 5. This tracker controls implementation order and records verified progress; it does not override the documents above.
 
+Execution is divided into token-conscious, independently testable units in the [Balance Sheet Implementation Slices](Balance%20Sheet%20IMPLEMENTATION%20SLICES.md). Naming a slice from that catalog is sufficient to authorize only that slice's implementation and verification; this tracker remains the source of truth for completion status.
+
 ## Resume status
 
 | Field | Current value |

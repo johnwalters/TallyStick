@@ -6,6 +6,7 @@ Authority: [Balance Sheet PRD](Balance%20Sheet%20PRD.md) Draft 0.2
 Companion architecture: [Technical Architecture](Quicken%20Replacement%20Technical%20Architecture.md)  
 Application-wide specification: [Local Accounting Application Product Specification](PRODUCT_SPEC.md)  
 Implementation tracker: [Balance Sheet Task Tracker](Balance%20Sheet%20TASKS.md)
+Execution catalog: [Balance Sheet Implementation Slices](Balance%20Sheet%20IMPLEMENTATION%20SLICES.md)
 
 ## 1. Purpose and status
 
