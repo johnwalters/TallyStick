@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Phase 0 baseline/oracle complete; production Balance Sheet implementation not started |
+| Overall status | Phase 1 in progress; baseline oracle and accounting taxonomy complete |
 | Current phase | Phase 1 — shared contracts and domain catalog |
-| Next task | `BS-SLICE-02-TAXONOMY-CORE` — exhaustive accounting taxonomy and validation |
+| Next task | `BS-SLICE-03-PUBLIC-CONTRACTS` — company, report, application, and facade contracts |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | `npm run test:balance-sheet-fixtures`: 2 neutral companies, A1–A19 exact oracle, schema 5 |
+| Last verified Balance Sheet test | `npm run test:ci`: taxonomy validations, 2-company A1–A19 oracle, and 116 ChromeHeadless tests passed |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -61,7 +61,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | Phase | Outcome | Status |
 | --- | --- | --- |
 | 0 | Accepted documentation and verified implementation baseline | Complete |
-| 1 | Shared company, account-taxonomy, and Balance Sheet contracts | Not started |
+| 1 | Shared company, account-taxonomy, and Balance Sheet contracts | In progress |
 | 2 | Schema 6, migrations, repositories, and backup compatibility | Not started |
 | 3 | Company Settings and generic account management | Not started |
 | 4 | Balance Sheet calculation, hierarchy, warnings, and drill-down | Not started |
@@ -90,11 +90,11 @@ Execution is divided into token-conscious, independently testable units in the [
 ### Company and taxonomy contracts
 
 - [ ] **BS1-001** Add `CompanyProfile`, masked report identity, address/contact, and optimistic update command contracts.
-- [ ] **BS1-002** Add exhaustive `ReportingGroup`, `AccountingAccountType`, `BalanceSheetSection`, `AccountRole`, import-capability, and classification-status types without colliding with the legacy financial `AccountType`.
-- [ ] **BS1-003** Create one grouped Account Type catalog with natural balance, reporting placement, compatible detail types, valid parents, opening-balance support, and default import capability.
-- [ ] **BS1-004** Include every PRD-required Bank and Credit Card detail type and all remaining standard detail-type catalogs.
-- [ ] **BS1-005** Define preservation behavior for imported/custom legacy detail types and `REVIEW_REQUIRED` classifications.
-- [ ] **BS1-006** Add account-use, classification, placement-preview, and reference-validation command/result contracts.
+- [x] **BS1-002** Add exhaustive `ReportingGroup`, `AccountingAccountType`, `BalanceSheetSection`, `AccountRole`, import-capability, and classification-status types without colliding with the legacy financial `AccountType`.
+- [x] **BS1-003** Create one grouped Account Type catalog with natural balance, reporting placement, compatible detail types, valid parents, opening-balance support, and default import capability.
+- [x] **BS1-004** Include every PRD-required Bank and Credit Card detail type and all remaining standard detail-type catalogs.
+- [x] **BS1-005** Define preservation behavior for imported/custom legacy detail types and `REVIEW_REQUIRED` classifications.
+- [x] **BS1-006** Add account-use, classification, placement-preview, and reference-validation command/result contracts.
 
 ### Balance Sheet contracts
 
@@ -107,8 +107,8 @@ Execution is divided into token-conscious, independently testable units in the [
 
 ### Contract verification
 
-- [ ] **BS1-013** Test exhaustive Account Type-to-reporting-group mapping and unknown-type failure.
-- [ ] **BS1-014** Test all Account Type/Detail Type, parent, role, import-capability, and opening-balance-mode validations.
+- [x] **BS1-013** Test exhaustive Account Type-to-reporting-group mapping and unknown-type failure.
+- [x] **BS1-014** Test all Account Type/Detail Type, parent, role, import-capability, and opening-balance-mode validations.
 - [ ] **BS1-015** Test immutable report contracts, semantic row keys, stale report revision rejection, and integer money types.
 - [ ] **BS1-016** Run dependency-boundary checks proving UI and desktop-host boundaries remain intact.
 - [ ] **BS1-GATE** Exit gate: every new contract compiles, all catalog/contract tests pass, and no presentation or persistence type leaks across the application boundary.
@@ -332,3 +332,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS0-005 | Schema-5 canonical counts recorded: 1 company, 6 financial accounts, 27 Chart accounts, 198 transactions, 146 splits, and 25 transfers. Desktop restore proof activated verified restored bytes, preserved the selected backup, and safety-backed up the prior active database. |
 | 2026-08-21 | BS0-006–BS0-007 | Added 2 deliberately different fictional companies and a machine-validated A1–A19 oracle; every expected money row reconciles to integer detail contributions and canonical 2025/2026 books have zero Difference. |
 | 2026-08-21 | BS0-008–BS0-GATE | No unresolved product or architecture decision found. All Phase 0 artifacts and required baseline commands passed; production Balance Sheet behavior remains intentionally unimplemented. |
+| 2026-08-21 | BS1-002–BS1-006, BS1-013–BS1-014 | Added the exhaustive 15-type grouped catalog, shared legacy Chart catalog projection, custom-detail preservation, typed validation/contracts, and 10 focused taxonomy tests. `npm run test:ci` passed boundary and fixture checks plus all 116 ChromeHeadless tests; coverage 78.98% statements, 63.49% branches, 88.43% functions, and 86.70% lines. Production build and all 7 desktop-host tests also passed. |

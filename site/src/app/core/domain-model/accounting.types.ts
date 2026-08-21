@@ -1,3 +1,5 @@
+import { ACCOUNT_TYPE_CATALOG, AccountingAccountType } from './account-taxonomy';
+
 export type Id = string;
 export type CurrencyCode = 'USD' | (string & {});
 
@@ -8,27 +10,38 @@ export const FINANCIAL_ACCOUNT_TYPES: ReadonlyArray<{ value: AccountType; label:
   { value: 'ENTITY', label: 'Entity', detailTypes: ['Marketplace', 'Clearing account', 'Other transactions'] },
 ];
 export type ChartAccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'INCOME' | 'COGS' | 'EXPENSE' | 'OTHER_INCOME' | 'OTHER_EXPENSE';
-export type ChartAccountKind = 'BANK' | 'ACCOUNTS_RECEIVABLE' | 'OTHER_CURRENT_ASSET' | 'FIXED_ASSET' | 'OTHER_ASSET'
-  | 'CREDIT_CARD' | 'ACCOUNTS_PAYABLE' | 'OTHER_CURRENT_LIABILITY' | 'LONG_TERM_LIABILITY'
-  | 'EQUITY' | 'INCOME' | 'OTHER_INCOME' | 'COGS' | 'EXPENSE' | 'OTHER_EXPENSE';
+export type ChartAccountKind = AccountingAccountType;
 
-export const CHART_ACCOUNT_TYPES: ReadonlyArray<{ value: ChartAccountKind; label: string; reportingType: ChartAccountType; detailTypes: readonly string[] }> = [
-  { value: 'BANK', label: 'Bank', reportingType: 'ASSET', detailTypes: ['Checking', 'Savings', 'Cash on hand'] },
-  { value: 'ACCOUNTS_RECEIVABLE', label: 'Accounts receivable (A/R)', reportingType: 'ASSET', detailTypes: ['Accounts receivable'] },
-  { value: 'OTHER_CURRENT_ASSET', label: 'Other Current Assets', reportingType: 'ASSET', detailTypes: ['Inventory', 'Prepaid expenses', 'Other current assets'] },
-  { value: 'FIXED_ASSET', label: 'Fixed Assets', reportingType: 'ASSET', detailTypes: ['Furniture and fixtures', 'Machinery and equipment', 'Vehicles', 'Other fixed assets'] },
-  { value: 'OTHER_ASSET', label: 'Other Assets', reportingType: 'ASSET', detailTypes: ['Goodwill', 'Security deposits', 'Other long-term assets'] },
-  { value: 'CREDIT_CARD', label: 'Credit Card', reportingType: 'LIABILITY', detailTypes: ['Credit card'] },
-  { value: 'ACCOUNTS_PAYABLE', label: 'Accounts payable (A/P)', reportingType: 'LIABILITY', detailTypes: ['Accounts payable'] },
-  { value: 'OTHER_CURRENT_LIABILITY', label: 'Other Current Liabilities', reportingType: 'LIABILITY', detailTypes: ['Loan payable', 'Payroll liabilities', 'Sales tax payable', 'Other current liabilities'] },
-  { value: 'LONG_TERM_LIABILITY', label: 'Long Term Liabilities', reportingType: 'LIABILITY', detailTypes: ['Notes payable', 'Shareholder notes payable', 'Other long-term liabilities'] },
-  { value: 'EQUITY', label: 'Equity', reportingType: 'EQUITY', detailTypes: ['Owner equity', 'Owner draw', 'Retained earnings'] },
-  { value: 'INCOME', label: 'Income', reportingType: 'INCOME', detailTypes: ['Sales of product income', 'Service income', 'Other primary income'] },
-  { value: 'OTHER_INCOME', label: 'Other Income', reportingType: 'OTHER_INCOME', detailTypes: ['Interest earned', 'Other investment income', 'Other miscellaneous income'] },
-  { value: 'COGS', label: 'Cost of Goods Sold', reportingType: 'COGS', detailTypes: ['Cost of labor', 'Shipping, freight and delivery', 'Supplies and materials', 'Other costs of goods sold'] },
-  { value: 'EXPENSE', label: 'Expenses', reportingType: 'EXPENSE', detailTypes: ['Advertising', 'Bank charges', 'Insurance', 'Office expenses', 'Other business expenses'] },
-  { value: 'OTHER_EXPENSE', label: 'Other Expense', reportingType: 'OTHER_EXPENSE', detailTypes: ['Depreciation', 'Penalties and settlements', 'Other miscellaneous expense'] },
-];
+export const CHART_ACCOUNT_TYPES: ReadonlyArray<{ value: ChartAccountKind; label: string; reportingType: ChartAccountType; detailTypes: readonly string[] }> =
+  ACCOUNT_TYPE_CATALOG.map(definition => ({
+    value: definition.accountType,
+    label: definition.label,
+    reportingType: legacyChartReportingType(definition.accountType),
+    detailTypes: definition.detailTypes.map(detail => detail.value),
+  }));
+
+function legacyChartReportingType(accountType: AccountingAccountType): ChartAccountType {
+  switch (accountType) {
+    case 'BANK':
+    case 'ACCOUNTS_RECEIVABLE':
+    case 'OTHER_CURRENT_ASSET':
+    case 'FIXED_ASSET':
+    case 'OTHER_ASSET':
+      return 'ASSET';
+    case 'CREDIT_CARD':
+    case 'ACCOUNTS_PAYABLE':
+    case 'OTHER_CURRENT_LIABILITY':
+    case 'LONG_TERM_LIABILITY':
+      return 'LIABILITY';
+    case 'EQUITY':
+    case 'INCOME':
+    case 'OTHER_INCOME':
+    case 'COGS':
+    case 'EXPENSE':
+    case 'OTHER_EXPENSE':
+      return accountType;
+  }
+}
 export type TransactionState = 'PENDING' | 'POSTED' | 'EXCLUDED' | 'MATCHED_TRANSFER';
 export type CategorizationSource = 'TRANSFER' | 'RULE' | 'PRIOR_MATCH' | 'MANUAL' | 'CLEARED' | 'NONE';
 
