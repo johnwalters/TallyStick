@@ -13,6 +13,22 @@ import {
   TransactionRule,
   TransferMatch,
 } from '../domain-model/accounting.types';
+import {
+  BalanceSheetDetail,
+  BalanceSheetExportResult,
+  BalanceSheetPrintPreviewResult,
+  BalanceSheetQuery,
+  BalanceSheetReport,
+  CompanyProfile,
+  ExportBalanceSheetCommand,
+  GetAccountTypeCatalogResult,
+  GetBalanceSheetDetailCommand,
+  OpenBalanceSheetPrintPreviewCommand,
+  PreviewAccountPlacementCommand,
+  PreviewAccountPlacementResult,
+  RevealCompanyTaxIdentifierResult,
+  UpdateCompanyProfileCommand,
+} from '../domain-model/balance-sheet.types';
 
 export interface SaveAccountCommand {
   type: FinancialAccount['type'];
@@ -65,6 +81,15 @@ export interface DatabaseFileOperationResult {
 
 export interface AccountingApplication {
   getCompany(): Company;
+  getCompanyProfile(): CompanyProfile;
+  updateCompanyProfile(command: UpdateCompanyProfileCommand): CompanyProfile;
+  revealCompanyTaxIdentifier(): RevealCompanyTaxIdentifierResult;
+  getAccountTypeCatalog(): GetAccountTypeCatalogResult;
+  previewAccountPlacement(command: PreviewAccountPlacementCommand): PreviewAccountPlacementResult;
+  getBalanceSheet(query: BalanceSheetQuery): BalanceSheetReport;
+  getBalanceSheetDetail(command: GetBalanceSheetDetailCommand): BalanceSheetDetail;
+  exportBalanceSheet(command: ExportBalanceSheetCommand): Promise<BalanceSheetExportResult>;
+  openBalanceSheetPrintPreview(command: OpenBalanceSheetPrintPreviewCommand): Promise<BalanceSheetPrintPreviewResult>;
   listAccounts(): FinancialAccount[];
   createAccount(command: CreateAccountCommand): FinancialAccount;
   getAccount(id: string): FinancialAccount | undefined;

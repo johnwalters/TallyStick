@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Phase 1 in progress; baseline oracle and accounting taxonomy complete |
-| Current phase | Phase 1 — shared contracts and domain catalog |
-| Next task | `BS-SLICE-03-PUBLIC-CONTRACTS` — company, report, application, and facade contracts |
+| Overall status | Phase 1 shared contracts and domain catalog complete |
+| Current phase | Phase 2 — schema 6, migration, repositories, and recovery compatibility |
+| Next task | `BS-SLICE-04-SCHEMA-6-MIGRATION` — schema metadata, indexes, and transactional migration |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | `npm run test:ci`: taxonomy validations, 2-company A1–A19 oracle, and 116 ChromeHeadless tests passed |
+| Last verified Balance Sheet test | `npm run test:ci`: public-contract validations, 2-company A1–A19 oracle, and 126 ChromeHeadless tests passed |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -61,7 +61,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | Phase | Outcome | Status |
 | --- | --- | --- |
 | 0 | Accepted documentation and verified implementation baseline | Complete |
-| 1 | Shared company, account-taxonomy, and Balance Sheet contracts | In progress |
+| 1 | Shared company, account-taxonomy, and Balance Sheet contracts | Complete |
 | 2 | Schema 6, migrations, repositories, and backup compatibility | Not started |
 | 3 | Company Settings and generic account management | Not started |
 | 4 | Balance Sheet calculation, hierarchy, warnings, and drill-down | Not started |
@@ -89,7 +89,7 @@ Execution is divided into token-conscious, independently testable units in the [
 
 ### Company and taxonomy contracts
 
-- [ ] **BS1-001** Add `CompanyProfile`, masked report identity, address/contact, and optimistic update command contracts.
+- [x] **BS1-001** Add `CompanyProfile`, masked report identity, address/contact, and optimistic update command contracts.
 - [x] **BS1-002** Add exhaustive `ReportingGroup`, `AccountingAccountType`, `BalanceSheetSection`, `AccountRole`, import-capability, and classification-status types without colliding with the legacy financial `AccountType`.
 - [x] **BS1-003** Create one grouped Account Type catalog with natural balance, reporting placement, compatible detail types, valid parents, opening-balance support, and default import capability.
 - [x] **BS1-004** Include every PRD-required Bank and Credit Card detail type and all remaining standard detail-type catalogs.
@@ -98,20 +98,20 @@ Execution is divided into token-conscious, independently testable units in the [
 
 ### Balance Sheet contracts
 
-- [ ] **BS1-007** Add `BalanceSheetQuery`, normalized default query, immutable report, row, warning, contribution, and detail-key contracts.
-- [ ] **BS1-008** Use `bigint`/existing `Money` values for all Balance Sheet amounts and exclude numeric floating-point money fields.
-- [ ] **BS1-009** Define stable semantic row identities independent of labels and stable report/database revision identities for detail/export requests.
-- [ ] **BS1-010** Extend `AccountingApplication` with Company Settings, catalog, placement-preview, report, detail, export, and print-preview operations.
-- [ ] **BS1-011** Add typed company, account, report, stale-revision, reconciliation, and export failure codes.
-- [ ] **BS1-012** Extend feature facade state without exposing repositories, SQL, Electron, or filesystem types to Angular components.
+- [x] **BS1-007** Add `BalanceSheetQuery`, normalized default query, immutable report, row, warning, contribution, and detail-key contracts.
+- [x] **BS1-008** Use `bigint`/existing `Money` values for all Balance Sheet amounts and exclude numeric floating-point money fields.
+- [x] **BS1-009** Define stable semantic row identities independent of labels and stable report/database revision identities for detail/export requests.
+- [x] **BS1-010** Extend `AccountingApplication` with Company Settings, catalog, placement-preview, report, detail, export, and print-preview operations.
+- [x] **BS1-011** Add typed company, account, report, stale-revision, reconciliation, and export failure codes.
+- [x] **BS1-012** Extend feature facade state without exposing repositories, SQL, Electron, or filesystem types to Angular components.
 
 ### Contract verification
 
 - [x] **BS1-013** Test exhaustive Account Type-to-reporting-group mapping and unknown-type failure.
 - [x] **BS1-014** Test all Account Type/Detail Type, parent, role, import-capability, and opening-balance-mode validations.
-- [ ] **BS1-015** Test immutable report contracts, semantic row keys, stale report revision rejection, and integer money types.
-- [ ] **BS1-016** Run dependency-boundary checks proving UI and desktop-host boundaries remain intact.
-- [ ] **BS1-GATE** Exit gate: every new contract compiles, all catalog/contract tests pass, and no presentation or persistence type leaks across the application boundary.
+- [x] **BS1-015** Test immutable report contracts, semantic row keys, stale report revision rejection, and integer money types.
+- [x] **BS1-016** Run dependency-boundary checks proving UI and desktop-host boundaries remain intact.
+- [x] **BS1-GATE** Exit gate: every new contract compiles, all catalog/contract tests pass, and no presentation or persistence type leaks across the application boundary.
 
 ## Phase 2 — Schema 6, migration, repositories, and recovery compatibility
 
@@ -333,3 +333,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS0-006–BS0-007 | Added 2 deliberately different fictional companies and a machine-validated A1–A19 oracle; every expected money row reconciles to integer detail contributions and canonical 2025/2026 books have zero Difference. |
 | 2026-08-21 | BS0-008–BS0-GATE | No unresolved product or architecture decision found. All Phase 0 artifacts and required baseline commands passed; production Balance Sheet behavior remains intentionally unimplemented. |
 | 2026-08-21 | BS1-002–BS1-006, BS1-013–BS1-014 | Added the exhaustive 15-type grouped catalog, shared legacy Chart catalog projection, custom-detail preservation, typed validation/contracts, and 10 focused taxonomy tests. `npm run test:ci` passed boundary and fixture checks plus all 116 ChromeHeadless tests; coverage 78.98% statements, 63.49% branches, 88.43% functions, and 86.70% lines. Production build and all 7 desktop-host tests also passed. |
+| 2026-08-21 | BS1-001, BS1-007–BS1-012, BS1-015–BS1-GATE | Added immutable Company/Balance Sheet/detail/export contracts, bigint money, semantic branded identities, typed failures, `AccountingApplication` operations, and a contract-only feature facade. `npm run test:ci` passed strengthened production-facade/desktop boundaries, the fixture oracle, and all 126 ChromeHeadless tests; coverage 79.11% statements, 63.72% branches, 87.70% functions, and 86.51% lines. Production build and all 7 desktop-host tests passed. |

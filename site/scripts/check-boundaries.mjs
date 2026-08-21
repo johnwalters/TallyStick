@@ -23,8 +23,11 @@ const violations = [];
 for (const file of await filesUnder(root)) {
   const source = await readFile(file, 'utf8');
   const relativePath = relative(root, file);
-  if (relativePath.startsWith('ui/') || relativePath === 'app.component.ts') {
+  if (!relativePath.endsWith('.spec.ts') && (relativePath.startsWith('ui/') || relativePath.startsWith('features/') || relativePath === 'app.component.ts')) {
     if (/from ['"].*repository|from ['"].*sqlite|from ['"].*import-services|from ['"].*desktop-host/.test(source)) violations.push(`UI bypass: ${relativePath}`);
+  }
+  if (relativePath.startsWith('core/application-interface/')) {
+    if (/from ['"].*repository|from ['"].*sqlite|from ['"].*desktop-host|from ['"](?:node:)?(?:fs|path)/.test(source)) violations.push(`Application contract leaks infrastructure: ${relativePath}`);
   }
 }
 for (const file of await filesUnder(desktopRoot)) {

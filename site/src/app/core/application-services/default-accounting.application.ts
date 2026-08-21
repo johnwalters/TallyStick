@@ -19,6 +19,23 @@ import {
   TransactionDetail,
   TransactionSuggestion,
 } from '../application-interface/accounting.application';
+import {
+  BalanceSheetDetail,
+  BalanceSheetContractError,
+  BalanceSheetExportResult,
+  BalanceSheetPrintPreviewResult,
+  BalanceSheetQuery,
+  BalanceSheetReport,
+  CompanyProfile,
+  ExportBalanceSheetCommand,
+  GetBalanceSheetDetailCommand,
+  OpenBalanceSheetPrintPreviewCommand,
+  PreviewAccountPlacementCommand,
+  PreviewAccountPlacementResult,
+  RevealCompanyTaxIdentifierResult,
+  UpdateCompanyProfileCommand,
+} from '../domain-model/balance-sheet.types';
+import { ACCOUNT_TYPE_GROUPS } from '../domain-model/account-taxonomy';
 import { DATABASE_LIFECYCLE_GATEWAY } from '../database-lifecycle/database-lifecycle.gateway';
 import { ImportPipelineService } from '../import-services/import-pipeline.service';
 import { BackupBundleService, CURRENT_BACKUP_SCHEMA_VERSION } from '../backup-services/backup-bundle.service';
@@ -63,6 +80,42 @@ export class DefaultAccountingApplication implements AccountingApplication {
 
   getCompany() {
     return structuredClone(this.repository.company);
+  }
+
+  getCompanyProfile(): CompanyProfile {
+    return this.balanceSheetNotImplemented('getCompanyProfile');
+  }
+
+  updateCompanyProfile(_command: UpdateCompanyProfileCommand): CompanyProfile {
+    return this.balanceSheetNotImplemented('updateCompanyProfile');
+  }
+
+  revealCompanyTaxIdentifier(): RevealCompanyTaxIdentifierResult {
+    return this.balanceSheetNotImplemented('revealCompanyTaxIdentifier');
+  }
+
+  getAccountTypeCatalog() {
+    return structuredClone(ACCOUNT_TYPE_GROUPS);
+  }
+
+  previewAccountPlacement(_command: PreviewAccountPlacementCommand): PreviewAccountPlacementResult {
+    return this.balanceSheetNotImplemented('previewAccountPlacement');
+  }
+
+  getBalanceSheet(_query: BalanceSheetQuery): BalanceSheetReport {
+    return this.balanceSheetNotImplemented('getBalanceSheet');
+  }
+
+  getBalanceSheetDetail(_command: GetBalanceSheetDetailCommand): BalanceSheetDetail {
+    return this.balanceSheetNotImplemented('getBalanceSheetDetail');
+  }
+
+  async exportBalanceSheet(_command: ExportBalanceSheetCommand): Promise<BalanceSheetExportResult> {
+    return this.balanceSheetNotImplemented('exportBalanceSheet');
+  }
+
+  async openBalanceSheetPrintPreview(_command: OpenBalanceSheetPrintPreviewCommand): Promise<BalanceSheetPrintPreviewResult> {
+    return this.balanceSheetNotImplemented('openBalanceSheetPrintPreview');
   }
 
   listAccounts(): FinancialAccount[] {
@@ -1736,6 +1789,14 @@ export class DefaultAccountingApplication implements AccountingApplication {
       const defaultRuleId = newId();
       this.repository.rules.set(defaultRuleId, { id: defaultRuleId, name: 'Example: marketplace fee labels', enabled: false, priority: 10, conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'Marketplace fee' }], chartAccountId: feeAccount });
       this.repository.taxSettings.set(this.repository.company.activeTaxYear, this.getTaxYearSettings(this.repository.company.activeTaxYear));
+    });
+  }
+
+  private balanceSheetNotImplemented<T>(operation: string): T {
+    throw new BalanceSheetContractError({
+      code: 'BALANCE_SHEET_NOT_IMPLEMENTED',
+      message: `${operation} is defined by the Balance Sheet contract but is not implemented yet.`,
+      retryable: false,
     });
   }
 }
