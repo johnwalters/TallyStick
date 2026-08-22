@@ -24,6 +24,7 @@ export interface FinancialSourceBalance {
   readonly section: BalanceSheetSection;
   readonly internalAmountMinor: bigint;
   readonly amountMinor: bigint;
+  readonly openingAmountMinor: bigint;
   readonly transactions: readonly Transaction[];
 }
 
@@ -49,6 +50,8 @@ export class BalanceSheetReportService {
     if (!normalized.ok) throw new BalanceSheetContractError(normalized.error);
 
     const snapshot = this.repository.readBalanceSheetSnapshot(normalized.value.asOfDate);
+    const conflicts = snapshot.accounts.filter(account => account.openingBalanceSource === 'LEDGER_ACTIVITY' && account.openingBalance.minorUnits !== 0n);
+    if (conflicts.length) throw new BalanceSheetContractError({ code: 'REPORT_GENERATION_FAILED', message: `Stored opening balance conflicts with ledger activity for ${conflicts[0].name}.`, accountId: conflicts[0].id, retryable: false });
     return Object.freeze({
       query: Object.freeze(normalized.value),
       databaseRevision: snapshot.databaseRevision,
@@ -60,16 +63,24 @@ export class BalanceSheetReportService {
     const normalized = normalizeBalanceSheetQuery(input, this.repository.company);
     if (!normalized.ok) throw new BalanceSheetContractError(normalized.error);
     const snapshot = this.repository.readBalanceSheetSnapshot(normalized.value.asOfDate);
+    const conflicts = snapshot.accounts.filter(account => account.openingBalanceSource === 'LEDGER_ACTIVITY' && account.openingBalance.minorUnits !== 0n);
+    if (conflicts.length) throw new BalanceSheetContractError({ code: 'REPORT_GENERATION_FAILED', message: `Stored opening balance conflicts with ledger activity for ${conflicts[0].name}.`, accountId: conflicts[0].id, retryable: false });
     const sourceBalances = this.sourceBalances(snapshot, normalized.value);
     const chartBalances = this.chartBalances(snapshot, normalized.value);
     const period = fiscalPeriod(normalized.value.asOfDate, snapshot.company.fiscalYearStartMonth);
     const currentEarnings = calculateUnadjustedNetProfit(snapshot.transactions, snapshot.chartAccounts, period.startDate, normalized.value.asOfDate);
     const retainedEarnings = calculateRetainedEarnings(snapshot, period.startDate);
+    const openingBalanceEquity = sourceBalances.reduce((total, balance) => {
+      if (balance.section === 'ASSETS') return total + balance.openingAmountMinor;
+      if (balance.section === 'LIABILITIES') return total - balance.openingAmountMinor;
+      return total;
+    }, 0n);
     const rows: BalanceSheetRow[] = [
       ...sourceBalances.map(balance => this.sourceRow(balance)),
       ...chartBalances.map(balance => this.chartRow(balance)),
       derivedEquityRow('CURRENT_EARNINGS', 'Current Earnings', normalized.value.asOfDate, currentEarnings),
       derivedEquityRow('RETAINED_EARNINGS', 'Retained Earnings', normalized.value.asOfDate, retainedEarnings),
+      derivedEquityRow('OPENING_BALANCE_EQUITY', 'Opening Balance Equity', normalized.value.asOfDate, openingBalanceEquity),
     ];
     const totalAssetsMinor = sumSection(rows, 'ASSETS');
     const totalLiabilitiesMinor = sumSection(rows, 'LIABILITIES');
@@ -96,7 +107,7 @@ export class BalanceSheetReportService {
       totalEquityMinor,
       totalLiabilitiesAndEquityMinor,
       differenceMinor: totalAssetsMinor - totalLiabilitiesAndEquityMinor,
-      warnings: [],
+      warnings: snapshot.accounts.filter(account => account.openingBalance.minorUnits !== 0n && account.openingBalanceDate > normalized.value.asOfDate).map(account => ({ warningId: `OPENING_BALANCE_AFTER_AS_OF:${account.id}:${normalized.value.asOfDate}`, code: 'OPENING_BALANCE_AFTER_AS_OF' as const, message: `${account.name} has an opening balance after the report date.`, accountRole: 'FINANCIAL_SOURCE' as const, accountId: account.id, businessDate: account.openingBalanceDate })),
       detailIndex: {},
     });
   }
@@ -123,13 +134,15 @@ export class BalanceSheetReportService {
       if (!definition.ok || !definition.value.balanceSheetSection) return [];
       const transactions = (transactionsByAccount.get(account.id) ?? [])
         .sort((left, right) => left.postingDate.localeCompare(right.postingDate) || left.id.localeCompare(right.id));
-      const internalAmountMinor = transactions.reduce((total, transaction) => total + transaction.amount.minorUnits, 0n);
+      const openingAmountMinor = account.openingBalanceSource === 'DERIVED_EQUITY' && account.openingBalanceDate <= query.asOfDate ? account.openingBalance.minorUnits : 0n;
+      const internalAmountMinor = openingAmountMinor + transactions.reduce((total, transaction) => total + transaction.amount.minorUnits, 0n);
       const amountMinor = definition.value.naturalBalance === 'CREDIT' ? -internalAmountMinor : internalAmountMinor;
       return [{
         account: structuredClone(account),
         section: definition.value.balanceSheetSection,
         internalAmountMinor,
         amountMinor,
+        openingAmountMinor: definition.value.naturalBalance === 'CREDIT' ? -openingAmountMinor : openingAmountMinor,
         transactions: Object.freeze(transactions),
       } satisfies FinancialSourceBalance];
     });
@@ -187,7 +200,7 @@ function calculateRetainedEarnings(snapshot: BalanceSheetRepositorySnapshot, fis
     }, 0n);
 }
 
-function derivedEquityRow(key: 'CURRENT_EARNINGS' | 'RETAINED_EARNINGS', label: string, asOfDate: string, amountMinor: bigint): BalanceSheetRow {
+function derivedEquityRow(key: 'CURRENT_EARNINGS' | 'RETAINED_EARNINGS' | 'OPENING_BALANCE_EQUITY', label: string, asOfDate: string, amountMinor: bigint): BalanceSheetRow {
   const rowId = syntheticBalanceSheetRowId(key, asOfDate);
   return { rowId, rowType: 'DERIVED_EQUITY', section: 'EQUITY', label, depth: 0, amountMinor, detailKey: balanceSheetDetailKey(rowId), bold: true, derived: true, archived: false, unclassified: false };
 }

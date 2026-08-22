@@ -60,7 +60,7 @@ describe('BalanceSheetReportService source balances', () => {
     expect(report.rows.map(row => [row.accountRole, row.accountId, row.amountMinor])).toEqual([
       ['FINANCIAL_SOURCE', 'bank', 5_000n], ['FINANCIAL_SOURCE', 'card', 0n],
       ['CHART', 'fixed', 5_000n], ['CHART', 'loan', 7_000n], ['CHART', 'equity', 3_000n],
-      [undefined, undefined, 0n], [undefined, undefined, 0n],
+      [undefined, undefined, 0n], [undefined, undefined, 0n], [undefined, undefined, 0n],
     ]);
     expect(report.totalAssetsMinor).toBe(10_000n);
     expect(report.totalLiabilitiesMinor).toBe(7_000n);
@@ -72,7 +72,7 @@ describe('BalanceSheetReportService source balances', () => {
   it('returns an immutable all-zero report for empty books', () => {
     repository.accounts.clear();
     const report = service.getBalanceSheet({ asOfDate: '2026-12-31' });
-    expect(report.rows.map(row => [row.label, row.amountMinor])).toEqual([['Current Earnings', 0n], ['Retained Earnings', 0n]]);
+    expect(report.rows.map(row => [row.label, row.amountMinor])).toEqual([['Current Earnings', 0n], ['Retained Earnings', 0n], ['Opening Balance Equity', 0n]]);
     expect([report.totalAssetsMinor, report.totalLiabilitiesMinor, report.totalEquityMinor, report.differenceMinor]).toEqual([0n, 0n, 0n, 0n]);
     expect(Object.isFrozen(report)).toBeTrue();
   });
@@ -93,13 +93,33 @@ describe('BalanceSheetReportService source balances', () => {
     expect(report.totalAssetsMinor).toBe(3_000n);
     expect(report.differenceMinor).toBe(0n);
   });
+
+  it('includes eligible openings once, derives Opening Balance Equity, and warns on future openings', () => {
+    repository.accounts.get('bank')!.openingBalance = money(10_000n);
+    repository.accounts.get('bank')!.openingBalanceDate = '2025-12-31';
+    repository.accounts.get('card')!.openingBalance = money(-4_000n);
+    repository.accounts.get('card')!.openingBalanceDate = '2025-12-31';
+    repository.accounts.set('future', { ...account('future', 'BANK'), openingBalance: money(9_000n), openingBalanceDate: '2027-01-01' });
+    const report = service.getBalanceSheet({ asOfDate: '2026-12-31' });
+    expect(report.rows.find(row => row.accountId === 'bank')?.amountMinor).toBe(10_000n);
+    expect(report.rows.find(row => row.accountId === 'card')?.amountMinor).toBe(4_000n);
+    expect(report.rows.find(row => row.label === 'Opening Balance Equity')?.amountMinor).toBe(6_000n);
+    expect(report.differenceMinor).toBe(0n);
+    expect(report.warnings).toEqual([jasmine.objectContaining({ code: 'OPENING_BALANCE_AFTER_AS_OF', accountId: 'future' })]);
+  });
+
+  it('fails a ledger-activity account with a conflicting stored opening', () => {
+    repository.accounts.get('bank')!.openingBalanceSource = 'LEDGER_ACTIVITY';
+    repository.accounts.get('bank')!.openingBalance = money(1n);
+    expect(() => service.getBalanceSheet({ asOfDate: '2026-12-31' })).toThrowError(/conflicts with ledger activity/);
+  });
 });
 
 function account(id: string, type: 'BANK' | 'CREDIT_CARD'): FinancialAccount {
   return {
     id, type, accountType: type, classificationStatus: 'CONFIRMED', importEnabled: true, supportedSourceKinds: ['CSV'],
     openingBalanceSource: 'DERIVED_EQUITY', detailType: type === 'BANK' ? 'Checking' : 'Credit Card', name: id,
-    institutionOrEntity: 'Example Institution', openingBalance: money(999_999n), openingBalanceDate: '2025-01-01', archived: false, locked: false,
+    institutionOrEntity: 'Example Institution', openingBalance: money(0n), openingBalanceDate: '2025-01-01', archived: false, locked: false,
   };
 }
 
