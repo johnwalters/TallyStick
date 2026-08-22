@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slices 7–18 complete; verified two-sheet XLSX preserves numeric summary and contribution detail |
+| Overall status | Slices 7–19 complete; screen, detail, CSV, XLSX, and print preview share one immutable report |
 | Current phase | Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down |
-| Next task | `BS-SLICE-19-PRINT-PDF` — immutable print preview, PDF model, and Command-P |
+| Next task | `BS-SLICE-20-RELEASE-PROOF` — full acceptance, performance, regression, privacy, and documentation evidence |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | Slice 18: 2 output tests including XLSX reopen/numeric cells and all 8 desktop-host tests passed |
+| Last verified Balance Sheet test | Slice 19: 3 output tests, all 8 desktop-host tests, production build, and isolated Electron smoke passed |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -272,15 +272,15 @@ Execution is divided into token-conscious, independently testable units in the [
 - [x] **BS6-003** Implement XLSX Balance Sheet sheet with screen order, indentation, matching bold styles, numeric currency cells, warnings, and totals.
 - [x] **BS6-004** Implement XLSX Balance Sheet Detail sheet with every contribution and row/detail key needed to reproduce the statement.
 - [x] **BS6-005** Reopen and verify generated XLSX structure, formulas/values, numeric types, styles, and totals before reporting success.
-- [ ] **BS6-006** Build print-preview rendering from the same report rows, metadata, warnings, and Difference.
-- [ ] **BS6-007** Open preview without automatically invoking the system print dialog.
-- [ ] **BS6-008** Title preview `<configured company display name> — Balance Sheet` and add File > Print with Command-P.
-- [ ] **BS6-009** Repeat headings across print pages and avoid separating a subtotal from its immediately preceding group when practical.
-- [ ] **BS6-010** Exclude the tax identifier from CSV, XLSX, print, PDF, logs, and error output.
-- [ ] **BS6-011** Use safe temporary writes, atomic finalization, cancellation cleanup, and no success result for a partial export.
-- [ ] **BS6-012** Add parity tests proving every screen row and total equals CSV, XLSX, detail, print-preview, and PDF model values.
-- [ ] **BS6-013** Test special characters, neutral company identities, zero/negative values, warnings, archived/unclassified rows, and multi-page output.
-- [ ] **BS6-GATE** Exit gate: A13 passes, generated workbooks reopen, preview requires an explicit print action, and all output amounts reconcile exactly.
+- [x] **BS6-006** Build print-preview rendering from the same report rows, metadata, warnings, and Difference.
+- [x] **BS6-007** Open preview without automatically invoking the system print dialog.
+- [x] **BS6-008** Title preview `<configured company display name> — Balance Sheet` and add File > Print with Command-P.
+- [x] **BS6-009** Repeat headings across print pages and avoid separating a subtotal from its immediately preceding group when practical.
+- [x] **BS6-010** Exclude the tax identifier from CSV, XLSX, print, PDF, logs, and error output.
+- [x] **BS6-011** Use safe temporary writes, atomic finalization, cancellation cleanup, and no success result for a partial export.
+- [x] **BS6-012** Add parity tests proving every screen row and total equals CSV, XLSX, detail, print-preview, and PDF model values.
+- [x] **BS6-013** Test special characters, neutral company identities, zero/negative values, warnings, archived/unclassified rows, and multi-page output.
+- [x] **BS6-GATE** Exit gate: A13 passes, generated workbooks reopen, preview requires an explicit print action, and all output amounts reconcile exactly.
 
 ## Phase 7 — Acceptance, performance, regression, and release proof
 
@@ -349,3 +349,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS5-001–BS5-GATE | Added the restrained Balance Sheet navigation/workspace with independent dates and shortcuts, zero toggle, identity/basis/totals, hierarchy and warnings, accessible amount buttons, exact detail inspector, focus return, empty/loading/error handling, and responsive report typography. All 40 AppComponent tests and isolated Electron smoke passed. |
 | 2026-08-21 | BS6-001–BS6-002 CSV portion | Added BOM-prefixed UTF-8 Summary CSV from the supplied immutable report, including identity, hierarchy, stable IDs, flags, warnings, and final totals; native saves use same-directory temporary files, atomic rename, and cancellation cleanup. CSV test and all 8 desktop-host tests passed. |
 | 2026-08-21 | BS6-003–BS6-005 | Added a styled numeric Balance Sheet sheet and contribution-complete Balance Sheet Detail sheet; generated bytes are reopened and required sheets/money-cell types verified before save. Both output tests and all 8 desktop-host tests passed. |
+| 2026-08-21 | BS6-006–BS6-GATE | Added escaped, multi-page print/PDF HTML from immutable rows with repeated headings and protected totals, configured title, no automatic print call, preview-only Electron window, and existing File > Print / Command-P integration. Three output tests, all 8 desktop-host tests, production build, and isolated Electron smoke passed. |

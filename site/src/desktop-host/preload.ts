@@ -26,6 +26,7 @@ const bridge: LocalAccountingBridge = {
   reportFiles: {
     save: (suggestedFileName, bytes, fileType) => ipcRenderer.invoke('report-file:save', suggestedFileName, bytes, fileType),
   },
+  reportPreview: { open: (title, html) => ipcRenderer.invoke('report-preview:open', title, html) },
 };
 
 contextBridge.exposeInMainWorld('localAccounting', bridge);

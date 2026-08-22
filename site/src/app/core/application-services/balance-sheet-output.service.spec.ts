@@ -1,4 +1,4 @@
-import { balanceSheetCsv, balanceSheetXlsx } from './balance-sheet-output.service';
+import { balanceSheetCsv, balanceSheetPrintHtml, balanceSheetXlsx } from './balance-sheet-output.service';
 import * as XLSX from 'xlsx';
 import { balanceSheetDetailKey, balanceSheetReportId, databaseRevision, syntheticBalanceSheetRowId } from '../domain-model/balance-sheet.types';
 
@@ -32,5 +32,15 @@ describe('Balance Sheet CSV output', () => {
     expect(workbook.Sheets['Balance Sheet']['L9'].t).toBe('n');
     expect(workbook.Sheets['Balance Sheet']['L9'].v).toBe(123.45);
     expect(XLSX.utils.sheet_to_json(workbook.Sheets['Balance Sheet Detail'], { header: 1 })).toEqual(jasmine.arrayContaining([jasmine.arrayContaining(['one', 'POSTED_TRANSACTION'])]));
+  });
+
+  it('builds a self-contained print preview with escaped identity, repeating headings, and no auto-print script', () => {
+    const query = { asOfDate: '2026-12-31', includeZeroBalanceAccounts: false }; const revision = databaseRevision('print');
+    const output = balanceSheetPrintHtml({ reportId: balanceSheetReportId(revision, query), databaseRevision: revision, generatedAt: '', query, company: { companyId: 'c', legalName: 'A', displayName: 'North <Studio>', addressLines: [], contactLines: [] }, currencyCode: 'USD', accountingBasis: 'CASH', fiscalPeriod: { startDate: '2026-01-01', endDate: query.asOfDate }, rows: [], totalAssetsMinor: 0n, totalLiabilitiesMinor: 0n, totalEquityMinor: 0n, totalLiabilitiesAndEquityMinor: 0n, differenceMinor: 0n, warnings: [{ warningId: 'w', code: 'BALANCE_SHEET_OUT_OF_BALANCE', message: 'Check & review' }], detailIndex: {} });
+    expect(output).toContain('<title>North &lt;Studio&gt; — Balance Sheet</title>');
+    expect(output).toContain('thead{display:table-header-group}');
+    expect(output).toContain('Check &amp; review');
+    expect(output).not.toContain('window.print');
+    expect(output.toLowerCase()).not.toContain('tax identifier');
   });
 });

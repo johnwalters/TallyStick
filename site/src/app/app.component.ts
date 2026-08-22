@@ -243,6 +243,8 @@ export class AppComponent {
   closeBalanceSheetDetail(): void { this.balanceSheetDetail = undefined; queueMicrotask(() => this.balanceSheetReturnFocus?.focus()); }
   balanceSheetMoney(value = 0n): string { return formatMoney(money(value)); }
   balanceSheetOutOfBalance(): boolean { return (this.balanceSheet?.differenceMinor ?? 0n) !== 0n; }
+  async exportBalanceSheet(format: 'CSV' | 'XLSX'): Promise<void> { if (this.balanceSheet) await this.balanceSheetFacade.export({ report: this.balanceSheet, format }); }
+  async openBalanceSheetPrintPreview(): Promise<void> { if (this.balanceSheet) await this.balanceSheetFacade.openPrintPreview({ report: this.balanceSheet }); }
 
   refresh(): void {
     this.transactionMonth = this.transactionMonthForRange();

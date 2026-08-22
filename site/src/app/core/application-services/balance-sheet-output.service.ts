@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
-import { BalanceSheetExportResult, BalanceSheetReport, ExportBalanceSheetCommand } from '../domain-model/balance-sheet.types';
+import { BalanceSheetExportResult, BalanceSheetPrintPreviewResult, BalanceSheetReport, ExportBalanceSheetCommand } from '../domain-model/balance-sheet.types';
 import * as XLSX from 'xlsx';
 
 interface ReportFileBridge { save(suggestedFileName: string, bytes: Uint8Array, fileType: 'CSV' | 'XLSX' | 'HTML'): Promise<'SAVED' | 'CANCELLED'>; }
+interface ReportPreviewBridge { open(title: string, html: string): Promise<string>; }
 
 @Injectable({ providedIn: 'root' })
 export class BalanceSheetOutputService {
@@ -12,6 +13,12 @@ export class BalanceSheetOutputService {
     const bridge = (globalThis as { localAccounting?: { reportFiles?: ReportFileBridge } }).localAccounting?.reportFiles;
     if (!bridge) return { format: command.format, status: 'CANCELLED', suggestedFileName };
     return { format: command.format, status: await bridge.save(suggestedFileName, bytes, command.format), suggestedFileName };
+  }
+
+  async openPrintPreview(report: BalanceSheetReport): Promise<BalanceSheetPrintPreviewResult> {
+    const bridge = (globalThis as { localAccounting?: { reportPreview?: ReportPreviewBridge } }).localAccounting?.reportPreview;
+    if (!bridge) return { status: 'CANCELLED' };
+    return { status: 'OPENED', previewId: await bridge.open(`${report.company.displayName} — Balance Sheet`, balanceSheetPrintHtml(report)) };
   }
 }
 
@@ -44,6 +51,12 @@ export function balanceSheetXlsx(report: BalanceSheetReport): Uint8Array {
   return bytes;
 }
 
+export function balanceSheetPrintHtml(report: BalanceSheetReport): string {
+  const rows = report.rows.map(row => `<tr class="${row.bold ? 'bold ' : ''}${row.rowType.toLowerCase()}"><td style="padding-left:${12 + row.depth * 18}px">${html(row.label)}${row.archived ? ' <small>Archived</small>' : ''}${row.unclassified ? ' <small>Unclassified</small>' : ''}</td><td>${row.amountMinor === undefined ? '' : html(moneyText(row.amountMinor))}</td></tr>`).join('');
+  const warnings = report.warnings.length ? `<section><h2>Review required</h2>${report.warnings.map(warning => `<p>${html(warning.message)}</p>`).join('')}</section>` : '';
+  return `<!doctype html><html><head><meta charset="utf-8"><title>${html(report.company.displayName)} — Balance Sheet</title><style>@page{margin:16mm}body{font:14px Arial,sans-serif;color:#182b27}header{border-bottom:1px solid #899891;margin-bottom:18px}h1{margin-bottom:4px}table{width:100%;border-collapse:collapse}thead{display:table-header-group}th,td{padding:7px 10px;border-bottom:1px solid #d8dedb;text-align:left}th:last-child,td:last-child{text-align:right;font-variant-numeric:tabular-nums}.bold{font-weight:700}.group_header{background:#f4f7f4}.subtotal,.total,.difference{break-inside:avoid}.difference{border-top:2px solid #53645d}small{color:#78452f}section{break-inside:avoid;margin-top:20px}</style></head><body><header><h1>${html(report.company.displayName)}</h1><h2>Balance Sheet</h2><p>As of ${html(report.query.asOfDate)} · ${html(report.accountingBasis)} basis · ${html(report.currencyCode)}</p></header>${warnings}<table><thead><tr><th>Account</th><th>Amount</th></tr></thead><tbody>${rows}</tbody></table></body></html>`;
+}
+
 export function balanceSheetCsv(report: BalanceSheetReport): string {
   const lines: string[][] = [
     ['Report', 'Balance Sheet'], ['Company', report.company.displayName], ['Legal name', report.company.legalName],
@@ -59,3 +72,5 @@ export function balanceSheetCsv(report: BalanceSheetReport): string {
 
 function decimal(value: bigint): string { const sign = value < 0n ? '-' : ''; const abs = value < 0n ? -value : value; return `${sign}${abs / 100n}.${String(abs % 100n).padStart(2, '0')}`; }
 function csvCell(value: string): string { return /[",\r\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value; }
+function moneyText(value: bigint): string { const sign = value < 0n ? '-' : ''; const abs = value < 0n ? -value : value; return `${sign}$${abs / 100n}.${String(abs % 100n).padStart(2, '0')}`; }
+function html(value: string): string { return value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!); }

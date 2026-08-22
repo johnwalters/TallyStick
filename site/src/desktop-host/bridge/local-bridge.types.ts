@@ -24,6 +24,7 @@ export interface LocalAccountingBridge {
   reportFiles: {
     save(suggestedFileName: string, bytes: Uint8Array, fileType: 'CSV' | 'XLSX' | 'HTML'): Promise<'SAVED' | 'CANCELLED'>;
   };
+  reportPreview: { open(title: string, html: string): Promise<string>; };
 }
 
 declare global {

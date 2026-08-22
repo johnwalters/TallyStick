@@ -130,8 +130,8 @@ export class DefaultAccountingApplication implements AccountingApplication {
     return this.balanceSheetOutputs.export(command);
   }
 
-  async openBalanceSheetPrintPreview(_command: OpenBalanceSheetPrintPreviewCommand): Promise<BalanceSheetPrintPreviewResult> {
-    return this.balanceSheetNotImplemented('openBalanceSheetPrintPreview');
+  async openBalanceSheetPrintPreview(command: OpenBalanceSheetPrintPreviewCommand): Promise<BalanceSheetPrintPreviewResult> {
+    return this.balanceSheetOutputs.openPrintPreview(command.report);
   }
 
   listAccounts(): FinancialAccount[] {

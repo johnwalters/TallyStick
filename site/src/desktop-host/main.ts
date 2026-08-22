@@ -319,6 +319,11 @@ ipcMain.handle('report-file:save', async (_event, suggestedFileName: string, byt
   catch (error) { await fs.rm(temporaryPath, { force: true }); throw error; }
   return 'SAVED';
 });
+ipcMain.handle('report-preview:open', async (_event, title: string, html: string) => {
+  const preview = new BrowserWindow({ title, width: 1000, height: 800, parent: mainWindow, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });
+  await preview.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  return `preview-${preview.id}`;
+});
 void app.whenReady().then(async () => {
   await openDatabase();
   if (desktopSmokeUserData) await requireDatabaseLifecycle().setBackupDirectory(path.join(desktopSmokeUserData, 'backups'));
