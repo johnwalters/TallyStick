@@ -10,6 +10,7 @@ import {
   accountBalanceSheetRowId,
   accountTypeBalanceSheetRowId,
   balanceSheetDetailKey,
+  balanceSheetShortcutDate,
   balanceSheetReportId,
   databaseRevision,
   freezeBalanceSheetReport,
@@ -37,6 +38,15 @@ describe('Balance Sheet public contracts', () => {
     expect(normalizeBalanceSheetQuery({ asOfDate: '2026-02-30' }, { fiscalYearStartMonth: 1, activeTaxYear: 2026 })).toEqual(
       jasmine.objectContaining({ ok: false, error: jasmine.objectContaining({ code: 'REPORT_QUERY_INVALID', field: 'asOfDate' }) }),
     );
+  });
+
+  it('calculates deterministic date shortcuts across month, year, and leap boundaries', () => {
+    const defaults = { fiscalYearStartMonth: 7, activeTaxYear: 2026 };
+    expect(balanceSheetShortcutDate('TODAY', '2024-03-12', defaults)).toEqual({ ok: true, value: '2024-03-12' });
+    expect(balanceSheetShortcutDate('PREVIOUS_MONTH_END', '2024-03-12', defaults)).toEqual({ ok: true, value: '2024-02-29' });
+    expect(balanceSheetShortcutDate('PREVIOUS_MONTH_END', '2026-01-12', defaults)).toEqual({ ok: true, value: '2025-12-31' });
+    expect(balanceSheetShortcutDate('CURRENT_MONTH_END', '2026-04-12', defaults)).toEqual({ ok: true, value: '2026-04-30' });
+    expect(balanceSheetShortcutDate('FISCAL_YEAR_END', '2026-08-12', defaults)).toEqual({ ok: true, value: '2027-06-30' });
   });
 
   it('builds stable semantic identities without display labels', () => {

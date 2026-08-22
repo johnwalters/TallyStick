@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slices 7–9 complete; cross-output identity and final Phase 3 acceptance remain open for downstream report/output slices |
+| Overall status | Slices 7–10 complete; source-account activity balances now use one immutable as-of snapshot |
 | Current phase | Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down |
-| Next task | `BS-SLICE-10-SOURCE-BALANCES` — source-account balances and transaction-state rules |
+| Next task | `BS-SLICE-11-CHART-EQUATION` — Chart contributions, totals, and exact equation |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | `npm run test:ci`: unified account editor creation/editing, keyboard use, custom details, placement, opening conflict, complete references, fixture oracle, and 150 ChromeHeadless tests passed; production build also passed |
+| Last verified Balance Sheet test | Focused Slice 10 suite: 10 ChromeHeadless tests passed for query defaults/shortcuts, immutable revision reads, state/date filtering, transfers, and natural signs |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -63,8 +63,8 @@ Execution is divided into token-conscious, independently testable units in the [
 | 0 | Accepted documentation and verified implementation baseline | Complete |
 | 1 | Shared company, account-taxonomy, and Balance Sheet contracts | Complete |
 | 2 | Schema 6, migrations, repositories, and backup compatibility | Complete |
-| 3 | Company Settings and generic account management | Not started |
-| 4 | Balance Sheet calculation, hierarchy, warnings, and drill-down | Not started |
+| 3 | Company Settings and generic account management | In progress; downstream cross-output acceptance remains |
+| 4 | Balance Sheet calculation, hierarchy, warnings, and drill-down | In progress |
 | 5 | Balance Sheet workspace and interaction | Not started |
 | 6 | CSV, XLSX, print preview, and PDF parity | Not started |
 | 7 | Acceptance scenarios, performance, regression, and release proof | Not started |
@@ -195,13 +195,13 @@ Execution is divided into token-conscious, independently testable units in the [
 
 ### Query and calculations
 
-- [ ] **BS4-001** Implement query normalization and active-tax-year fiscal-period-end default for calendar and non-calendar fiscal years.
-- [ ] **BS4-002** Implement Today, previous-month-end, current-month-end, and fiscal-year-end date calculations, including leap years.
-- [ ] **BS4-003** Read one consistent database revision/snapshot for report generation.
-- [ ] **BS4-004** Include Posted activity and confirmed Matched Transfer source-account effects on or before the as-of date.
-- [ ] **BS4-005** Exclude Pending, Excluded, and post-as-of activity from every report amount.
-- [ ] **BS4-006** Calculate Asset financial-source balances from applicable opening balance plus signed Posted and Matched activity.
-- [ ] **BS4-007** Calculate Liability financial-source balances with the correct natural-sign presentation.
+- [x] **BS4-001** Implement query normalization and active-tax-year fiscal-period-end default for calendar and non-calendar fiscal years.
+- [x] **BS4-002** Implement Today, previous-month-end, current-month-end, and fiscal-year-end date calculations, including leap years.
+- [x] **BS4-003** Read one consistent database revision/snapshot for report generation.
+- [x] **BS4-004** Include Posted activity and confirmed Matched Transfer source-account effects on or before the as-of date.
+- [x] **BS4-005** Exclude Pending, Excluded, and post-as-of activity from every report amount.
+- [ ] **BS4-006** Calculate Asset financial-source balances from applicable opening balance plus signed Posted and Matched activity. *(Posted/Matched activity complete in Slice 10; opening component is intentionally deferred to Slice 13.)*
+- [x] **BS4-007** Calculate Liability financial-source balances with the correct natural-sign presentation.
 - [ ] **BS4-008** Calculate Asset Chart contributions as the inverse of stored split signs.
 - [ ] **BS4-009** Calculate Liability and Equity Chart contributions using their natural credit-balance sign.
 - [ ] **BS4-010** Derive Current Earnings from the existing unadjusted P/L for the exact fiscal-year start through as-of date.
@@ -340,3 +340,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS3-004–BS3-006, BS3-008 | Added the accessible Company Settings side panel with masked explicit tax reveal, validation, save/cancel/Escape behavior, stale-edit recovery, dynamic application identity, and a reusable tax-free report/export identity formatter. Two neutral identities and blank optional output were verified. `npm run test:ci` passed all 140 ChromeHeadless tests with 79.84% statements, 65.49% branches, 88.44% functions, and 87.28% lines; production build passed. |
 | 2026-08-21 | BS3-009–BS3-013, BS3-018, BS3-020, BS3-023–BS3-025 | Added the generic account application service with exhaustive grouped catalog, role-aware two-store routing, import/classification separation, stable-ID edits, custom-detail retention, compatible hierarchy validation, exact affected/blocking references, confirmation requirements, as-of placement/current-balance previews, Current Earnings behavior, and mutually exclusive opening modes. `npm run test:ci` passed all 147 ChromeHeadless tests with 80.29% statements, 66.18% branches, 88.68% functions, and 87.74% lines; production build and all 8 desktop-host tests passed. |
 | 2026-08-21 | BS3-014–BS3-017, BS3-019, BS3-026 | Replaced user-facing source/Chart Add and Edit actions with one accessible role-aware editor using grouped Account Types, immediate detail/parent filtering, imported/custom labels, immutable existing roles, live Balance Sheet or Current Earnings placement, as-of balances, opening-mode validation, and complete blocking/confirmation reference lists. Browser tests cover creation, stable-ID edit, Escape cancellation, custom retention, placement, opening conflict, and reference display. `npm run test:ci` passed all 150 ChromeHeadless tests with 80.01% statements, 66.01% branches, 88.71% functions, and 87.38% lines; production build passed. A15/A18 cross-output acceptance remains open until report/output slices exist. |
+| 2026-08-21 | BS4-001–BS4-005, BS4-007; BS4-006 activity portion | Added validated fiscal defaults/date shortcuts and immutable source-balance snapshots with exact Posted/confirmed-transfer inclusion, state/date exclusions, natural Asset/Liability signs, and visible contra amounts. Focused Slice 10 suite passed all 10 ChromeHeadless tests; opening balances remain deferred to Slice 13 by the slice boundary. |

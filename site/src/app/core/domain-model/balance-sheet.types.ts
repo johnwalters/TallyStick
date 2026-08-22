@@ -124,6 +124,31 @@ export interface BalanceSheetQueryDefaults {
   readonly activeTaxYear: number;
 }
 
+export type BalanceSheetDateShortcut = 'TODAY' | 'PREVIOUS_MONTH_END' | 'CURRENT_MONTH_END' | 'FISCAL_YEAR_END';
+
+/** Returns a validated local business date for Balance Sheet shortcut controls. */
+export function balanceSheetShortcutDate(
+  shortcut: BalanceSheetDateShortcut,
+  today: string,
+  defaults: BalanceSheetQueryDefaults,
+): BalanceSheetContractResult<string> {
+  if (!isBusinessDate(today)) return invalidResult('today', 'Today must be a valid YYYY-MM-DD date.');
+  if (!Number.isInteger(defaults.fiscalYearStartMonth) || defaults.fiscalYearStartMonth < 1 || defaults.fiscalYearStartMonth > 12) {
+    return invalidResult('fiscalYearStartMonth', 'Fiscal-year start month must be from 1 through 12.');
+  }
+  const [year, month] = today.split('-').map(Number);
+  if (shortcut === 'TODAY') return { ok: true, value: today };
+  if (shortcut === 'FISCAL_YEAR_END') {
+    const endMonth = defaults.fiscalYearStartMonth === 1 ? 12 : defaults.fiscalYearStartMonth - 1;
+    const endYear = month <= endMonth ? year : year + 1;
+    return { ok: true, value: formatBusinessDate(endYear, endMonth, daysInMonth(endYear, endMonth)) };
+  }
+  if (shortcut === 'CURRENT_MONTH_END') return { ok: true, value: formatBusinessDate(year, month, daysInMonth(year, month)) };
+  const previousMonth = month === 1 ? 12 : month - 1;
+  const previousYear = month === 1 ? year - 1 : year;
+  return { ok: true, value: formatBusinessDate(previousYear, previousMonth, daysInMonth(previousYear, previousMonth)) };
+}
+
 export type BalanceSheetRowType =
   | 'SECTION_HEADER'
   | 'GROUP_HEADER'
@@ -445,6 +470,10 @@ export function freezeBalanceSheetReport(report: BalanceSheetReport): BalanceShe
 }
 
 function invalidQuery(field: string, message: string): BalanceSheetContractResult<BalanceSheetQuery> {
+  return invalidResult(field, message);
+}
+
+function invalidResult<T>(field: string, message: string): BalanceSheetContractResult<T> {
   return { ok: false, error: { code: 'REPORT_QUERY_INVALID', message, field, retryable: false } };
 }
 
@@ -458,6 +487,10 @@ function fiscalPeriodEnd(defaults: BalanceSheetQueryDefaults): string {
 function daysInMonth(year: number, month: number): number {
   if (month === 2) return year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0) ? 29 : 28;
   return [4, 6, 9, 11].includes(month) ? 30 : 31;
+}
+
+function formatBusinessDate(year: number, month: number, day: number): string {
+  return `${year.toString().padStart(4, '0')}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
 }
 
 function isBusinessDate(value: string): boolean {
