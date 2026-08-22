@@ -47,6 +47,34 @@ describe('BalanceSheetReportService source balances', () => {
     expect(result.balances.find(row => row.account.id === 'bank')?.amountMinor).toBe(-500n);
     expect(result.balances.find(row => row.account.id === 'card')?.amountMinor).toBe(-300n);
   });
+
+  it('combines source and Chart rows with natural signs and an exact equation', () => {
+    repository.chartAccounts.set('fixed', chartAccount('fixed', 'FIXED_ASSET'));
+    repository.chartAccounts.set('loan', chartAccount('loan', 'LONG_TERM_LIABILITY'));
+    repository.chartAccounts.set('equity', chartAccount('equity', 'EQUITY'));
+    repository.transactions.set('asset-buy', transactionWithSplit('asset-buy', -5_000n, 'fixed', -5_000n));
+    repository.transactions.set('loan-funding', transactionWithSplit('loan-funding', 7_000n, 'loan', 7_000n));
+    repository.transactions.set('owner-funding', transactionWithSplit('owner-funding', 3_000n, 'equity', 3_000n));
+
+    const report = service.getBalanceSheet({ asOfDate: '2026-12-31' });
+    expect(report.rows.map(row => [row.accountRole, row.accountId, row.amountMinor])).toEqual([
+      ['FINANCIAL_SOURCE', 'bank', 5_000n], ['FINANCIAL_SOURCE', 'card', 0n],
+      ['CHART', 'fixed', 5_000n], ['CHART', 'loan', 7_000n], ['CHART', 'equity', 3_000n],
+    ]);
+    expect(report.totalAssetsMinor).toBe(10_000n);
+    expect(report.totalLiabilitiesMinor).toBe(7_000n);
+    expect(report.totalEquityMinor).toBe(3_000n);
+    expect(report.totalLiabilitiesAndEquityMinor).toBe(10_000n);
+    expect(report.differenceMinor).toBe(0n);
+  });
+
+  it('returns an immutable all-zero report for empty books', () => {
+    repository.accounts.clear();
+    const report = service.getBalanceSheet({ asOfDate: '2026-12-31' });
+    expect(report.rows).toEqual([]);
+    expect([report.totalAssetsMinor, report.totalLiabilitiesMinor, report.totalEquityMinor, report.differenceMinor]).toEqual([0n, 0n, 0n, 0n]);
+    expect(Object.isFrozen(report)).toBeTrue();
+  });
 });
 
 function account(id: string, type: 'BANK' | 'CREDIT_CARD'): FinancialAccount {
@@ -55,6 +83,14 @@ function account(id: string, type: 'BANK' | 'CREDIT_CARD'): FinancialAccount {
     openingBalanceSource: 'DERIVED_EQUITY', detailType: type === 'BANK' ? 'Checking' : 'Credit Card', name: id,
     institutionOrEntity: 'Example Institution', openingBalance: money(999_999n), openingBalanceDate: '2025-01-01', archived: false, locked: false,
   };
+}
+
+function chartAccount(id: string, accountType: 'FIXED_ASSET' | 'LONG_TERM_LIABILITY' | 'EQUITY') {
+  return { id, name: id, type: accountType === 'FIXED_ASSET' ? 'ASSET' as const : accountType === 'LONG_TERM_LIABILITY' ? 'LIABILITY' as const : 'EQUITY' as const, accountType, detailType: accountType === 'FIXED_ASSET' ? 'Machinery and equipment' : accountType === 'LONG_TERM_LIABILITY' ? 'Loan payable' : 'Owner equity', displayOrder: 1, archived: false, locked: false };
+}
+
+function transactionWithSplit(id: string, amount: bigint, chartAccountId: string, splitAmount: bigint): Transaction {
+  return { ...transaction(id, 'bank', '2026-01-01', amount, 'POSTED'), splits: [{ id: `${id}-split`, chartAccountId, amount: money(splitAmount) }] };
 }
 
 function transaction(id: string, accountId: string, postingDate: string, amount: bigint, state: Transaction['state'], transferMatchId?: string): Transaction {

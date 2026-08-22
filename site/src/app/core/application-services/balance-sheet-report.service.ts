@@ -1,14 +1,21 @@
 import { Injectable, inject } from '@angular/core';
 import { BalanceSheetSection, getAccountTypeDefinition } from '../domain-model/account-taxonomy';
-import { FinancialAccount, Transaction } from '../domain-model/accounting.types';
+import { ChartAccount, FinancialAccount, Transaction } from '../domain-model/accounting.types';
 import {
+  accountBalanceSheetRowId,
+  balanceSheetDetailKey,
+  balanceSheetReportId,
   BalanceSheetContractError,
   BalanceSheetQuery,
   BalanceSheetQueryInput,
+  BalanceSheetReport,
+  BalanceSheetRow,
   DatabaseRevision,
+  freezeBalanceSheetReport,
   normalizeBalanceSheetQuery,
+  reportCompanyIdentity,
 } from '../domain-model/balance-sheet.types';
-import { ACCOUNTING_REPOSITORY, AccountingRepository } from '../repository-gateways/accounting.repository';
+import { ACCOUNTING_REPOSITORY, AccountingRepository, BalanceSheetRepositorySnapshot } from '../repository-gateways/accounting.repository';
 
 export interface FinancialSourceBalance {
   readonly account: FinancialAccount;
@@ -24,6 +31,12 @@ export interface FinancialSourceBalanceSnapshot {
   readonly balances: readonly FinancialSourceBalance[];
 }
 
+export interface ChartBalance {
+  readonly account: ChartAccount;
+  readonly section: BalanceSheetSection;
+  readonly amountMinor: bigint;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BalanceSheetReportService {
   private readonly repository = inject(ACCOUNTING_REPOSITORY) as AccountingRepository;
@@ -34,10 +47,55 @@ export class BalanceSheetReportService {
     if (!normalized.ok) throw new BalanceSheetContractError(normalized.error);
 
     const snapshot = this.repository.readBalanceSheetSnapshot(normalized.value.asOfDate);
+    return Object.freeze({
+      query: Object.freeze(normalized.value),
+      databaseRevision: snapshot.databaseRevision,
+      balances: this.sourceBalances(snapshot, normalized.value),
+    });
+  }
+
+  getBalanceSheet(input: BalanceSheetQueryInput): BalanceSheetReport {
+    const normalized = normalizeBalanceSheetQuery(input, this.repository.company);
+    if (!normalized.ok) throw new BalanceSheetContractError(normalized.error);
+    const snapshot = this.repository.readBalanceSheetSnapshot(normalized.value.asOfDate);
+    const sourceBalances = this.sourceBalances(snapshot, normalized.value);
+    const chartBalances = this.chartBalances(snapshot, normalized.value);
+    const rows: BalanceSheetRow[] = [...sourceBalances.map(balance => this.sourceRow(balance)), ...chartBalances.map(balance => this.chartRow(balance))];
+    const totalAssetsMinor = sumSection(rows, 'ASSETS');
+    const totalLiabilitiesMinor = sumSection(rows, 'LIABILITIES');
+    const totalEquityMinor = sumSection(rows, 'EQUITY');
+    const totalLiabilitiesAndEquityMinor = totalLiabilitiesMinor + totalEquityMinor;
+    const profile = snapshot.companyProfile ?? {
+      companyId: snapshot.company.id, legalName: snapshot.company.name, displayName: snapshot.company.name,
+      currencyCode: snapshot.company.currency, fiscalYearStartMonth: snapshot.company.fiscalYearStartMonth,
+      accountingBasis: snapshot.company.accountingBasis, activeTaxYear: snapshot.company.activeTaxYear,
+      createdAt: '', modifiedAt: '',
+    };
+    return freezeBalanceSheetReport({
+      reportId: balanceSheetReportId(snapshot.databaseRevision, normalized.value),
+      databaseRevision: snapshot.databaseRevision,
+      generatedAt: new Date().toISOString(),
+      query: normalized.value,
+      company: reportCompanyIdentity(profile),
+      currencyCode: snapshot.company.currency,
+      accountingBasis: snapshot.company.accountingBasis,
+      fiscalPeriod: fiscalPeriod(normalized.value.asOfDate, snapshot.company.fiscalYearStartMonth),
+      rows,
+      totalAssetsMinor,
+      totalLiabilitiesMinor,
+      totalEquityMinor,
+      totalLiabilitiesAndEquityMinor,
+      differenceMinor: totalAssetsMinor - totalLiabilitiesAndEquityMinor,
+      warnings: [],
+      detailIndex: {},
+    });
+  }
+
+  private sourceBalances(snapshot: BalanceSheetRepositorySnapshot, query: BalanceSheetQuery): readonly FinancialSourceBalance[] {
     const confirmedTransfers = new Map(snapshot.transfers.map(transfer => [transfer.id, transfer]));
     const transactionsByAccount = new Map<string, Transaction[]>();
     for (const transaction of snapshot.transactions) {
-      if (transaction.postingDate > normalized.value.asOfDate) continue;
+      if (transaction.postingDate > query.asOfDate) continue;
       const included = transaction.state === 'POSTED' || (
         transaction.state === 'MATCHED_TRANSFER'
         && Boolean(transaction.transferMatchId)
@@ -66,14 +124,44 @@ export class BalanceSheetReportService {
       } satisfies FinancialSourceBalance];
     });
 
-    return Object.freeze({
-      query: Object.freeze(normalized.value),
-      databaseRevision: snapshot.databaseRevision,
-      balances: Object.freeze(balances.map(balance => Object.freeze(balance))),
-    });
+    return Object.freeze(balances.map(balance => Object.freeze(balance)));
+  }
+
+  private chartBalances(snapshot: BalanceSheetRepositorySnapshot, query: BalanceSheetQuery): readonly ChartBalance[] {
+    const amounts = new Map<string, bigint>();
+    for (const transaction of snapshot.transactions) {
+      if (transaction.state !== 'POSTED' || transaction.postingDate > query.asOfDate) continue;
+      for (const split of transaction.splits) amounts.set(split.chartAccountId, (amounts.get(split.chartAccountId) ?? 0n) + split.amount.minorUnits);
+    }
+    return Object.freeze(snapshot.chartAccounts.flatMap(account => {
+      const definition = getAccountTypeDefinition(account.accountType);
+      if (!definition.ok || !definition.value.balanceSheetSection) return [];
+      const stored = amounts.get(account.id) ?? 0n;
+      return [Object.freeze({ account: structuredClone(account), section: definition.value.balanceSheetSection, amountMinor: definition.value.naturalBalance === 'DEBIT' ? -stored : stored })];
+    }));
+  }
+
+  private sourceRow(balance: FinancialSourceBalance): BalanceSheetRow {
+    const rowId = accountBalanceSheetRowId('FINANCIAL_SOURCE', balance.account.id);
+    return { rowId, rowType: 'ACCOUNT', section: balance.section, accountType: balance.account.accountType, accountRole: 'FINANCIAL_SOURCE', accountId: balance.account.id, label: balance.account.name, depth: 0, amountMinor: balance.amountMinor, detailKey: balanceSheetDetailKey(rowId), bold: false, derived: false, archived: balance.account.archived, unclassified: balance.account.classificationStatus === 'REVIEW_REQUIRED' };
+  }
+
+  private chartRow(balance: ChartBalance): BalanceSheetRow {
+    const rowId = accountBalanceSheetRowId('CHART', balance.account.id);
+    return { rowId, rowType: 'ACCOUNT', section: balance.section, accountType: balance.account.accountType, accountRole: 'CHART', accountId: balance.account.id, label: balance.account.name, depth: 0, amountMinor: balance.amountMinor, detailKey: balanceSheetDetailKey(rowId), bold: false, derived: false, archived: balance.account.archived, unclassified: false };
   }
 }
 
 function transferContainsTransaction(transfer: { leftTransactionId: string; rightTransactionId: string }, transactionId: string): boolean {
   return transfer.leftTransactionId === transactionId || transfer.rightTransactionId === transactionId;
+}
+
+function sumSection(rows: readonly BalanceSheetRow[], section: BalanceSheetSection): bigint {
+  return rows.reduce((total, row) => total + (row.section === section ? row.amountMinor ?? 0n : 0n), 0n);
+}
+
+function fiscalPeriod(asOfDate: string, startMonth: number): { startDate: string; endDate: string } {
+  const [year, month] = asOfDate.split('-').map(Number);
+  const startYear = month >= startMonth ? year : year - 1;
+  return { startDate: `${startYear.toString().padStart(4, '0')}-${startMonth.toString().padStart(2, '0')}-01`, endDate: asOfDate };
 }

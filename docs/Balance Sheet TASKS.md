@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slices 7–10 complete; source-account activity balances now use one immutable as-of snapshot |
+| Overall status | Slices 7–11 complete; source and Chart balances produce exact Balance Sheet totals and Difference |
 | Current phase | Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down |
-| Next task | `BS-SLICE-11-CHART-EQUATION` — Chart contributions, totals, and exact equation |
+| Next task | `BS-SLICE-12-FISCAL-EARNINGS` — Current Earnings and Retained Earnings parity with unadjusted P/L |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | Focused Slice 10 suite: 10 ChromeHeadless tests passed for query defaults/shortcuts, immutable revision reads, state/date filtering, transfers, and natural signs |
+| Last verified Balance Sheet test | Focused Slice 11 suite: 4 ChromeHeadless tests passed for source filters/signs, Chart signs, exact equation, and an immutable empty report |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -202,8 +202,8 @@ Execution is divided into token-conscious, independently testable units in the [
 - [x] **BS4-005** Exclude Pending, Excluded, and post-as-of activity from every report amount.
 - [ ] **BS4-006** Calculate Asset financial-source balances from applicable opening balance plus signed Posted and Matched activity. *(Posted/Matched activity complete in Slice 10; opening component is intentionally deferred to Slice 13.)*
 - [x] **BS4-007** Calculate Liability financial-source balances with the correct natural-sign presentation.
-- [ ] **BS4-008** Calculate Asset Chart contributions as the inverse of stored split signs.
-- [ ] **BS4-009** Calculate Liability and Equity Chart contributions using their natural credit-balance sign.
+- [x] **BS4-008** Calculate Asset Chart contributions as the inverse of stored split signs.
+- [x] **BS4-009** Calculate Liability and Equity Chart contributions using their natural credit-balance sign.
 - [ ] **BS4-010** Derive Current Earnings from the existing unadjusted P/L for the exact fiscal-year start through as-of date.
 - [ ] **BS4-011** Derive prior-period Retained Earnings from unadjusted P/L activity before the current fiscal period.
 - [ ] **BS4-012** Derive Opening Balance Equity only from eligible stored opening balances and exclude ledger-activity opening mode.
@@ -211,13 +211,13 @@ Execution is divided into token-conscious, independently testable units in the [
 
 ### Hierarchy and totals
 
-- [ ] **BS4-014** Combine financial-source and Chart balances into Assets, Liabilities, and Equity without name-based merging or double counting.
+- [x] **BS4-014** Combine financial-source and Chart balances into Assets, Liabilities, and Equity without name-based merging or double counting.
 - [ ] **BS4-015** Order Account Types, parents, children, and direct postings deterministically from the catalog and Chart display order.
 - [ ] **BS4-016** Calculate each parent subtotal from direct parent activity plus descendants exactly once.
 - [ ] **BS4-017** Hide zero-balance leaves by default while preserving structural parents and unchanged subtotals.
 - [ ] **BS4-018** Include nonzero archived and review-required/unclassified accounts visibly.
-- [ ] **BS4-019** Calculate Total Assets, Total Liabilities, Total Equity, Total Liabilities and Equity, and exact minor-unit Difference.
-- [ ] **BS4-020** Return a valid empty report with zero totals and zero Difference.
+- [x] **BS4-019** Calculate Total Assets, Total Liabilities, Total Equity, Total Liabilities and Equity, and exact minor-unit Difference.
+- [x] **BS4-020** Return a valid empty report with zero totals and zero Difference.
 
 ### Warnings, detail, and refresh
 
@@ -341,3 +341,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS3-009–BS3-013, BS3-018, BS3-020, BS3-023–BS3-025 | Added the generic account application service with exhaustive grouped catalog, role-aware two-store routing, import/classification separation, stable-ID edits, custom-detail retention, compatible hierarchy validation, exact affected/blocking references, confirmation requirements, as-of placement/current-balance previews, Current Earnings behavior, and mutually exclusive opening modes. `npm run test:ci` passed all 147 ChromeHeadless tests with 80.29% statements, 66.18% branches, 88.68% functions, and 87.74% lines; production build and all 8 desktop-host tests passed. |
 | 2026-08-21 | BS3-014–BS3-017, BS3-019, BS3-026 | Replaced user-facing source/Chart Add and Edit actions with one accessible role-aware editor using grouped Account Types, immediate detail/parent filtering, imported/custom labels, immutable existing roles, live Balance Sheet or Current Earnings placement, as-of balances, opening-mode validation, and complete blocking/confirmation reference lists. Browser tests cover creation, stable-ID edit, Escape cancellation, custom retention, placement, opening conflict, and reference display. `npm run test:ci` passed all 150 ChromeHeadless tests with 80.01% statements, 66.01% branches, 88.71% functions, and 87.38% lines; production build passed. A15/A18 cross-output acceptance remains open until report/output slices exist. |
 | 2026-08-21 | BS4-001–BS4-005, BS4-007; BS4-006 activity portion | Added validated fiscal defaults/date shortcuts and immutable source-balance snapshots with exact Posted/confirmed-transfer inclusion, state/date exclusions, natural Asset/Liability signs, and visible contra amounts. Focused Slice 10 suite passed all 10 ChromeHeadless tests; opening balances remain deferred to Slice 13 by the slice boundary. |
+| 2026-08-21 | BS4-008–BS4-009, BS4-014, BS4-019–BS4-020 | Added immutable application-level Balance Sheet generation with separate source/Chart identities, exact debit/credit sign transforms, integer Asset/Liability/Equity totals and Difference, and valid empty-book behavior. Focused Slice 11 suite passed all 4 ChromeHeadless tests. |

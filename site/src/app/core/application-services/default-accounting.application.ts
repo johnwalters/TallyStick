@@ -40,6 +40,7 @@ import { ImportPipelineService } from '../import-services/import-pipeline.servic
 import { BackupBundleService, CURRENT_BACKUP_SCHEMA_VERSION } from '../backup-services/backup-bundle.service';
 import { CompanyProfileService } from './company-profile.service';
 import { AccountClassificationService } from './account-classification.service';
+import { BalanceSheetReportService } from './balance-sheet-report.service';
 import { ACCOUNTING_REPOSITORY, AccountingRepository } from '../repository-gateways/accounting.repository';
 import {
   addMoney,
@@ -74,6 +75,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
   private readonly databaseLifecycle = inject(DATABASE_LIFECYCLE_GATEWAY);
   private readonly companyProfiles = inject(CompanyProfileService);
   private readonly accountClassifications = inject(AccountClassificationService);
+  private readonly balanceSheets = inject(BalanceSheetReportService);
   private readonly previews = new Map<string, ImportPreview>();
   private readonly rulePreviews = new Map<string, RuleImportPreview>();
 
@@ -113,8 +115,8 @@ export class DefaultAccountingApplication implements AccountingApplication {
     return this.accountClassifications.preview(command);
   }
 
-  getBalanceSheet(_query: BalanceSheetQuery): BalanceSheetReport {
-    return this.balanceSheetNotImplemented('getBalanceSheet');
+  getBalanceSheet(query: BalanceSheetQuery): BalanceSheetReport {
+    return this.balanceSheets.getBalanceSheet(query);
   }
 
   getBalanceSheetDetail(_command: GetBalanceSheetDetailCommand): BalanceSheetDetail {
