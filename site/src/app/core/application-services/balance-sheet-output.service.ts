@@ -1,18 +1,47 @@
 import { Injectable } from '@angular/core';
 import { BalanceSheetExportResult, BalanceSheetReport, ExportBalanceSheetCommand } from '../domain-model/balance-sheet.types';
+import * as XLSX from 'xlsx';
 
 interface ReportFileBridge { save(suggestedFileName: string, bytes: Uint8Array, fileType: 'CSV' | 'XLSX' | 'HTML'): Promise<'SAVED' | 'CANCELLED'>; }
 
 @Injectable({ providedIn: 'root' })
 export class BalanceSheetOutputService {
   async export(command: ExportBalanceSheetCommand): Promise<BalanceSheetExportResult> {
-    if (command.format !== 'CSV') throw new Error(`Balance Sheet ${command.format} export is not implemented yet.`);
-    const suggestedFileName = `balance-sheet-${command.report.query.asOfDate}.csv`;
-    const bytes = new TextEncoder().encode(balanceSheetCsv(command.report));
+    const suggestedFileName = `balance-sheet-${command.report.query.asOfDate}.${command.format.toLowerCase()}`;
+    const bytes = command.format === 'CSV' ? new TextEncoder().encode(balanceSheetCsv(command.report)) : balanceSheetXlsx(command.report);
     const bridge = (globalThis as { localAccounting?: { reportFiles?: ReportFileBridge } }).localAccounting?.reportFiles;
-    if (!bridge) return { format: 'CSV', status: 'CANCELLED', suggestedFileName };
-    return { format: 'CSV', status: await bridge.save(suggestedFileName, bytes, 'CSV'), suggestedFileName };
+    if (!bridge) return { format: command.format, status: 'CANCELLED', suggestedFileName };
+    return { format: command.format, status: await bridge.save(suggestedFileName, bytes, command.format), suggestedFileName };
   }
+}
+
+export function balanceSheetXlsx(report: BalanceSheetReport): Uint8Array {
+  const workbook = XLSX.utils.book_new();
+  const summary: Array<Array<string | number>> = [
+    ['Balance Sheet'], ['Company', report.company.displayName], ['Legal name', report.company.legalName], ['As of', report.query.asOfDate], ['Basis', report.accountingBasis], ['Currency', report.currencyCode], [],
+    ['Label', 'Row ID', 'Row type', 'Section', 'Account type', 'Account role', 'Account ID', 'Depth', 'Archived', 'Unclassified', 'Derived', 'Amount'],
+    ...report.rows.map(row => [row.label, row.rowId, row.rowType, row.section, row.accountType ?? '', row.accountRole ?? '', row.accountId ?? '', row.depth, row.archived ? 'Yes' : 'No', row.unclassified ? 'Yes' : 'No', row.derived ? 'Yes' : 'No', row.amountMinor === undefined ? '' : Number(row.amountMinor) / 100]),
+    [], ['Warnings'], ...report.warnings.map(warning => [warning.code, warning.message, warning.accountId ?? '', warning.businessDate ?? '']),
+  ];
+  const summarySheet = XLSX.utils.aoa_to_sheet(summary);
+  report.rows.forEach((row, index) => {
+    const label = summarySheet[XLSX.utils.encode_cell({ r: index + 8, c: 0 })];
+    const amount = summarySheet[XLSX.utils.encode_cell({ r: index + 8, c: 11 })];
+    if (label) label.s = { font: { bold: row.bold }, alignment: { indent: row.depth } };
+    if (amount?.t === 'n') { amount.z = '$#,##0.00;[Red]-$#,##0.00'; amount.s = { font: { bold: row.bold } }; }
+  });
+  XLSX.utils.book_append_sheet(workbook, summarySheet, 'Balance Sheet');
+  const detailRows: Array<Array<string | number>> = [['Row ID', 'Detail key', 'Contribution ID', 'Kind', 'Business date', 'Description', 'Financial account ID', 'Chart account ID', 'Transaction ID', 'Stored amount', 'Contribution amount']];
+  report.rows.filter(row => row.detailKey).forEach(row => (report.detailIndex[row.detailKey!] ?? []).forEach(item => detailRows.push([row.rowId, row.detailKey!, item.contributionId, item.kind, item.businessDate, item.description, item.financialAccountId ?? '', item.chartAccountId ?? '', item.transactionId ?? '', item.storedAmountMinor === undefined ? '' : Number(item.storedAmountMinor) / 100, Number(item.contributionMinor) / 100])));
+  const detailSheet = XLSX.utils.aoa_to_sheet(detailRows);
+  for (let row = 1; row < detailRows.length; row += 1) for (const column of [9, 10]) { const cell = detailSheet[XLSX.utils.encode_cell({ r: row, c: column })]; if (cell?.t === 'n') cell.z = '$#,##0.00;[Red]-$#,##0.00'; }
+  XLSX.utils.book_append_sheet(workbook, detailSheet, 'Balance Sheet Detail');
+  const bytes = new Uint8Array(XLSX.write(workbook, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer);
+  const reopened = XLSX.read(bytes, { type: 'array' });
+  if (!reopened.Sheets['Balance Sheet'] || !reopened.Sheets['Balance Sheet Detail']) throw new Error('Balance Sheet workbook verification failed: required sheets are missing.');
+  const firstMoney = reopened.Sheets['Balance Sheet'][XLSX.utils.encode_cell({ r: 8, c: 11 })];
+  if (report.rows[0]?.amountMinor !== undefined && firstMoney?.t !== 'n') throw new Error('Balance Sheet workbook verification failed: money cells are not numeric.');
+  return bytes;
 }
 
 export function balanceSheetCsv(report: BalanceSheetReport): string {
