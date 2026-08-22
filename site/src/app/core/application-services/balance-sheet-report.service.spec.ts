@@ -72,7 +72,10 @@ describe('BalanceSheetReportService source balances', () => {
   it('returns an immutable all-zero report for empty books', () => {
     repository.accounts.clear();
     const report = service.getBalanceSheet({ asOfDate: '2026-12-31' });
-    expect(report.rows.map(row => [row.label, row.amountMinor])).toEqual([['Current Earnings', 0n], ['Retained Earnings', 0n], ['Opening Balance Equity', 0n]]);
+    expect(report.rows.map(row => [row.label, row.amountMinor])).toEqual([
+      ['Current Earnings', 0n], ['Retained Earnings', 0n], ['Opening Balance Equity', 0n],
+      ['Total Assets', 0n], ['Total Liabilities', 0n], ['Total Equity', 0n], ['Total Liabilities and Equity', 0n], ['Difference', 0n],
+    ]);
     expect([report.totalAssetsMinor, report.totalLiabilitiesMinor, report.totalEquityMinor, report.differenceMinor]).toEqual([0n, 0n, 0n, 0n]);
     expect(Object.isFrozen(report)).toBeTrue();
   });
@@ -131,6 +134,20 @@ describe('BalanceSheetReportService source balances', () => {
     expect(first.rows.find(row => row.label === 'Orphan')?.unclassified).toBeTrue();
     expect(first.warnings.map(warning => warning.code)).toContain('ACCOUNT_HIERARCHY_INVALID');
     expect(first.warnings.map(warning => warning.code)).toContain('ARCHIVED_NONZERO_ACCOUNT');
+  });
+
+  it('reconciles every detail-bearing row and rejects lookup after the database revision changes', () => {
+    repository.chartAccounts.set('income', { id: 'income', name: 'Income', type: 'INCOME', accountType: 'INCOME', detailType: 'Service income', displayOrder: 1, archived: false, locked: false });
+    repository.transactions.set('income-post', { ...transaction('income-post', 'bank', '2026-01-01', 1_000n, 'POSTED'), splits: [{ id: 'income-split', chartAccountId: 'income', amount: money(1_000n) }] });
+    const report = service.getBalanceSheet({ asOfDate: '2026-12-31' });
+    report.rows.filter(row => row.detailKey).forEach(row => {
+      const detail = service.getBalanceSheetDetail({ reportId: report.reportId, databaseRevision: report.databaseRevision, detailKey: row.detailKey! });
+      expect(detail.contributions.reduce((sum, item) => sum + item.contributionMinor, 0n)).withContext(row.label).toBe(row.amountMinor!);
+      expect(new Set(detail.contributions.map(item => item.contributionId)).size).toBe(detail.contributions.length);
+    });
+    repository.transactions.set('later', transaction('later', 'bank', '2027-01-01', 1n, 'PENDING'));
+    const bank = report.rows.find(row => row.accountId === 'bank')!;
+    expect(() => service.getBalanceSheetDetail({ reportId: report.reportId, databaseRevision: report.databaseRevision, detailKey: bank.detailKey! })).toThrowError(/stale/i);
   });
 });
 

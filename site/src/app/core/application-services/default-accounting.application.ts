@@ -120,8 +120,8 @@ export class DefaultAccountingApplication implements AccountingApplication {
     return this.balanceSheets.getBalanceSheet(query);
   }
 
-  getBalanceSheetDetail(_command: GetBalanceSheetDetailCommand): BalanceSheetDetail {
-    return this.balanceSheetNotImplemented('getBalanceSheetDetail');
+  getBalanceSheetDetail(command: GetBalanceSheetDetailCommand): BalanceSheetDetail {
+    return this.balanceSheets.getBalanceSheetDetail(command);
   }
 
   async exportBalanceSheet(_command: ExportBalanceSheetCommand): Promise<BalanceSheetExportResult> {

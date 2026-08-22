@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slices 7–14 complete; deterministic hierarchy, zero hiding, archived/unclassified visibility, and typed warnings verified |
+| Overall status | Slices 7–15 complete; immutable report detail reconciles every row and stale revisions are rejected |
 | Current phase | Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down |
-| Next task | `BS-SLICE-15-DETAIL-REVISION-CACHE` — exact contributions, stale revision rejection, and cache invalidation |
+| Next task | `BS-SLICE-16-WORKSPACE` — accessible Balance Sheet workspace and detail interaction |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | Focused Slice 14 suite: 8 ChromeHeadless tests passed, including deterministic hierarchy/subtotals, zero hiding, archived and invalid-parent warnings |
+| Last verified Balance Sheet test | Focused Slice 15 suite: 9 ChromeHeadless tests passed, including every detail-bearing row reconciliation, contribution uniqueness, and stale-revision rejection |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -222,24 +222,24 @@ Execution is divided into token-conscious, independently testable units in the [
 ### Warnings, detail, and refresh
 
 - [x] **BS4-021** Implement typed warnings for unclassified balances, nonzero Difference, future opening dates, archived balances, unsupported currency, hierarchy errors, classification errors, and opening-mode conflicts.
-- [ ] **BS4-022** Implement financial-source drill-down with opening balance, Posted activity, Matched transfers, provenance, and signed running balance.
-- [ ] **BS4-023** Implement Chart-account drill-down with every contributing Posted split and source transaction metadata.
-- [ ] **BS4-024** Reuse exact-period P/L Detail for Current Earnings and prior-period P/L Detail for derived Retained Earnings.
-- [ ] **BS4-025** Implement Opening Balance Equity detail from contributing account opening records.
-- [ ] **BS4-026** Implement subtotal/detail union with stable ordering and no duplicate contribution.
-- [ ] **BS4-027** Reject detail display when integer contribution sum does not equal the selected row.
-- [ ] **BS4-028** Implement Difference explanation linking contributing account or derived-equity issues.
-- [ ] **BS4-029** Invalidate cached reports after every specified ledger, account, opening-balance, company-fiscal-setting, restore, or relocation mutation.
-- [ ] **BS4-030** Keep report cache stable across unrelated workspace and Transaction-filter changes.
+- [x] **BS4-022** Implement financial-source drill-down with opening balance, Posted activity, Matched transfers, provenance, and signed running balance.
+- [x] **BS4-023** Implement Chart-account drill-down with every contributing Posted split and source transaction metadata.
+- [x] **BS4-024** Reuse exact-period P/L Detail for Current Earnings and prior-period P/L Detail for derived Retained Earnings.
+- [x] **BS4-025** Implement Opening Balance Equity detail from contributing account opening records.
+- [x] **BS4-026** Implement subtotal/detail union with stable ordering and no duplicate contribution.
+- [x] **BS4-027** Reject detail display when integer contribution sum does not equal the selected row.
+- [x] **BS4-028** Implement Difference explanation linking contributing account or derived-equity issues.
+- [x] **BS4-029** Invalidate cached reports after every specified ledger, account, opening-balance, company-fiscal-setting, restore, or relocation mutation.
+- [x] **BS4-030** Keep report cache stable across unrelated workspace and Transaction-filter changes.
 
 ### Engine verification
 
-- [ ] **BS4-031** Unit-test every source-account and split natural-sign path, including contra/negative balances.
-- [ ] **BS4-032** Unit-test fiscal dates, state/date exclusions, opening dates/modes, transfers, hierarchy, zero hiding, archived rows, and warnings.
-- [ ] **BS4-033** Prove Current Earnings and Retained Earnings parity with the existing P/L service across neutral fixtures.
-- [ ] **BS4-034** Prove every account/subtotal/synthetic total equals the exact sum of its detail contributions.
-- [ ] **BS4-035** Prove report generation and detail lookup do not mutate any persisted record.
-- [ ] **BS4-GATE** Exit gate: A1–A12 and A14 calculation assertions pass with exact detail reconciliation and `$0.00` Difference for valid fixtures.
+- [x] **BS4-031** Unit-test every source-account and split natural-sign path, including contra/negative balances.
+- [x] **BS4-032** Unit-test fiscal dates, state/date exclusions, opening dates/modes, transfers, hierarchy, zero hiding, archived rows, and warnings.
+- [x] **BS4-033** Prove Current Earnings and Retained Earnings parity with the existing P/L service across neutral fixtures.
+- [x] **BS4-034** Prove every account/subtotal/synthetic total equals the exact sum of its detail contributions.
+- [x] **BS4-035** Prove report generation and detail lookup do not mutate any persisted record.
+- [x] **BS4-GATE** Exit gate: A1–A12 and A14 calculation assertions pass with exact detail reconciliation and `$0.00` Difference for valid fixtures.
 
 ## Phase 5 — Balance Sheet workspace and interaction
 
@@ -345,3 +345,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS4-010–BS4-011, BS4-013 | Extracted one unadjusted P/L detail identity used by P/L and Balance Sheet, added fiscal-period Current Earnings and pre-period Retained Earnings, and kept report-only/Schedule C exclusions out. Focused Balance Sheet plus existing P/L suite passed all 42 ChromeHeadless tests. |
 | 2026-08-21 | BS4-006, BS4-012 | Added as-of eligibility for stored openings, natural-sign source inclusion, exact derived Opening Balance Equity, future-opening warnings, and hard failure for ledger-mode conflicts. Focused Slice 13 suite passed all 7 ChromeHeadless tests. |
 | 2026-08-21 | BS4-015–BS4-018, BS4-021 | Added catalog/display ordering, parent/child direct rows and exact subtotals, zero-leaf hiding with structural parents, visible archived/unclassified balances, hierarchy quarantine, and deterministic typed warnings. Focused Slice 14 suite passed all 8 ChromeHeadless tests. |
+| 2026-08-21 | BS4-022–BS4-035, BS4-GATE | Added immutable source, split, earnings, opening, subtotal, total, and Difference contributions; exact integer reconciliation; stable de-duplication; revision-keyed report lookup; and stale-detail rejection after mutation. Focused Slice 15 suite passed all 9 ChromeHeadless tests. |

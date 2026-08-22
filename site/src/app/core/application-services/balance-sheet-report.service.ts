@@ -10,6 +10,9 @@ import {
   BalanceSheetQueryInput,
   BalanceSheetReport,
   BalanceSheetRow,
+  BalanceSheetContribution,
+  BalanceSheetDetail,
+  GetBalanceSheetDetailCommand,
   DatabaseRevision,
   freezeBalanceSheetReport,
   normalizeBalanceSheetQuery,
@@ -44,6 +47,7 @@ export interface ChartBalance {
 @Injectable({ providedIn: 'root' })
 export class BalanceSheetReportService {
   private readonly repository = inject(ACCOUNTING_REPOSITORY) as AccountingRepository;
+  private readonly reports = new Map<string, BalanceSheetReport>();
 
   readFinancialSourceBalances(input: BalanceSheetQueryInput): FinancialSourceBalanceSnapshot {
     const company = this.repository.company;
@@ -90,13 +94,20 @@ export class BalanceSheetReportService {
     const totalLiabilitiesMinor = sumBalances(sourceBalances, chartBalances, 'LIABILITIES');
     const totalEquityMinor = sumBalances(sourceBalances, chartBalances, 'EQUITY') + currentEarnings + retainedEarnings + openingBalanceEquity;
     const totalLiabilitiesAndEquityMinor = totalLiabilitiesMinor + totalEquityMinor;
+    rows.push(
+      totalRow('TOTAL_ASSETS', 'ASSETS', 'Total Assets', normalized.value.asOfDate, totalAssetsMinor),
+      totalRow('TOTAL_LIABILITIES', 'LIABILITIES', 'Total Liabilities', normalized.value.asOfDate, totalLiabilitiesMinor),
+      totalRow('TOTAL_EQUITY', 'EQUITY', 'Total Equity', normalized.value.asOfDate, totalEquityMinor),
+      totalRow('TOTAL_LIABILITIES_AND_EQUITY', 'RECONCILIATION', 'Total Liabilities and Equity', normalized.value.asOfDate, totalLiabilitiesAndEquityMinor),
+      totalRow('DIFFERENCE', 'RECONCILIATION', 'Difference', normalized.value.asOfDate, totalAssetsMinor - totalLiabilitiesAndEquityMinor, 'DIFFERENCE'),
+    );
     const profile = snapshot.companyProfile ?? {
       companyId: snapshot.company.id, legalName: snapshot.company.name, displayName: snapshot.company.name,
       currencyCode: snapshot.company.currency, fiscalYearStartMonth: snapshot.company.fiscalYearStartMonth,
       accountingBasis: snapshot.company.accountingBasis, activeTaxYear: snapshot.company.activeTaxYear,
       createdAt: '', modifiedAt: '',
     };
-    return freezeBalanceSheetReport({
+    const report = freezeBalanceSheetReport({
       reportId: balanceSheetReportId(snapshot.databaseRevision, normalized.value),
       databaseRevision: snapshot.databaseRevision,
       generatedAt: new Date().toISOString(),
@@ -112,8 +123,23 @@ export class BalanceSheetReportService {
       totalLiabilitiesAndEquityMinor,
       differenceMinor: totalAssetsMinor - totalLiabilitiesAndEquityMinor,
       warnings: buildWarnings(snapshot, normalized.value.asOfDate, rows, presented.invalidAccountIds, totalAssetsMinor - totalLiabilitiesAndEquityMinor),
-      detailIndex: {},
+      detailIndex: buildDetailIndex(snapshot, normalized.value, period, sourceBalances, chartBalances, rows),
     });
+    this.reports.set(report.reportId, report);
+    return report;
+  }
+
+  getBalanceSheetDetail(command: GetBalanceSheetDetailCommand): BalanceSheetDetail {
+    const report = this.reports.get(command.reportId);
+    if (!report || report.databaseRevision !== command.databaseRevision) throw new BalanceSheetContractError({ code: 'REPORT_REVISION_STALE', message: 'The Balance Sheet report is stale. Regenerate it.', retryable: true });
+    const current = this.repository.readBalanceSheetSnapshot(report.query.asOfDate);
+    if (current.databaseRevision !== report.databaseRevision) throw new BalanceSheetContractError({ code: 'REPORT_REVISION_STALE', message: 'The Balance Sheet report is stale. Regenerate it.', retryable: true });
+    const row = report.rows.find(item => item.detailKey === command.detailKey);
+    const contributions = report.detailIndex[command.detailKey];
+    if (!row || row.amountMinor === undefined || !contributions) throw new BalanceSheetContractError({ code: 'REPORT_DETAIL_NOT_FOUND', message: 'Balance Sheet detail was not found.', detailKey: command.detailKey, retryable: false });
+    const amount = contributions.reduce((sum, item) => sum + item.contributionMinor, 0n);
+    if (amount !== row.amountMinor) throw new BalanceSheetContractError({ code: 'REPORT_DETAIL_RECONCILIATION_FAILED', message: 'Balance Sheet detail does not reconcile.', detailKey: command.detailKey, retryable: false });
+    return Object.freeze({ ...command, rowId: row.rowId, amountMinor: row.amountMinor, contributions });
   }
 
   private sourceBalances(snapshot: BalanceSheetRepositorySnapshot, query: BalanceSheetQuery): readonly FinancialSourceBalance[] {
@@ -219,3 +245,45 @@ function derivedEquityRow(key: 'CURRENT_EARNINGS' | 'RETAINED_EARNINGS' | 'OPENI
   const rowId = syntheticBalanceSheetRowId(key, asOfDate);
   return { rowId, rowType: 'DERIVED_EQUITY', section: 'EQUITY', label, depth: 0, amountMinor, detailKey: balanceSheetDetailKey(rowId), bold: true, derived: true, archived: false, unclassified: false };
 }
+
+function totalRow(key: 'TOTAL_ASSETS' | 'TOTAL_LIABILITIES' | 'TOTAL_EQUITY' | 'TOTAL_LIABILITIES_AND_EQUITY' | 'DIFFERENCE', section: BalanceSheetSection, label: string, asOfDate: string, amountMinor: bigint, rowType: 'TOTAL' | 'DIFFERENCE' = 'TOTAL'): BalanceSheetRow {
+  const rowId = syntheticBalanceSheetRowId(key, asOfDate);
+  return { rowId, rowType, section, label, depth: 0, amountMinor, detailKey: balanceSheetDetailKey(rowId), bold: true, derived: true, archived: false, unclassified: false };
+}
+
+function buildDetailIndex(snapshot: BalanceSheetRepositorySnapshot, query: BalanceSheetQuery, period: { startDate: string }, source: readonly FinancialSourceBalance[], chart: readonly ChartBalance[], rows: readonly BalanceSheetRow[]): Record<string, readonly BalanceSheetContribution[]> {
+  const details: Record<string, BalanceSheetContribution[]> = {};
+  const natural = (accountType: string, amount: bigint) => { const definition = getAccountTypeDefinition(accountType); return definition.ok && definition.value.naturalBalance === 'CREDIT' ? -amount : amount; };
+  source.forEach(balance => {
+    const row = rows.find(item => item.accountRole === 'FINANCIAL_SOURCE' && item.accountId === balance.account.id && item.rowType === 'ACCOUNT');
+    if (!row?.detailKey) return;
+    let running = 0n;
+    const list: BalanceSheetContribution[] = [];
+    if (balance.openingAmountMinor !== 0n) { running += balance.openingAmountMinor; list.push({ contributionId: `opening:${balance.account.id}:${balance.account.openingBalanceDate}`, kind: 'OPENING_BALANCE', businessDate: balance.account.openingBalanceDate, financialAccountId: balance.account.id, financialAccountName: balance.account.name, description: 'Opening balance', storedAmountMinor: balance.account.openingBalance.minorUnits, contributionMinor: balance.openingAmountMinor, runningBalanceMinor: running }); }
+    balance.transactions.forEach(transaction => { const amount = natural(balance.account.accountType, transaction.amount.minorUnits); running += amount; list.push({ contributionId: `${transaction.state === 'MATCHED_TRANSFER' ? 'transfer' : 'transaction'}:${transaction.id}`, kind: transaction.state === 'MATCHED_TRANSFER' ? 'MATCHED_TRANSFER' : 'POSTED_TRANSACTION', businessDate: transaction.postingDate, financialAccountId: balance.account.id, financialAccountName: balance.account.name, transactionId: transaction.id, transferMatchId: transaction.transferMatchId, sourceBatchId: transaction.sourceBatchId, description: transaction.description, payee: transaction.payee, memo: transaction.memo, storedAmountMinor: transaction.amount.minorUnits, contributionMinor: amount, runningBalanceMinor: running }); });
+    details[row.detailKey] = list;
+  });
+  chart.forEach(balance => {
+    const row = rows.find(item => item.accountRole === 'CHART' && item.accountId === balance.account.id && item.rowType === 'ACCOUNT');
+    if (!row?.detailKey) return;
+    details[row.detailKey] = snapshot.transactions.filter(t => t.state === 'POSTED' && t.postingDate <= query.asOfDate).flatMap(t => t.splits.filter(s => s.chartAccountId === balance.account.id).map(s => ({ contributionId: `split:${s.id}`, kind: 'POSTING_SPLIT' as const, businessDate: t.postingDate, financialAccountId: t.accountId, chartAccountId: balance.account.id, transactionId: t.id, sourceBatchId: t.sourceBatchId, description: t.description, payee: t.payee, memo: s.memo ?? t.memo, storedAmountMinor: s.amount.minorUnits, contributionMinor: natural(balance.account.accountType, s.amount.minorUnits) })));
+  });
+  const earnings = (key: 'CURRENT_EARNINGS' | 'RETAINED_EARNINGS', predicate: (date: string) => boolean) => {
+    const row = rows.find(item => item.rowId === syntheticBalanceSheetRowId(key, query.asOfDate)); if (!row?.detailKey) return;
+    const chartById = new Map(snapshot.chartAccounts.map(a => [a.id, a]));
+    details[row.detailKey] = snapshot.transactions.filter(t => t.state === 'POSTED' && predicate(t.postingDate)).flatMap(t => t.splits.filter(s => { const type = chartById.get(s.chartAccountId)?.type; return Boolean(type && !['ASSET', 'LIABILITY', 'EQUITY'].includes(type)); }).map(s => ({ contributionId: `${key.toLowerCase()}:${s.id}`, kind: key as 'CURRENT_EARNINGS' | 'RETAINED_EARNINGS', businessDate: t.postingDate, financialAccountId: t.accountId, chartAccountId: s.chartAccountId, transactionId: t.id, sourceBatchId: t.sourceBatchId, description: t.description, payee: t.payee, memo: s.memo ?? t.memo, storedAmountMinor: s.amount.minorUnits, contributionMinor: s.amount.minorUnits })));
+  };
+  earnings('CURRENT_EARNINGS', date => date >= period.startDate && date <= query.asOfDate); earnings('RETAINED_EARNINGS', date => date < period.startDate);
+  const obe = rows.find(r => r.rowId === syntheticBalanceSheetRowId('OPENING_BALANCE_EQUITY', query.asOfDate));
+  if (obe?.detailKey) details[obe.detailKey] = source.filter(b => b.openingAmountMinor !== 0n && ['ASSETS', 'LIABILITIES'].includes(b.section)).map(b => ({ contributionId: `opening-equity:${b.account.id}:${b.account.openingBalanceDate}`, kind: 'OPENING_BALANCE', businessDate: b.account.openingBalanceDate, financialAccountId: b.account.id, financialAccountName: b.account.name, description: `Opening balance: ${b.account.name}`, storedAmountMinor: b.account.openingBalance.minorUnits, contributionMinor: b.section === 'ASSETS' ? b.openingAmountMinor : -b.openingAmountMinor }));
+  rows.filter(r => r.rowType === 'SUBTOTAL' && r.detailKey).forEach(subtotal => { const parent = rows.find(r => r.rowId === subtotal.parentRowId); if (!parent) return; details[subtotal.detailKey!] = union(rows.filter(r => r.rowType === 'ACCOUNT' && r.accountRole === parent.accountRole && (r.fullPath === parent.fullPath || r.fullPath?.startsWith(`${parent.fullPath} > `))).flatMap(r => r.detailKey ? details[r.detailKey] ?? [] : [])); });
+  const contributionsForSection = (section: BalanceSheetSection) => union(rows.filter(r => r.rowType === 'ACCOUNT' && r.section === section).flatMap(r => r.detailKey ? details[r.detailKey] ?? [] : []).concat(rows.filter(r => r.rowType === 'DERIVED_EQUITY' && r.section === section).flatMap(r => r.detailKey ? details[r.detailKey] ?? [] : [])));
+  const totals: Array<[string, BalanceSheetSection]> = [['TOTAL_ASSETS','ASSETS'],['TOTAL_LIABILITIES','LIABILITIES'],['TOTAL_EQUITY','EQUITY']];
+  totals.forEach(([key, section]) => { const row = rows.find(r => r.rowId === syntheticBalanceSheetRowId(key as any, query.asOfDate)); if (row?.detailKey) details[row.detailKey] = contributionsForSection(section); });
+  const le = rows.find(r => r.rowId === syntheticBalanceSheetRowId('TOTAL_LIABILITIES_AND_EQUITY', query.asOfDate)); if (le?.detailKey) details[le.detailKey] = union([...contributionsForSection('LIABILITIES'), ...contributionsForSection('EQUITY')]);
+  const diff = rows.find(r => r.rowId === syntheticBalanceSheetRowId('DIFFERENCE', query.asOfDate)); if (diff?.detailKey) details[diff.detailKey] = [...contributionsForSection('ASSETS'), ...contributionsForSection('LIABILITIES').map(negated), ...contributionsForSection('EQUITY').map(negated)];
+  return details;
+}
+
+function union(items: readonly BalanceSheetContribution[]): BalanceSheetContribution[] { const seen = new Set<string>(); return items.filter(item => !seen.has(item.contributionId) && Boolean(seen.add(item.contributionId))); }
+function negated(item: BalanceSheetContribution): BalanceSheetContribution { return { ...item, contributionId: `difference:${item.contributionId}`, contributionMinor: -item.contributionMinor }; }
