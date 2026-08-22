@@ -149,6 +149,20 @@ describe('BalanceSheetReportService source balances', () => {
     const bank = report.rows.find(row => row.accountId === 'bank')!;
     expect(() => service.getBalanceSheetDetail({ reportId: report.reportId, databaseRevision: report.databaseRevision, detailKey: bank.detailKey! })).toThrowError(/stale/i);
   });
+
+  it('meets report and detail targets for 10,000 transactions and 2,000 chart accounts', () => {
+    repository.accounts.clear(); repository.accounts.set('bank', account('bank', 'BANK'));
+    for (let index = 0; index < 2_000; index += 1) repository.chartAccounts.set(`income-${index}`, { id: `income-${index}`, name: `Income ${index}`, type: 'INCOME', accountType: 'INCOME', detailType: 'Service income', displayOrder: index, archived: false, locked: false });
+    for (let index = 0; index < 10_000; index += 1) repository.transactions.set(`tx-${index}`, { ...transaction(`tx-${index}`, 'bank', '2026-01-01', 1n, 'POSTED'), splits: [{ id: `split-${index}`, chartAccountId: `income-${index % 2_000}`, amount: money(1n) }] });
+    const before = repository.readBalanceSheetSnapshot('2026-12-31').databaseRevision;
+    const reportStart = performance.now(); const report = service.getBalanceSheet({ asOfDate: '2026-12-31' }); const reportMs = performance.now() - reportStart;
+    const current = report.rows.find(row => row.label === 'Current Earnings')!;
+    const detailStart = performance.now(); const detail = service.getBalanceSheetDetail({ reportId: report.reportId, databaseRevision: report.databaseRevision, detailKey: current.detailKey! }); const detailMs = performance.now() - detailStart;
+    expect(reportMs).withContext(`report ${reportMs.toFixed(1)}ms`).toBeLessThan(500);
+    expect(detailMs).withContext(`detail ${detailMs.toFixed(1)}ms`).toBeLessThan(300);
+    expect(detail.contributions).toHaveSize(10_000);
+    expect(repository.readBalanceSheetSnapshot('2026-12-31').databaseRevision).toBe(before);
+  });
 });
 
 function account(id: string, type: 'BANK' | 'CREDIT_CARD'): FinancialAccount {

@@ -16,6 +16,8 @@ The application is built with Angular, TypeScript, Electron, and SQLite. Your bo
 - Matches transfers between bank and credit-card accounts without affecting profit.
 - Maintains a hierarchical Chart of Accounts with import/export support and guarded replacement.
 - Produces Profit & Loss summary and detail reports with drill-down and reconciliation.
+- Produces an as-of-date Balance Sheet with Assets, Liabilities, Equity, Current Earnings, Retained Earnings, Opening Balance Equity, exact drill-down, warnings, and an explicit accounting-equation Difference.
+- Exports the Balance Sheet to UTF-8 CSV and verified two-sheet XLSX, and opens a print/PDF-ready preview without automatically printing.
 - Produces a Schedule C-ready reporting view with disclosed, tax-year-specific adjustments that do not alter the underlying ledger.
 - Exports accounting and report data to CSV and XLSX and supports print-ready output.
 - Creates verified SQLite backups, restores validated backups, and safely relocates the active database.
@@ -83,9 +85,9 @@ Backup and restore operations use temporary files, integrity checks, foreign-key
 
 ## Roadmap
 
-### Planned next: Balance Sheet
+### Balance Sheet
 
-The next major feature is an as-of-date Balance Sheet calculated from ledger detail rather than stored report totals. The planned work includes:
+The Balance Sheet is calculated from ledger detail rather than stored report totals. It includes:
 
 - Assets, liabilities, and equity with hierarchical subtotals.
 - Derived Current Earnings, Retained Earnings, and Opening Balance Equity.
@@ -96,7 +98,7 @@ The next major feature is an as-of-date Balance Sheet calculated from ledger det
 - A unified accounting account taxonomy and Balance Sheet placement preview.
 - Migration of legacy marketplace/entity accounts without changing stable IDs or transaction history.
 
-The detailed requirements and implementation sequence are in the [Balance Sheet PRD](docs/Balance%20Sheet%20PRD.md), [Balance Sheet Product Specification](docs/Balance%20Sheet%20PRODUCT_SPEC.md), and [Balance Sheet Task Tracker](docs/Balance%20Sheet%20TASKS.md).
+The requirements, implementation contracts, and verification evidence are in the [Balance Sheet PRD](docs/Balance%20Sheet%20PRD.md), [Balance Sheet Product Specification](docs/Balance%20Sheet%20PRODUCT_SPEC.md), and [Balance Sheet Task Tracker](docs/Balance%20Sheet%20TASKS.md).
 
 ### Later candidates
 
@@ -144,4 +146,4 @@ Architectural decisions are recorded under `decisions/`.
 
 ## Project status
 
-TallyStick is under active development. Core bookkeeping, P/L reporting, rule management, and local database recovery workflows are implemented; the Balance Sheet roadmap is specified but not yet implemented. Database migrations are versioned, but forks should still keep verified backups before upgrading or modifying accounting behavior.
+TallyStick is under active development. Core bookkeeping, P/L and Balance Sheet reporting, rule management, exports, print preview, and local database recovery workflows are implemented. Database migrations are versioned, but forks should still keep verified backups before upgrading or modifying accounting behavior.

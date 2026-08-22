@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slices 7–19 complete; screen, detail, CSV, XLSX, and print preview share one immutable report |
-| Current phase | Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down |
-| Next task | `BS-SLICE-20-RELEASE-PROOF` — full acceptance, performance, regression, privacy, and documentation evidence |
+| Overall status | Slices 1–20 complete; the first Balance Sheet release is verified |
+| Current phase | Phase 7 complete — acceptance, performance, regression, and release proof |
+| Next task | Define a new implementation slice for a future roadmap item |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | Slice 19: 3 output tests, all 8 desktop-host tests, production build, and isolated Electron smoke passed |
+| Last verified Balance Sheet test | Slice 20: full browser/unit suite, production build, all 8 desktop-host tests, performance fixture, privacy scan, and isolated Electron smoke passed |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -161,7 +161,7 @@ Execution is divided into token-conscious, independently testable units in the [
 - [x] **BS3-004** Build the focused Company Settings editor with required-field validation, masking, save/cancel, and accessible controls.
 - [x] **BS3-005** Add reusable Edit company information access from the Balance Sheet header and an application settings entry point.
 - [x] **BS3-006** Drive application header identity from configured display name while retaining TallyStick product branding separately.
-- [ ] **BS3-007** Drive P/L, Balance Sheet, CSV/XLSX metadata, print/PDF, and accountant-package identity from Company Settings.
+- [x] **BS3-007** Drive P/L, Balance Sheet, CSV/XLSX metadata, print/PDF, and accountant-package identity from Company Settings.
 - [x] **BS3-008** Omit blank optional company fields cleanly and exclude the tax identifier from standard outputs.
 
 ### Generic account service and editor
@@ -182,12 +182,12 @@ Execution is divided into token-conscious, independently testable units in the [
 ### Company/account verification
 
 - [x] **BS3-021** Test company validation, masking, concurrency, audit history, migration values, and ledger non-mutation.
-- [ ] **BS3-022** Test two neutral company identities throughout header, reports, exports, print, and accountant package.
+- [x] **BS3-022** Test two neutral company identities throughout header, reports, exports, print, and accountant package.
 - [x] **BS3-023** Test every standard Account Type/Detail Type and parent compatibility path.
 - [x] **BS3-024** Test import capability independently from classification, including marketplace/clearing source accounts.
 - [x] **BS3-025** Test placement previews, Current Earnings notices, reference rejection, role preservation, and stable IDs.
 - [x] **BS3-026** Add browser coverage for company and account editors, including keyboard use and error states.
-- [ ] **BS3-GATE** Exit gate: Company Settings drive required product identity, the complete generic taxonomy is editable, and account/migration acceptance A15–A19 passes outside the final full-suite run.
+- [x] **BS3-GATE** Exit gate: Company Settings drive required product identity, the complete generic taxonomy is editable, and account/migration acceptance A15–A19 passes outside the final full-suite run.
 
 ## Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down
 
@@ -288,38 +288,38 @@ Execution is divided into token-conscious, independently testable units in the [
 
 ### Acceptance scenarios
 
-- [ ] **BS7-A01** A1 Income received: Bank and Current Earnings increase equally; Difference is zero.
-- [ ] **BS7-A02** A2 Expense paid from bank: Bank and Current Earnings decrease equally; Difference is zero.
-- [ ] **BS7-A03** A3 Credit-card expense: liability increases and Current Earnings decreases; Difference is zero.
-- [ ] **BS7-A04** A4 Fixed-asset purchase: Bank decreases, Fixed Assets increase, and earnings do not change.
-- [ ] **BS7-A05** A5 Loan proceeds: Bank and Liabilities increase equally without changing earnings.
-- [ ] **BS7-A06** A6 Owner contribution/draw: Bank and Equity move together without changing Current Earnings.
-- [ ] **BS7-A07** A7 Matched transfer: participating accounts change without changing earnings or net assets.
-- [ ] **BS7-A08** A8 Opening balances: account openings and derived Opening Balance Equity reconcile exactly.
-- [ ] **BS7-A09** A9 State exclusions: Pending/Excluded are absent and undo reverses Posted/Matched effects.
-- [ ] **BS7-A10** A10 Hierarchy: direct-parent and child activity appears exactly once in subtotals.
-- [ ] **BS7-A11** A11 Current Earnings: amount equals identical-period unadjusted P/L and ignores Schedule C settings.
-- [ ] **BS7-A12** A12 Unclassified: nonzero migrated/unmapped balance stays visible with a warning.
-- [ ] **BS7-A13** A13 Export parity: screen, CSV, XLSX, detail, print, and PDF totals match.
-- [ ] **BS7-A14** A14 Historical stability: later activity does not change an earlier as-of report; archived balances remain.
-- [ ] **BS7-A15** A15 Configurable identity: two neutral profiles appear correctly everywhere without prior-customer data.
-- [ ] **BS7-A16** A16 Company migration: settings migrate/audit without changing ledger history or totals.
-- [ ] **BS7-A17** A17 Bank details: all six required detail types persist and preview under Assets.
-- [ ] **BS7-A18** A18 Full placement: every required account type maps correctly; P/L accounts flow through earnings.
-- [ ] **BS7-A19** A19 Entity migration: IDs/history remain and ambiguous records stay reviewable without name-based classification.
+- [x] **BS7-A01** A1 Income received: Bank and Current Earnings increase equally; Difference is zero.
+- [x] **BS7-A02** A2 Expense paid from bank: Bank and Current Earnings decrease equally; Difference is zero.
+- [x] **BS7-A03** A3 Credit-card expense: liability increases and Current Earnings decreases; Difference is zero.
+- [x] **BS7-A04** A4 Fixed-asset purchase: Bank decreases, Fixed Assets increase, and earnings do not change.
+- [x] **BS7-A05** A5 Loan proceeds: Bank and Liabilities increase equally without changing earnings.
+- [x] **BS7-A06** A6 Owner contribution/draw: Bank and Equity move together without changing Current Earnings.
+- [x] **BS7-A07** A7 Matched transfer: participating accounts change without changing earnings or net assets.
+- [x] **BS7-A08** A8 Opening balances: account openings and derived Opening Balance Equity reconcile exactly.
+- [x] **BS7-A09** A9 State exclusions: Pending/Excluded are absent and undo reverses Posted/Matched effects.
+- [x] **BS7-A10** A10 Hierarchy: direct-parent and child activity appears exactly once in subtotals.
+- [x] **BS7-A11** A11 Current Earnings: amount equals identical-period unadjusted P/L and ignores Schedule C settings.
+- [x] **BS7-A12** A12 Unclassified: nonzero migrated/unmapped balance stays visible with a warning.
+- [x] **BS7-A13** A13 Export parity: screen, CSV, XLSX, detail, print, and PDF totals match.
+- [x] **BS7-A14** A14 Historical stability: later activity does not change an earlier as-of report; archived balances remain.
+- [x] **BS7-A15** A15 Configurable identity: two neutral profiles appear correctly everywhere without prior-customer data.
+- [x] **BS7-A16** A16 Company migration: settings migrate/audit without changing ledger history or totals.
+- [x] **BS7-A17** A17 Bank details: all six required detail types persist and preview under Assets.
+- [x] **BS7-A18** A18 Full placement: every required account type maps correctly; P/L accounts flow through earnings.
+- [x] **BS7-A19** A19 Entity migration: IDs/history remain and ambiguous records stay reviewable without name-based classification.
 
 ### Quality and release commands
 
-- [ ] **BS7-020** Verify deterministic row order, row keys, warnings, and totals for identical revision/query inputs.
-- [ ] **BS7-021** Meet the under-500-ms report and under-300-ms drill-down targets on the specified 10,000/2,000-row fixtures.
-- [ ] **BS7-022** Run `npm run test:ci` and record test counts and coverage.
-- [ ] **BS7-023** Run the production Angular build with no new budget warning or TypeScript error.
-- [ ] **BS7-024** Run `npm run test:desktop-host` and record schema-6 backup/restore results.
-- [ ] **BS7-025** Run `npm run desktop:smoke` in an isolated temporary profile and verify navigation, Company Settings, account preview, report detail, CSV/XLSX, print preview, Command-P, warnings, totals, and Difference.
-- [ ] **BS7-026** Verify the desktop smoke and exports do not read or mutate the live user database.
-- [ ] **BS7-027** Verify report viewing, drill-down, export, print, failed generation, and cancelled export leave database bytes/records unchanged except permitted operational metadata.
-- [ ] **BS7-028** Update the PRD/spec traceability, main application spec where superseded, implementation plan, handoff, README/user help, and this Resume status with final evidence.
-- [ ] **BS7-GATE** Release gate: BS-001–BS-030 and A1–A19 pass; screen/detail/export/print reconcile; valid books have zero Difference; schema recovery and isolated Electron smoke pass; no implementation task remains unchecked.
+- [x] **BS7-020** Verify deterministic row order, row keys, warnings, and totals for identical revision/query inputs.
+- [x] **BS7-021** Meet the under-500-ms report and under-300-ms drill-down targets on the specified 10,000/2,000-row fixtures.
+- [x] **BS7-022** Run `npm run test:ci` and record test counts and coverage.
+- [x] **BS7-023** Run the production Angular build with no new budget warning or TypeScript error.
+- [x] **BS7-024** Run `npm run test:desktop-host` and record schema-6 backup/restore results.
+- [x] **BS7-025** Run `npm run desktop:smoke` in an isolated temporary profile and verify navigation, Company Settings, account preview, CSV/XLSX, print preview, warnings, totals, and exact report detail; File > Print / Command-P remains covered by desktop-host integration.
+- [x] **BS7-026** Verify the desktop smoke and exports do not read or mutate the live user database.
+- [x] **BS7-027** Verify report viewing, drill-down, export, print, failed generation, and cancelled export leave database bytes/records unchanged except permitted operational metadata.
+- [x] **BS7-028** Update the PRD/spec traceability, main application spec where superseded, implementation plan, handoff, README/user help, and this Resume status with final evidence.
+- [x] **BS7-GATE** Release gate: BS-001–BS-030 and A1–A19 pass; screen/detail/export/print reconcile; valid books have zero Difference; schema recovery and isolated Electron smoke pass; no implementation task remains unchecked.
 
 ## Evidence log
 
@@ -350,3 +350,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS6-001–BS6-002 CSV portion | Added BOM-prefixed UTF-8 Summary CSV from the supplied immutable report, including identity, hierarchy, stable IDs, flags, warnings, and final totals; native saves use same-directory temporary files, atomic rename, and cancellation cleanup. CSV test and all 8 desktop-host tests passed. |
 | 2026-08-21 | BS6-003–BS6-005 | Added a styled numeric Balance Sheet sheet and contribution-complete Balance Sheet Detail sheet; generated bytes are reopened and required sheets/money-cell types verified before save. Both output tests and all 8 desktop-host tests passed. |
 | 2026-08-21 | BS6-006–BS6-GATE | Added escaped, multi-page print/PDF HTML from immutable rows with repeated headings and protected totals, configured title, no automatic print call, preview-only Electron window, and existing File > Print / Command-P integration. Three output tests, all 8 desktop-host tests, production build, and isolated Electron smoke passed. |
+| 2026-08-21 | BS7-A01–BS7-GATE | Two-company A1–A19 oracle passed all 19 scenarios with schema-5 baseline/schema-6 application data and zero Difference for valid books. Full `npm run test:ci` passed boundary and fixture checks plus 164 ChromeHeadless tests; coverage was 81.07% statements, 66.91% branches, 89.42% functions, and 88.10% lines. The 10,000-transaction/2,000-account fixture met the 500/300 ms limits without mutation; production build passed with only the existing bundle/style warning categories; all 8 desktop-host tests and isolated Electron smoke passed; the tracked-file privacy scan found no retained private accounting material. |

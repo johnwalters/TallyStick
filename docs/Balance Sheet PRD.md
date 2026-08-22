@@ -1,5 +1,7 @@
 # TallyStick Balance Sheet
 
+*Version 1.0 · Implemented August 21, 2026*
+
 *Product Requirements Document · Draft 0.2 · August 16, 2026*
 
 Companion documents: [Quicken Replacement PRD](Quicken%20Replacement%20PRD.md) · [Balance Sheet Product Specification](Balance%20Sheet%20PRODUCT_SPEC.md) · [Balance Sheet Task Tracker](Balance%20Sheet%20TASKS.md)

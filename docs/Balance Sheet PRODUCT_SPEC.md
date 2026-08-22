@@ -1,6 +1,6 @@
 # TallyStick Balance Sheet Product Specification
 
-*Implementation specification · Draft 0.1 · August 16, 2026*
+*Implementation specification · Version 1.0 · Implemented August 21, 2026*
 
 Authority: [Balance Sheet PRD](Balance%20Sheet%20PRD.md) Draft 0.2  
 Companion architecture: [Technical Architecture](Quicken%20Replacement%20Technical%20Architecture.md)  
@@ -18,7 +18,7 @@ It specifies three connected product changes:
 2. reusable Company Settings for application and report identity; and
 3. a generic account taxonomy shared by financial accounts and Chart of Accounts entries.
 
-This is a specification artifact only. It does not authorize application code changes, create implementation tasks, or mark any Balance Sheet requirement complete.
+Implementation and release evidence are recorded in the linked Task Tracker. This document remains the controlling calculation and output contract for future changes.
 
 When this document and the application-wide specification conflict on this feature, this document controls. The PRD controls product intent and acceptance.
 

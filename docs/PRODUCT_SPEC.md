@@ -735,10 +735,10 @@ The initial Angular UI must provide these feature areas while remaining replacea
 5. **Transfer review:** ranked candidates, alternatives, rationale, confirmation, and unmatch.
 6. **Chart exchange:** workbook import validation and export.
 7. **Rules:** list, priority, enable/disable, editor, test results, collisions, and create-from-transaction.
-8. **Reports:** P/L, drill-down, Schedule C-ready settings/disclosure, exceptions, reconciliation, and exports.
+8. **Reports:** P/L and as-of Balance Sheet, exact drill-down, Schedule C-ready settings/disclosure, exceptions, reconciliation, CSV/XLSX exports, and print/PDF-ready preview.
 9. **Data safety:** backup, verification status, restore validation, portable export, and reminders.
 
-The primary work area presents **Transactions**, **Rules**, and **Profit & Loss** as three prominent button tabs, not a select/dropdown. Only the selected work area is rendered at a time; Transactions is the default. Rules provides the priority-ordered list, complete editor/actions, test-before-save, exchange controls, and transaction-originated Edit/Create Rule flows from RUL-01. Profit & Loss retains its own P/L Summary and P/L Detail controls.
+The primary work area presents **Transactions**, **Chart of Accounts**, **Rules**, **Profit & Loss**, **Balance Sheet**, and **Backups** as prominent icon-led tabs, not a select/dropdown. Only the selected work area is rendered at a time; Transactions is the default. Report filters remain independent across workspaces. Balance Sheet renders immutable as-of results and exact contribution detail, with CSV/XLSX and print-preview actions.
 
 Components must render view models and forward intent. They must not parse files, construct SQL, calculate accounting results, or coordinate multi-step persistence.
 

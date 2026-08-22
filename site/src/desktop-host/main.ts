@@ -187,7 +187,14 @@ async function runDesktopSmoke(): Promise<void> {
       const detailTable = Boolean(document.querySelector('.detail-table'));
       balanceSheetWorkspaceButton.click();
       await new Promise(resolve => setTimeout(resolve, 100));
-      if (!document.querySelector('.balance-sheet-workspace') || !document.querySelector('.balance-sheet-table') || !document.querySelector('.balance-sheet-totals')) return { ready: false };
+      const balanceButtons = [...document.querySelectorAll('button')];
+      const firstBalanceAmount = document.querySelector('.balance-sheet-amount');
+      if (!document.querySelector('.balance-sheet-workspace') || !document.querySelector('.balance-sheet-table') || !document.querySelector('.balance-sheet-totals') || !firstBalanceAmount || !balanceButtons.some(button => button.textContent?.trim() === 'Export CSV') || !balanceButtons.some(button => button.textContent?.trim() === 'Export XLSX') || !balanceButtons.some(button => button.textContent?.trim() === 'Print preview')) return { ready: false };
+      firstBalanceAmount.click();
+      await new Promise(resolve => setTimeout(resolve, 50));
+      const balanceDetailClose = document.querySelector('[aria-label="Close Balance Sheet detail"]');
+      if (!document.querySelector('.balance-sheet-detail') || !balanceDetailClose) return { ready: false };
+      balanceDetailClose.click();
       dataWorkspaceButton.click();
       await new Promise(resolve => setTimeout(resolve, 100));
       const backupButton = [...document.querySelectorAll('button')].find(button => button.textContent?.trim() === 'Back Up Now');
