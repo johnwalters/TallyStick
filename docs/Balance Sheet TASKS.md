@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slices 7–13 complete; eligible stored openings reconcile through derived Opening Balance Equity |
+| Overall status | Slices 7–14 complete; deterministic hierarchy, zero hiding, archived/unclassified visibility, and typed warnings verified |
 | Current phase | Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down |
-| Next task | `BS-SLICE-14-HIERARCHY-WARNINGS` — deterministic hierarchy, zero hiding, and typed warnings |
+| Next task | `BS-SLICE-15-DETAIL-REVISION-CACHE` — exact contributions, stale revision rejection, and cache invalidation |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | Focused Slice 13 suite: 7 ChromeHeadless tests passed, including eligible/future/conflicting openings and exact Opening Balance Equity |
+| Last verified Balance Sheet test | Focused Slice 14 suite: 8 ChromeHeadless tests passed, including deterministic hierarchy/subtotals, zero hiding, archived and invalid-parent warnings |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -212,16 +212,16 @@ Execution is divided into token-conscious, independently testable units in the [
 ### Hierarchy and totals
 
 - [x] **BS4-014** Combine financial-source and Chart balances into Assets, Liabilities, and Equity without name-based merging or double counting.
-- [ ] **BS4-015** Order Account Types, parents, children, and direct postings deterministically from the catalog and Chart display order.
-- [ ] **BS4-016** Calculate each parent subtotal from direct parent activity plus descendants exactly once.
-- [ ] **BS4-017** Hide zero-balance leaves by default while preserving structural parents and unchanged subtotals.
-- [ ] **BS4-018** Include nonzero archived and review-required/unclassified accounts visibly.
+- [x] **BS4-015** Order Account Types, parents, children, and direct postings deterministically from the catalog and Chart display order.
+- [x] **BS4-016** Calculate each parent subtotal from direct parent activity plus descendants exactly once.
+- [x] **BS4-017** Hide zero-balance leaves by default while preserving structural parents and unchanged subtotals.
+- [x] **BS4-018** Include nonzero archived and review-required/unclassified accounts visibly.
 - [x] **BS4-019** Calculate Total Assets, Total Liabilities, Total Equity, Total Liabilities and Equity, and exact minor-unit Difference.
 - [x] **BS4-020** Return a valid empty report with zero totals and zero Difference.
 
 ### Warnings, detail, and refresh
 
-- [ ] **BS4-021** Implement typed warnings for unclassified balances, nonzero Difference, future opening dates, archived balances, unsupported currency, hierarchy errors, classification errors, and opening-mode conflicts.
+- [x] **BS4-021** Implement typed warnings for unclassified balances, nonzero Difference, future opening dates, archived balances, unsupported currency, hierarchy errors, classification errors, and opening-mode conflicts.
 - [ ] **BS4-022** Implement financial-source drill-down with opening balance, Posted activity, Matched transfers, provenance, and signed running balance.
 - [ ] **BS4-023** Implement Chart-account drill-down with every contributing Posted split and source transaction metadata.
 - [ ] **BS4-024** Reuse exact-period P/L Detail for Current Earnings and prior-period P/L Detail for derived Retained Earnings.
@@ -344,3 +344,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS4-008–BS4-009, BS4-014, BS4-019–BS4-020 | Added immutable application-level Balance Sheet generation with separate source/Chart identities, exact debit/credit sign transforms, integer Asset/Liability/Equity totals and Difference, and valid empty-book behavior. Focused Slice 11 suite passed all 4 ChromeHeadless tests. |
 | 2026-08-21 | BS4-010–BS4-011, BS4-013 | Extracted one unadjusted P/L detail identity used by P/L and Balance Sheet, added fiscal-period Current Earnings and pre-period Retained Earnings, and kept report-only/Schedule C exclusions out. Focused Balance Sheet plus existing P/L suite passed all 42 ChromeHeadless tests. |
 | 2026-08-21 | BS4-006, BS4-012 | Added as-of eligibility for stored openings, natural-sign source inclusion, exact derived Opening Balance Equity, future-opening warnings, and hard failure for ledger-mode conflicts. Focused Slice 13 suite passed all 7 ChromeHeadless tests. |
+| 2026-08-21 | BS4-015–BS4-018, BS4-021 | Added catalog/display ordering, parent/child direct rows and exact subtotals, zero-leaf hiding with structural parents, visible archived/unclassified balances, hierarchy quarantine, and deterministic typed warnings. Focused Slice 14 suite passed all 8 ChromeHeadless tests. |

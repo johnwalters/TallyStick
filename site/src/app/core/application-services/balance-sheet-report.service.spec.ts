@@ -57,8 +57,8 @@ describe('BalanceSheetReportService source balances', () => {
     repository.transactions.set('owner-funding', transactionWithSplit('owner-funding', 3_000n, 'equity', 3_000n));
 
     const report = service.getBalanceSheet({ asOfDate: '2026-12-31' });
-    expect(report.rows.map(row => [row.accountRole, row.accountId, row.amountMinor])).toEqual([
-      ['FINANCIAL_SOURCE', 'bank', 5_000n], ['FINANCIAL_SOURCE', 'card', 0n],
+    expect(report.rows.filter(row => ['ACCOUNT', 'DERIVED_EQUITY'].includes(row.rowType)).map(row => [row.accountRole, row.accountId, row.amountMinor])).toEqual([
+      ['FINANCIAL_SOURCE', 'bank', 5_000n],
       ['CHART', 'fixed', 5_000n], ['CHART', 'loan', 7_000n], ['CHART', 'equity', 3_000n],
       [undefined, undefined, 0n], [undefined, undefined, 0n], [undefined, undefined, 0n],
     ]);
@@ -112,6 +112,25 @@ describe('BalanceSheetReportService source balances', () => {
     repository.accounts.get('bank')!.openingBalanceSource = 'LEDGER_ACTIVITY';
     repository.accounts.get('bank')!.openingBalance = money(1n);
     expect(() => service.getBalanceSheet({ asOfDate: '2026-12-31' })).toThrowError(/conflicts with ledger activity/);
+  });
+
+  it('orders hierarchy deterministically, preserves parent direct activity, hides zero leaves, and warns without losing balances', () => {
+    repository.accounts.clear();
+    repository.chartAccounts.set('parent', { ...chartAccount('parent', 'FIXED_ASSET'), name: 'Equipment', displayOrder: 1, archived: true });
+    repository.chartAccounts.set('child', { ...chartAccount('child', 'FIXED_ASSET'), name: 'Camera', parentId: 'parent', displayOrder: 2 });
+    repository.chartAccounts.set('zero', { ...chartAccount('zero', 'FIXED_ASSET'), name: 'Zero', displayOrder: 3 });
+    repository.chartAccounts.set('orphan', { ...chartAccount('orphan', 'FIXED_ASSET'), name: 'Orphan', parentId: 'missing', displayOrder: 4 });
+    repository.transactions.set('parent-post', transactionWithSplit('parent-post', 0n, 'parent', -100n));
+    repository.transactions.set('child-post', transactionWithSplit('child-post', 0n, 'child', -200n));
+    repository.transactions.set('orphan-post', transactionWithSplit('orphan-post', 0n, 'orphan', -50n));
+    const first = service.getBalanceSheet({ asOfDate: '2026-12-31' });
+    const second = service.getBalanceSheet({ asOfDate: '2026-12-31' });
+    expect(first.rows.map(row => [row.rowId, row.amountMinor])).toEqual(second.rows.map(row => [row.rowId, row.amountMinor]));
+    expect(first.rows.find(row => row.label === 'Total for Equipment')?.amountMinor).toBe(300n);
+    expect(first.rows.some(row => row.label === 'Zero')).toBeFalse();
+    expect(first.rows.find(row => row.label === 'Orphan')?.unclassified).toBeTrue();
+    expect(first.warnings.map(warning => warning.code)).toContain('ACCOUNT_HIERARCHY_INVALID');
+    expect(first.warnings.map(warning => warning.code)).toContain('ARCHIVED_NONZERO_ACCOUNT');
   });
 });
 

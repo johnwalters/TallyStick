@@ -18,6 +18,7 @@ import {
 } from '../domain-model/balance-sheet.types';
 import { ACCOUNTING_REPOSITORY, AccountingRepository, BalanceSheetRepositorySnapshot } from '../repository-gateways/accounting.repository';
 import { calculateUnadjustedNetProfit } from './profit-loss-calculation';
+import { presentBalanceSheetRows } from './balance-sheet-presentation';
 
 export interface FinancialSourceBalance {
   readonly account: FinancialAccount;
@@ -75,16 +76,19 @@ export class BalanceSheetReportService {
       if (balance.section === 'LIABILITIES') return total - balance.openingAmountMinor;
       return total;
     }, 0n);
+    const presented = presentBalanceSheetRows([
+      ...sourceBalances.map(balance => ({ row: this.sourceRow(balance), parentAccountId: balance.account.parentAccountId, displayOrder: Number.MAX_SAFE_INTEGER })),
+      ...chartBalances.map(balance => ({ row: this.chartRow(balance), parentAccountId: balance.account.parentId, displayOrder: balance.account.displayOrder })),
+    ], normalized.value.asOfDate, normalized.value.includeZeroBalanceAccounts);
     const rows: BalanceSheetRow[] = [
-      ...sourceBalances.map(balance => this.sourceRow(balance)),
-      ...chartBalances.map(balance => this.chartRow(balance)),
+      ...presented.rows,
       derivedEquityRow('CURRENT_EARNINGS', 'Current Earnings', normalized.value.asOfDate, currentEarnings),
       derivedEquityRow('RETAINED_EARNINGS', 'Retained Earnings', normalized.value.asOfDate, retainedEarnings),
       derivedEquityRow('OPENING_BALANCE_EQUITY', 'Opening Balance Equity', normalized.value.asOfDate, openingBalanceEquity),
     ];
-    const totalAssetsMinor = sumSection(rows, 'ASSETS');
-    const totalLiabilitiesMinor = sumSection(rows, 'LIABILITIES');
-    const totalEquityMinor = sumSection(rows, 'EQUITY');
+    const totalAssetsMinor = sumBalances(sourceBalances, chartBalances, 'ASSETS');
+    const totalLiabilitiesMinor = sumBalances(sourceBalances, chartBalances, 'LIABILITIES');
+    const totalEquityMinor = sumBalances(sourceBalances, chartBalances, 'EQUITY') + currentEarnings + retainedEarnings + openingBalanceEquity;
     const totalLiabilitiesAndEquityMinor = totalLiabilitiesMinor + totalEquityMinor;
     const profile = snapshot.companyProfile ?? {
       companyId: snapshot.company.id, legalName: snapshot.company.name, displayName: snapshot.company.name,
@@ -107,7 +111,7 @@ export class BalanceSheetReportService {
       totalEquityMinor,
       totalLiabilitiesAndEquityMinor,
       differenceMinor: totalAssetsMinor - totalLiabilitiesAndEquityMinor,
-      warnings: snapshot.accounts.filter(account => account.openingBalance.minorUnits !== 0n && account.openingBalanceDate > normalized.value.asOfDate).map(account => ({ warningId: `OPENING_BALANCE_AFTER_AS_OF:${account.id}:${normalized.value.asOfDate}`, code: 'OPENING_BALANCE_AFTER_AS_OF' as const, message: `${account.name} has an opening balance after the report date.`, accountRole: 'FINANCIAL_SOURCE' as const, accountId: account.id, businessDate: account.openingBalanceDate })),
+      warnings: buildWarnings(snapshot, normalized.value.asOfDate, rows, presented.invalidAccountIds, totalAssetsMinor - totalLiabilitiesAndEquityMinor),
       detailIndex: {},
     });
   }
@@ -179,8 +183,19 @@ function transferContainsTransaction(transfer: { leftTransactionId: string; righ
   return transfer.leftTransactionId === transactionId || transfer.rightTransactionId === transactionId;
 }
 
-function sumSection(rows: readonly BalanceSheetRow[], section: BalanceSheetSection): bigint {
-  return rows.reduce((total, row) => total + (row.section === section ? row.amountMinor ?? 0n : 0n), 0n);
+function sumBalances(source: readonly FinancialSourceBalance[], chart: readonly ChartBalance[], section: BalanceSheetSection): bigint {
+  return [...source, ...chart].reduce((total, row) => total + (row.section === section ? row.amountMinor : 0n), 0n);
+}
+
+function buildWarnings(snapshot: BalanceSheetRepositorySnapshot, asOfDate: string, rows: readonly BalanceSheetRow[], invalidIds: readonly string[], difference: bigint) {
+  const warnings: import('../domain-model/balance-sheet.types').BalanceSheetWarning[] = [];
+  snapshot.accounts.filter(a => a.openingBalance.minorUnits !== 0n && a.openingBalanceDate > asOfDate).forEach(a => warnings.push({ warningId: `OPENING_BALANCE_AFTER_AS_OF:${a.id}:${asOfDate}`, code: 'OPENING_BALANCE_AFTER_AS_OF', message: `${a.name} has an opening balance after the report date.`, accountRole: 'FINANCIAL_SOURCE', accountId: a.id, businessDate: a.openingBalanceDate }));
+  rows.filter(r => r.rowType === 'ACCOUNT' && (r.amountMinor ?? 0n) !== 0n && r.archived).forEach(r => warnings.push({ warningId: `ARCHIVED_NONZERO_ACCOUNT:${r.accountRole}:${r.accountId}`, code: 'ARCHIVED_NONZERO_ACCOUNT', message: `${r.label} is archived but has a nonzero balance.`, accountRole: r.accountRole, accountId: r.accountId }));
+  rows.filter(r => r.rowType === 'ACCOUNT' && (r.amountMinor ?? 0n) !== 0n && r.unclassified).forEach(r => warnings.push({ warningId: `UNCLASSIFIED_NONZERO_ACCOUNT:${r.accountRole}:${r.accountId}`, code: 'UNCLASSIFIED_NONZERO_ACCOUNT', message: `${r.label} requires account classification review.`, accountRole: r.accountRole, accountId: r.accountId }));
+  invalidIds.forEach(id => warnings.push({ warningId: `ACCOUNT_HIERARCHY_INVALID:${id}`, code: 'ACCOUNT_HIERARCHY_INVALID', message: `Account ${id} has an invalid parent hierarchy.`, accountId: id }));
+  if (snapshot.company.currency !== 'USD') warnings.push({ warningId: `UNSUPPORTED_CURRENCY:${snapshot.company.currency}`, code: 'UNSUPPORTED_CURRENCY', message: `Currency ${snapshot.company.currency} requires conversion before totals can be relied upon.` });
+  if (difference !== 0n) warnings.push({ warningId: `BALANCE_SHEET_OUT_OF_BALANCE:${asOfDate}`, code: 'BALANCE_SHEET_OUT_OF_BALANCE', message: 'Assets do not equal liabilities plus equity.' });
+  return warnings.sort((a, b) => a.warningId.localeCompare(b.warningId));
 }
 
 function fiscalPeriod(asOfDate: string, startMonth: number): { startDate: string; endDate: string } {
