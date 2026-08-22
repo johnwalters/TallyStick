@@ -29,3 +29,5 @@ release/
 ~$*
 *.swp
 *.tmp
+
+data/
