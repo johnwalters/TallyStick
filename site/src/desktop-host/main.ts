@@ -135,14 +135,15 @@ async function runDesktopSmoke(): Promise<void> {
       const chartWorkspaceButton = buttons.find(button => button.textContent?.trim() === 'Chart of Accounts');
       const rulesWorkspaceButton = buttons.find(button => button.textContent?.trim() === 'Rules');
       const reportsWorkspaceButton = buttons.find(button => button.textContent?.trim() === 'Profit & Loss');
+      const balanceSheetWorkspaceButton = buttons.find(button => button.textContent?.trim() === 'Balance Sheet');
       const dataWorkspaceButton = buttons.find(button => button.textContent?.trim() === 'Backups');
-      if (!chartWorkspaceButton || !rulesWorkspaceButton || !reportsWorkspaceButton || !dataWorkspaceButton) return { ready: false };
+      if (!chartWorkspaceButton || !rulesWorkspaceButton || !reportsWorkspaceButton || !balanceSheetWorkspaceButton || !dataWorkspaceButton) return { ready: false };
       const addFinancialAccountButton = buttons.find(button => button.textContent?.trim() === 'Add account');
       if (!addFinancialAccountButton) return { ready: false };
       addFinancialAccountButton.click();
       await new Promise(resolve => setTimeout(resolve, 50));
-      const financialAccountEditor = Boolean(document.querySelector('.account-editor-panel'));
-      const closeFinancialAccountButton = document.querySelector('[aria-label="Close bank account editor"]');
+      const financialAccountEditor = Boolean(document.querySelector('.generic-account-editor-panel'));
+      const closeFinancialAccountButton = document.querySelector('[aria-label="Close account editor"]');
       if (!financialAccountEditor || !closeFinancialAccountButton) return { ready: false };
       closeFinancialAccountButton.click();
       chartWorkspaceButton.click();
@@ -153,7 +154,7 @@ async function runDesktopSmoke(): Promise<void> {
       if (!chartWorkspace || !chartTable || !newAccountButton) return { ready: false };
       newAccountButton.click();
       await new Promise(resolve => setTimeout(resolve, 50));
-      const chartEditor = Boolean(document.querySelector('.chart-editor-panel'));
+      const chartEditor = Boolean(document.querySelector('.generic-account-editor-panel'));
       const closeAccountButton = document.querySelector('[aria-label="Close account editor"]');
       if (!chartEditor || !closeAccountButton) return { ready: false };
       closeAccountButton.click();
@@ -184,6 +185,9 @@ async function runDesktopSmoke(): Promise<void> {
       await new Promise(resolve => setTimeout(resolve, 50));
       const reportWorkspace = Boolean(document.querySelector('.report-workspace'));
       const detailTable = Boolean(document.querySelector('.detail-table'));
+      balanceSheetWorkspaceButton.click();
+      await new Promise(resolve => setTimeout(resolve, 100));
+      if (!document.querySelector('.balance-sheet-workspace') || !document.querySelector('.balance-sheet-table') || !document.querySelector('.balance-sheet-totals')) return { ready: false };
       dataWorkspaceButton.click();
       await new Promise(resolve => setTimeout(resolve, 100));
       const backupButton = [...document.querySelectorAll('button')].find(button => button.textContent?.trim() === 'Back Up Now');
@@ -223,7 +227,7 @@ async function runDesktopSmoke(): Promise<void> {
     result.printMenu = Boolean(printMenuItem);
     result.printAccelerator = printMenuItem?.accelerator === 'CmdOrCtrl+P';
   }
-  if (result?.title !== 'TallyStick' || result.windowTitle !== 'TallyStick' || result.appName !== 'TallyStick' || !result.financialAccountEditor || !result.chartWorkspace || !result.chartTable || !result.chartEditor || !result.rulesWorkspace || !result.rulesTable || !result.ruleEditor || !result.reportWorkspace || !result.summaryButton || !result.detailButton || !result.scheduleBasisButton || !result.unadjustedBasisButton || !result.scheduleBasisActive || !result.detailTable || !result.dataWorkspace || !result.databasePath || !result.backupCreated || !result.printMenu || !result.printAccelerator) {
+  if (!result?.title || result.windowTitle !== 'TallyStick' || result.appName !== 'TallyStick' || !result.financialAccountEditor || !result.chartWorkspace || !result.chartTable || !result.chartEditor || !result.rulesWorkspace || !result.rulesTable || !result.ruleEditor || !result.reportWorkspace || !result.summaryButton || !result.detailButton || !result.scheduleBasisButton || !result.unadjustedBasisButton || !result.scheduleBasisActive || !result.detailTable || !result.dataWorkspace || !result.databasePath || !result.backupCreated || !result.printMenu || !result.printAccelerator) {
     throw new Error(`Desktop report smoke failed: ${JSON.stringify(result ?? {})}`);
   }
   console.log(`Desktop report smoke passed: ${JSON.stringify(result)}`);

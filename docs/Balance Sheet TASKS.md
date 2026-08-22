@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slices 7–15 complete; immutable report detail reconciles every row and stale revisions are rejected |
+| Overall status | Slices 7–16 complete; accessible Balance Sheet workspace and exact detail interaction verified |
 | Current phase | Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down |
-| Next task | `BS-SLICE-16-WORKSPACE` — accessible Balance Sheet workspace and detail interaction |
+| Next task | `BS-SLICE-17-CSV` — immutable Summary CSV and safe desktop export |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | Focused Slice 15 suite: 9 ChromeHeadless tests passed, including every detail-bearing row reconciliation, contribution uniqueness, and stale-revision rejection |
+| Last verified Balance Sheet test | Slice 16: all 40 AppComponent ChromeHeadless tests and isolated Electron desktop smoke passed |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -245,23 +245,23 @@ Execution is divided into token-conscious, independently testable units in the [
 
 **Trace:** PRD §§7–9, BS-009–BS-013, BS-016–BS-017; Product Spec §12.
 
-- [ ] **BS5-001** Add Balance Sheet with a Bootstrap Icon to the left primary navigation.
-- [ ] **BS5-002** Make Balance Sheet a mutually exclusive workspace without changing Transaction or P/L filters.
-- [ ] **BS5-003** Build the report header with configured company name, accounting basis, as-of date, four headline totals, and Difference.
-- [ ] **BS5-004** Add as-of date input and Today, previous month end, current month end, and fiscal year end shortcuts.
-- [ ] **BS5-005** Persist Balance Sheet filters independently from other workspace filters.
-- [ ] **BS5-006** Render Assets, Liabilities, Equity, hierarchy, derived lines, totals, and Difference from returned rows only.
-- [ ] **BS5-007** Match P/L label size, indentation, tabular/prominent-decimal amount style, and negative/zero formatting.
-- [ ] **BS5-008** Bold an amount exactly when its row label is bold; keep detail labels and amounts unbolded.
-- [ ] **BS5-009** Add show/hide zero-balance control without changing totals.
-- [ ] **BS5-010** Display Archived and Unclassified indicators with text, not color alone.
-- [ ] **BS5-011** Display actionable warning summaries and prominent nonzero Difference.
-- [ ] **BS5-012** Make every amount keyboard-accessible and open its exact detail view with descriptive accessible labeling.
-- [ ] **BS5-013** Render financial, Chart, P/L-derived, opening-balance, subtotal, and Difference detail appropriately.
-- [ ] **BS5-014** Render the valid empty report, loading state, stale-revision refresh, and actionable failure state without stale data.
-- [ ] **BS5-015** Add component tests for navigation, filters, shortcuts, hierarchy, typography, zero toggle, warnings, detail, empty, loading, and failure states.
-- [ ] **BS5-016** Add browser tests for keyboard navigation, screen-reader names, focus return, and report/account/company side panels.
-- [ ] **BS5-GATE** Exit gate: the visible workspace satisfies BS-009–BS-013 and BS-016–BS-017, and every rendered amount opens reconciling detail.
+- [x] **BS5-001** Add Balance Sheet with a Bootstrap Icon to the left primary navigation.
+- [x] **BS5-002** Make Balance Sheet a mutually exclusive workspace without changing Transaction or P/L filters.
+- [x] **BS5-003** Build the report header with configured company name, accounting basis, as-of date, four headline totals, and Difference.
+- [x] **BS5-004** Add as-of date input and Today, previous month end, current month end, and fiscal year end shortcuts.
+- [x] **BS5-005** Persist Balance Sheet filters independently from other workspace filters.
+- [x] **BS5-006** Render Assets, Liabilities, Equity, hierarchy, derived lines, totals, and Difference from returned rows only.
+- [x] **BS5-007** Match P/L label size, indentation, tabular/prominent-decimal amount style, and negative/zero formatting.
+- [x] **BS5-008** Bold an amount exactly when its row label is bold; keep detail labels and amounts unbolded.
+- [x] **BS5-009** Add show/hide zero-balance control without changing totals.
+- [x] **BS5-010** Display Archived and Unclassified indicators with text, not color alone.
+- [x] **BS5-011** Display actionable warning summaries and prominent nonzero Difference.
+- [x] **BS5-012** Make every amount keyboard-accessible and open its exact detail view with descriptive accessible labeling.
+- [x] **BS5-013** Render financial, Chart, P/L-derived, opening-balance, subtotal, and Difference detail appropriately.
+- [x] **BS5-014** Render the valid empty report, loading state, stale-revision refresh, and actionable failure state without stale data.
+- [x] **BS5-015** Add component tests for navigation, filters, shortcuts, hierarchy, typography, zero toggle, warnings, detail, empty, loading, and failure states.
+- [x] **BS5-016** Add browser tests for keyboard navigation, screen-reader names, focus return, and report/account/company side panels.
+- [x] **BS5-GATE** Exit gate: the visible workspace satisfies BS-009–BS-013 and BS-016–BS-017, and every rendered amount opens reconciling detail.
 
 ## Phase 6 — CSV, XLSX, print preview, and PDF parity
 
@@ -346,3 +346,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS4-006, BS4-012 | Added as-of eligibility for stored openings, natural-sign source inclusion, exact derived Opening Balance Equity, future-opening warnings, and hard failure for ledger-mode conflicts. Focused Slice 13 suite passed all 7 ChromeHeadless tests. |
 | 2026-08-21 | BS4-015–BS4-018, BS4-021 | Added catalog/display ordering, parent/child direct rows and exact subtotals, zero-leaf hiding with structural parents, visible archived/unclassified balances, hierarchy quarantine, and deterministic typed warnings. Focused Slice 14 suite passed all 8 ChromeHeadless tests. |
 | 2026-08-21 | BS4-022–BS4-035, BS4-GATE | Added immutable source, split, earnings, opening, subtotal, total, and Difference contributions; exact integer reconciliation; stable de-duplication; revision-keyed report lookup; and stale-detail rejection after mutation. Focused Slice 15 suite passed all 9 ChromeHeadless tests. |
+| 2026-08-21 | BS5-001–BS5-GATE | Added the restrained Balance Sheet navigation/workspace with independent dates and shortcuts, zero toggle, identity/basis/totals, hierarchy and warnings, accessible amount buttons, exact detail inspector, focus return, empty/loading/error handling, and responsive report typography. All 40 AppComponent tests and isolated Electron smoke passed. |

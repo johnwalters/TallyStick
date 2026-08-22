@@ -286,7 +286,7 @@ describe('AppComponent', () => {
     expect((fixture.nativeElement.querySelector('.generic-account-editor-footer .primary-button') as HTMLButtonElement).disabled).toBeTrue();
   });
 
-  it('shows exactly one icon-led Transactions, Chart, Rules, Profit & Loss, or Backups sidebar workspace', () => {
+  it('shows exactly one icon-led primary accounting workspace', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const tabs = [...fixture.nativeElement.querySelectorAll('.workspace-tab')] as HTMLButtonElement[];
@@ -294,8 +294,9 @@ describe('AppComponent', () => {
     const chartTab = tabs.find(tab => tab.textContent?.trim() === 'Chart of Accounts')!;
     const rulesTab = tabs.find(tab => tab.textContent?.trim() === 'Rules')!;
     const reportsTab = tabs.find(tab => tab.textContent?.trim() === 'Profit & Loss')!;
+    const balanceSheetTab = tabs.find(tab => tab.textContent?.trim() === 'Balance Sheet')!;
     const dataTab = tabs.find(tab => tab.textContent?.trim() === 'Backups')!;
-    expect(tabs).toHaveSize(5);
+    expect(tabs).toHaveSize(6);
     expect(fixture.nativeElement.querySelector('.workspace-switcher select')).toBeNull();
     expect(fixture.nativeElement.querySelector('.app-sidebar')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.workspace-switcher')?.getAttribute('aria-orientation')).toBe('vertical');
@@ -305,6 +306,7 @@ describe('AppComponent', () => {
     expect(dataTab.querySelector('.bi-database')).toBeTruthy();
     expect(transactionsTab.getAttribute('aria-selected')).toBe('true');
     expect(reportsTab.getAttribute('aria-selected')).toBe('false');
+    expect(balanceSheetTab.getAttribute('aria-selected')).toBe('false');
 
     const navigationToggle = fixture.nativeElement.querySelector('.navigation-toggle') as HTMLButtonElement;
     navigationToggle.click();
@@ -319,6 +321,13 @@ describe('AppComponent', () => {
     expect(fixture.nativeElement.querySelector('#chart-workspace')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('#rules-workspace')).toBeNull();
     expect(chartTab.getAttribute('aria-selected')).toBe('true');
+
+    balanceSheetTab.click();
+    fixture.detectChanges();
+    expect(fixture.componentInstance.workspaceView).toBe('BALANCE_SHEET');
+    expect(fixture.nativeElement.querySelector('#balance-sheet-workspace')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.balance-sheet-totals')).toBeTruthy();
+    expect(balanceSheetTab.getAttribute('aria-selected')).toBe('true');
 
     rulesTab.click();
     fixture.detectChanges();

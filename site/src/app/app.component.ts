@@ -11,12 +11,13 @@ import { SetupFacade } from './features/setup/setup.facade';
 import { RuleFacade } from './features/rules/rule.facade';
 import { BackupFacade } from './features/backups/backup.facade';
 import { ChartAccountFacade } from './features/chart-accounts/chart-account.facade';
-import { BalanceSheetContractError, CompanyProfile, reportCompanyIdentity, ReportCompanyIdentity, UpdateCompanyProfileCommand } from './core/domain-model/balance-sheet.types';
+import { BalanceSheetContractError, BalanceSheetDetail, BalanceSheetReport, CompanyProfile, balanceSheetShortcutDate, normalizeBalanceSheetQuery, reportCompanyIdentity, ReportCompanyIdentity, UpdateCompanyProfileCommand } from './core/domain-model/balance-sheet.types';
 import { AccountChangeValidation, AccountRole, AccountingAccountType, AccountTypeGroupDefinition, ImportSourceKind, SaveGenericAccountCommand } from './core/domain-model/account-taxonomy';
+import { BalanceSheetFacade } from './features/balance-sheet/balance-sheet.facade';
 
 type TransactionSortColumn = 'DATE_ACCOUNT' | 'SOURCE' | 'CATEGORY' | 'AMOUNT';
 type TransactionSortDirection = 'ASC' | 'DESC';
-type WorkspaceView = 'TRANSACTIONS' | 'CHART' | 'RULES' | 'REPORTS' | 'DATA';
+type WorkspaceView = 'TRANSACTIONS' | 'CHART' | 'RULES' | 'REPORTS' | 'BALANCE_SHEET' | 'DATA';
 type ChartSortColumn = 'ORDER' | 'NAME' | 'TYPE' | 'DETAIL' | 'STATUS';
 type RuleStatusFilter = 'ALL' | 'ENABLED' | 'DISABLED';
 type ReportView = 'SUMMARY' | 'DETAIL';
@@ -157,6 +158,12 @@ export class AppComponent {
   reportDetailSortColumn: ReportSortColumn = 'DATE';
   reportDetailSortDirection: ReportSortDirection = 'ASC';
   workspaceView: WorkspaceView = 'TRANSACTIONS';
+  balanceSheet?: BalanceSheetReport;
+  balanceSheetDetail?: BalanceSheetDetail;
+  balanceSheetAsOf = '';
+  balanceSheetIncludeZero = false;
+  balanceSheetLoading = false;
+  private balanceSheetReturnFocus?: HTMLElement;
   navigationExpanded = true;
   reportTaxSettings!: TaxYearSettings;
   selectedTransactionIds = new Set<string>();
@@ -195,18 +202,47 @@ export class AppComponent {
     private readonly ruleFacade: RuleFacade,
     private readonly backupFacade: BackupFacade,
     private readonly chartAccountFacade: ChartAccountFacade,
+    readonly balanceSheetFacade: BalanceSheetFacade,
   ) {
     this.companyProfile = this.accounting.getCompanyProfile();
     this.genericAccountCatalog = this.accounting.getAccountTypeCatalog();
     const reportYear = this.accounting.getCompany().activeTaxYear;
     this.reportStartDate = `${reportYear}-01-01`;
     this.reportEndDate = `${reportYear}-12-31`;
+    const balanceQuery = normalizeBalanceSheetQuery({}, this.accounting.getCompany());
+    this.balanceSheetAsOf = balanceQuery.ok ? balanceQuery.value.asOfDate : `${reportYear}-12-31`;
     this.reportTaxSettings = this.accounting.getTaxYearSettings(reportYear);
     this.restoreTransactionView();
     this.report = this.accountingReport();
     this.refresh();
     void this.backupFacade.loadLocations();
   }
+
+  loadBalanceSheet(): void {
+    this.balanceSheetLoading = true;
+    this.balanceSheetFacade.loadReport({ asOfDate: this.balanceSheetAsOf, includeZeroBalanceAccounts: this.balanceSheetIncludeZero });
+    this.balanceSheet = this.balanceSheetFacade.report();
+    this.balanceSheetDetail = undefined;
+    this.balanceSheetLoading = false;
+  }
+
+  applyBalanceSheetShortcut(shortcut: 'TODAY' | 'PREVIOUS_MONTH_END' | 'CURRENT_MONTH_END' | 'FISCAL_YEAR_END'): void {
+    const now = new Date();
+    const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+    const result = balanceSheetShortcutDate(shortcut, today, this.accounting.getCompany());
+    if (result.ok) { this.balanceSheetAsOf = result.value; this.loadBalanceSheet(); }
+  }
+
+  openBalanceSheetDetail(row: BalanceSheetReport['rows'][number], event: Event): void {
+    if (!this.balanceSheet || !row.detailKey) return;
+    this.balanceSheetReturnFocus = event.currentTarget as HTMLElement;
+    this.balanceSheetFacade.loadDetail({ reportId: this.balanceSheet.reportId, databaseRevision: this.balanceSheet.databaseRevision, detailKey: row.detailKey });
+    this.balanceSheetDetail = this.balanceSheetFacade.detail();
+  }
+
+  closeBalanceSheetDetail(): void { this.balanceSheetDetail = undefined; queueMicrotask(() => this.balanceSheetReturnFocus?.focus()); }
+  balanceSheetMoney(value = 0n): string { return formatMoney(money(value)); }
+  balanceSheetOutOfBalance(): boolean { return (this.balanceSheet?.differenceMinor ?? 0n) !== 0n; }
 
   refresh(): void {
     this.transactionMonth = this.transactionMonthForRange();
@@ -295,6 +331,7 @@ export class AppComponent {
   selectWorkspace(view: WorkspaceView): void {
     this.workspaceView = view;
     this.closeCategoryPicker();
+    if (view === 'BALANCE_SHEET') this.loadBalanceSheet();
     if (view === 'REPORTS') this.loadReports();
     if (view === 'RULES') this.ruleFacade.load();
     if (view === 'CHART') this.chartAccountFacade.load();
