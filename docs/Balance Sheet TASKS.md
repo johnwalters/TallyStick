@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slices 7–16 complete; accessible Balance Sheet workspace and exact detail interaction verified |
+| Overall status | Slices 7–17 complete; UTF-8 Summary CSV is generated from the immutable report and saved atomically |
 | Current phase | Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down |
-| Next task | `BS-SLICE-17-CSV` — immutable Summary CSV and safe desktop export |
+| Next task | `BS-SLICE-18-XLSX` — two-sheet numeric workbook with reopen verification |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | Slice 16: all 40 AppComponent ChromeHeadless tests and isolated Electron desktop smoke passed |
+| Last verified Balance Sheet test | Slice 17: CSV special-character/privacy test and all 8 desktop-host tests passed |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -267,8 +267,8 @@ Execution is divided into token-conscious, independently testable units in the [
 
 **Trace:** PRD §10, BS-014–BS-016, BS-018–BS-020, A13; Product Spec §13, 17.5.
 
-- [ ] **BS6-001** Route screen and all output formats through the same immutable report identity/result.
-- [ ] **BS6-002** Implement UTF-8 Summary CSV with company/report metadata, hierarchy fields, stable account IDs, flags, amounts, final totals, and Difference.
+- [x] **BS6-001** Route screen and all output formats through the same immutable report identity/result.
+- [x] **BS6-002** Implement UTF-8 Summary CSV with company/report metadata, hierarchy fields, stable account IDs, flags, amounts, final totals, and Difference.
 - [ ] **BS6-003** Implement XLSX Balance Sheet sheet with screen order, indentation, matching bold styles, numeric currency cells, warnings, and totals.
 - [ ] **BS6-004** Implement XLSX Balance Sheet Detail sheet with every contribution and row/detail key needed to reproduce the statement.
 - [ ] **BS6-005** Reopen and verify generated XLSX structure, formulas/values, numeric types, styles, and totals before reporting success.
@@ -347,3 +347,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS4-015–BS4-018, BS4-021 | Added catalog/display ordering, parent/child direct rows and exact subtotals, zero-leaf hiding with structural parents, visible archived/unclassified balances, hierarchy quarantine, and deterministic typed warnings. Focused Slice 14 suite passed all 8 ChromeHeadless tests. |
 | 2026-08-21 | BS4-022–BS4-035, BS4-GATE | Added immutable source, split, earnings, opening, subtotal, total, and Difference contributions; exact integer reconciliation; stable de-duplication; revision-keyed report lookup; and stale-detail rejection after mutation. Focused Slice 15 suite passed all 9 ChromeHeadless tests. |
 | 2026-08-21 | BS5-001–BS5-GATE | Added the restrained Balance Sheet navigation/workspace with independent dates and shortcuts, zero toggle, identity/basis/totals, hierarchy and warnings, accessible amount buttons, exact detail inspector, focus return, empty/loading/error handling, and responsive report typography. All 40 AppComponent tests and isolated Electron smoke passed. |
+| 2026-08-21 | BS6-001–BS6-002 CSV portion | Added BOM-prefixed UTF-8 Summary CSV from the supplied immutable report, including identity, hierarchy, stable IDs, flags, warnings, and final totals; native saves use same-directory temporary files, atomic rename, and cancellation cleanup. CSV test and all 8 desktop-host tests passed. |

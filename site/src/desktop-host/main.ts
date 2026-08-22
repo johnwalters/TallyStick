@@ -310,6 +310,15 @@ ipcMain.handle('database-lifecycle:restore', async () => {
   if (!desktopSmokeMode) scheduleRestart();
   return operation;
 });
+ipcMain.handle('report-file:save', async (_event, suggestedFileName: string, bytes: Uint8Array, fileType: 'CSV' | 'XLSX' | 'HTML') => {
+  const extensions = fileType === 'CSV' ? ['csv'] : fileType === 'XLSX' ? ['xlsx'] : ['html'];
+  const result = await dialog.showSaveDialog({ title: `Save Balance Sheet ${fileType}`, defaultPath: suggestedFileName, filters: [{ name: `Balance Sheet ${fileType}`, extensions }] });
+  if (result.canceled || !result.filePath) return 'CANCELLED';
+  const temporaryPath = `${result.filePath}.tallystick-${process.pid}.tmp`;
+  try { await fs.writeFile(temporaryPath, bytes, { flag: 'wx' }); await fs.rename(temporaryPath, result.filePath); }
+  catch (error) { await fs.rm(temporaryPath, { force: true }); throw error; }
+  return 'SAVED';
+});
 void app.whenReady().then(async () => {
   await openDatabase();
   if (desktopSmokeUserData) await requireDatabaseLifecycle().setBackupDirectory(path.join(desktopSmokeUserData, 'backups'));

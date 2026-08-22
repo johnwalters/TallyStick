@@ -21,6 +21,9 @@ export interface LocalAccountingBridge {
     relocateCurrentDatabase(): Promise<{ operation: 'RELOCATE'; path: string; completedAtUtc: string; safetyBackupPath?: string; restartRequired: boolean } | undefined>;
     restoreDatabaseBackup(): Promise<{ operation: 'RESTORE'; path: string; completedAtUtc: string; safetyBackupPath?: string; restartRequired: boolean } | undefined>;
   };
+  reportFiles: {
+    save(suggestedFileName: string, bytes: Uint8Array, fileType: 'CSV' | 'XLSX' | 'HTML'): Promise<'SAVED' | 'CANCELLED'>;
+  };
 }
 
 declare global {

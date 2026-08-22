@@ -42,6 +42,7 @@ import { CompanyProfileService } from './company-profile.service';
 import { AccountClassificationService } from './account-classification.service';
 import { BalanceSheetReportService } from './balance-sheet-report.service';
 import { calculateUnadjustedNetProfit } from './profit-loss-calculation';
+import { BalanceSheetOutputService } from './balance-sheet-output.service';
 import { ACCOUNTING_REPOSITORY, AccountingRepository } from '../repository-gateways/accounting.repository';
 import {
   addMoney,
@@ -77,6 +78,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
   private readonly companyProfiles = inject(CompanyProfileService);
   private readonly accountClassifications = inject(AccountClassificationService);
   private readonly balanceSheets = inject(BalanceSheetReportService);
+  private readonly balanceSheetOutputs = inject(BalanceSheetOutputService);
   private readonly previews = new Map<string, ImportPreview>();
   private readonly rulePreviews = new Map<string, RuleImportPreview>();
 
@@ -124,8 +126,8 @@ export class DefaultAccountingApplication implements AccountingApplication {
     return this.balanceSheets.getBalanceSheetDetail(command);
   }
 
-  async exportBalanceSheet(_command: ExportBalanceSheetCommand): Promise<BalanceSheetExportResult> {
-    return this.balanceSheetNotImplemented('exportBalanceSheet');
+  async exportBalanceSheet(command: ExportBalanceSheetCommand): Promise<BalanceSheetExportResult> {
+    return this.balanceSheetOutputs.export(command);
   }
 
   async openBalanceSheetPrintPreview(_command: OpenBalanceSheetPrintPreviewCommand): Promise<BalanceSheetPrintPreviewResult> {

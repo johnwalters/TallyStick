@@ -23,6 +23,9 @@ const bridge: LocalAccountingBridge = {
     relocateCurrentDatabase: () => ipcRenderer.invoke('database-lifecycle:relocate'),
     restoreDatabaseBackup: () => ipcRenderer.invoke('database-lifecycle:restore'),
   },
+  reportFiles: {
+    save: (suggestedFileName, bytes, fileType) => ipcRenderer.invoke('report-file:save', suggestedFileName, bytes, fileType),
+  },
 };
 
 contextBridge.exposeInMainWorld('localAccounting', bridge);
