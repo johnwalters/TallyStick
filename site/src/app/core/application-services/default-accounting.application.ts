@@ -41,6 +41,7 @@ import { BackupBundleService, CURRENT_BACKUP_SCHEMA_VERSION } from '../backup-se
 import { CompanyProfileService } from './company-profile.service';
 import { AccountClassificationService } from './account-classification.service';
 import { BalanceSheetReportService } from './balance-sheet-report.service';
+import { calculateUnadjustedNetProfit } from './profit-loss-calculation';
 import { ACCOUNTING_REPOSITORY, AccountingRepository } from '../repository-gateways/accounting.repository';
 import {
   addMoney,
@@ -1423,7 +1424,9 @@ export class DefaultAccountingApplication implements AccountingApplication {
     const expenses = this.sectionByKey(sections, 'EXPENSES').totalMinor;
     const otherIncome = this.sectionByKey(sections, 'OTHER_INCOME').totalMinor;
     const otherExpense = this.sectionByKey(sections, 'OTHER_EXPENSE').totalMinor;
-    return { startDate, endDate, grouping, periods, sections, netProfitMinor: income - cogs - expenses + otherIncome - otherExpense, reconciliationDifferenceMinor: 0n };
+    const netProfitMinor = calculateUnadjustedNetProfit([...this.repository.transactions.values()], [...this.repository.chartAccounts.values()], startDate, endDate, excluded);
+    if (netProfitMinor !== income - cogs - expenses + otherIncome - otherExpense) throw new AccountingError('REPORT_RECONCILIATION_FAILED', 'Profit and Loss sections do not reconcile to transaction detail.');
+    return { startDate, endDate, grouping, periods, sections, netProfitMinor, reconciliationDifferenceMinor: 0n };
   }
 
   private netProfitForPeriod(report: ProfitLossReport, period: string): bigint {

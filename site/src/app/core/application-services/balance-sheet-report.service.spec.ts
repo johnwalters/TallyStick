@@ -60,6 +60,7 @@ describe('BalanceSheetReportService source balances', () => {
     expect(report.rows.map(row => [row.accountRole, row.accountId, row.amountMinor])).toEqual([
       ['FINANCIAL_SOURCE', 'bank', 5_000n], ['FINANCIAL_SOURCE', 'card', 0n],
       ['CHART', 'fixed', 5_000n], ['CHART', 'loan', 7_000n], ['CHART', 'equity', 3_000n],
+      [undefined, undefined, 0n], [undefined, undefined, 0n],
     ]);
     expect(report.totalAssetsMinor).toBe(10_000n);
     expect(report.totalLiabilitiesMinor).toBe(7_000n);
@@ -71,9 +72,26 @@ describe('BalanceSheetReportService source balances', () => {
   it('returns an immutable all-zero report for empty books', () => {
     repository.accounts.clear();
     const report = service.getBalanceSheet({ asOfDate: '2026-12-31' });
-    expect(report.rows).toEqual([]);
+    expect(report.rows.map(row => [row.label, row.amountMinor])).toEqual([['Current Earnings', 0n], ['Retained Earnings', 0n]]);
     expect([report.totalAssetsMinor, report.totalLiabilitiesMinor, report.totalEquityMinor, report.differenceMinor]).toEqual([0n, 0n, 0n, 0n]);
     expect(Object.isFrozen(report)).toBeTrue();
+  });
+
+  it('derives fiscal Current and Retained Earnings from the shared unadjusted P/L identity', () => {
+    repository.company.fiscalYearStartMonth = 7;
+    repository.chartAccounts.set('income', { id: 'income', name: 'Service Income', type: 'INCOME', accountType: 'INCOME', detailType: 'Service income', displayOrder: 1, archived: false, locked: false });
+    repository.chartAccounts.set('expense', { id: 'expense', name: 'Office', type: 'EXPENSE', accountType: 'EXPENSE', detailType: 'Office expenses', displayOrder: 2, archived: false, locked: false });
+    repository.transactions.set('prior-income', { ...transaction('prior-income', 'bank', '2025-06-30', 4_000n, 'POSTED'), splits: [{ id: 'prior-split', chartAccountId: 'income', amount: money(4_000n) }] });
+    repository.transactions.set('current-expense', { ...transaction('current-expense', 'bank', '2025-07-01', -1_000n, 'POSTED'), splits: [{ id: 'current-split', chartAccountId: 'expense', amount: money(-1_000n) }] });
+    repository.transactions.set('schedule-c-irrelevant', { ...transaction('schedule-c-irrelevant', 'bank', '2026-01-01', 0n, 'EXCLUDED'), splits: [{ id: 'excluded-split', chartAccountId: 'income', amount: money(99_000n) }] });
+
+    const report = service.getBalanceSheet({ asOfDate: '2026-06-30' });
+    expect(report.fiscalPeriod).toEqual({ startDate: '2025-07-01', endDate: '2026-06-30' });
+    expect(report.rows.find(row => row.label === 'Current Earnings')?.amountMinor).toBe(-1_000n);
+    expect(report.rows.find(row => row.label === 'Retained Earnings')?.amountMinor).toBe(4_000n);
+    expect(report.totalEquityMinor).toBe(3_000n);
+    expect(report.totalAssetsMinor).toBe(3_000n);
+    expect(report.differenceMinor).toBe(0n);
   });
 });
 

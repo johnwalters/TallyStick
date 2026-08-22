@@ -14,8 +14,10 @@ import {
   freezeBalanceSheetReport,
   normalizeBalanceSheetQuery,
   reportCompanyIdentity,
+  syntheticBalanceSheetRowId,
 } from '../domain-model/balance-sheet.types';
 import { ACCOUNTING_REPOSITORY, AccountingRepository, BalanceSheetRepositorySnapshot } from '../repository-gateways/accounting.repository';
+import { calculateUnadjustedNetProfit } from './profit-loss-calculation';
 
 export interface FinancialSourceBalance {
   readonly account: FinancialAccount;
@@ -60,7 +62,15 @@ export class BalanceSheetReportService {
     const snapshot = this.repository.readBalanceSheetSnapshot(normalized.value.asOfDate);
     const sourceBalances = this.sourceBalances(snapshot, normalized.value);
     const chartBalances = this.chartBalances(snapshot, normalized.value);
-    const rows: BalanceSheetRow[] = [...sourceBalances.map(balance => this.sourceRow(balance)), ...chartBalances.map(balance => this.chartRow(balance))];
+    const period = fiscalPeriod(normalized.value.asOfDate, snapshot.company.fiscalYearStartMonth);
+    const currentEarnings = calculateUnadjustedNetProfit(snapshot.transactions, snapshot.chartAccounts, period.startDate, normalized.value.asOfDate);
+    const retainedEarnings = calculateRetainedEarnings(snapshot, period.startDate);
+    const rows: BalanceSheetRow[] = [
+      ...sourceBalances.map(balance => this.sourceRow(balance)),
+      ...chartBalances.map(balance => this.chartRow(balance)),
+      derivedEquityRow('CURRENT_EARNINGS', 'Current Earnings', normalized.value.asOfDate, currentEarnings),
+      derivedEquityRow('RETAINED_EARNINGS', 'Retained Earnings', normalized.value.asOfDate, retainedEarnings),
+    ];
     const totalAssetsMinor = sumSection(rows, 'ASSETS');
     const totalLiabilitiesMinor = sumSection(rows, 'LIABILITIES');
     const totalEquityMinor = sumSection(rows, 'EQUITY');
@@ -79,7 +89,7 @@ export class BalanceSheetReportService {
       company: reportCompanyIdentity(profile),
       currencyCode: snapshot.company.currency,
       accountingBasis: snapshot.company.accountingBasis,
-      fiscalPeriod: fiscalPeriod(normalized.value.asOfDate, snapshot.company.fiscalYearStartMonth),
+      fiscalPeriod: period,
       rows,
       totalAssetsMinor,
       totalLiabilitiesMinor,
@@ -164,4 +174,20 @@ function fiscalPeriod(asOfDate: string, startMonth: number): { startDate: string
   const [year, month] = asOfDate.split('-').map(Number);
   const startYear = month >= startMonth ? year : year - 1;
   return { startDate: `${startYear.toString().padStart(4, '0')}-${startMonth.toString().padStart(2, '0')}-01`, endDate: asOfDate };
+}
+
+function calculateRetainedEarnings(snapshot: BalanceSheetRepositorySnapshot, fiscalStartDate: string): bigint {
+  const chartById = new Map(snapshot.chartAccounts.map(account => [account.id, account]));
+  return snapshot.transactions
+    .filter(transaction => transaction.state === 'POSTED' && transaction.postingDate < fiscalStartDate)
+    .flatMap(transaction => transaction.splits)
+    .reduce((total, split) => {
+      const type = chartById.get(split.chartAccountId)?.type;
+      return !type || ['ASSET', 'LIABILITY', 'EQUITY'].includes(type) ? total : total + split.amount.minorUnits;
+    }, 0n);
+}
+
+function derivedEquityRow(key: 'CURRENT_EARNINGS' | 'RETAINED_EARNINGS', label: string, asOfDate: string, amountMinor: bigint): BalanceSheetRow {
+  const rowId = syntheticBalanceSheetRowId(key, asOfDate);
+  return { rowId, rowType: 'DERIVED_EQUITY', section: 'EQUITY', label, depth: 0, amountMinor, detailKey: balanceSheetDetailKey(rowId), bold: true, derived: true, archived: false, unclassified: false };
 }

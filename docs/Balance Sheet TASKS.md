@@ -16,16 +16,16 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slices 7–11 complete; source and Chart balances produce exact Balance Sheet totals and Difference |
+| Overall status | Slices 7–12 complete; fiscal Current and Retained Earnings share the unadjusted P/L identity |
 | Current phase | Phase 4 — Balance Sheet engine, hierarchy, warnings, and drill-down |
-| Next task | `BS-SLICE-12-FISCAL-EARNINGS` — Current Earnings and Retained Earnings parity with unadjusted P/L |
+| Next task | `BS-SLICE-13-OPENING-BALANCES` — eligible openings and derived Opening Balance Equity |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Balance Sheet test | Focused Slice 11 suite: 4 ChromeHeadless tests passed for source filters/signs, Chart signs, exact equation, and an immutable empty report |
+| Last verified Balance Sheet test | Focused Slice 12/P&L suite: 42 ChromeHeadless tests passed, including non-calendar fiscal earnings and the shared P/L reconciliation identity |
 | Last tracker update | August 21, 2026 |
 | Known blocker | None |
 
@@ -204,10 +204,10 @@ Execution is divided into token-conscious, independently testable units in the [
 - [x] **BS4-007** Calculate Liability financial-source balances with the correct natural-sign presentation.
 - [x] **BS4-008** Calculate Asset Chart contributions as the inverse of stored split signs.
 - [x] **BS4-009** Calculate Liability and Equity Chart contributions using their natural credit-balance sign.
-- [ ] **BS4-010** Derive Current Earnings from the existing unadjusted P/L for the exact fiscal-year start through as-of date.
-- [ ] **BS4-011** Derive prior-period Retained Earnings from unadjusted P/L activity before the current fiscal period.
+- [x] **BS4-010** Derive Current Earnings from the existing unadjusted P/L for the exact fiscal-year start through as-of date.
+- [x] **BS4-011** Derive prior-period Retained Earnings from unadjusted P/L activity before the current fiscal period.
 - [ ] **BS4-012** Derive Opening Balance Equity only from eligible stored opening balances and exclude ledger-activity opening mode.
-- [ ] **BS4-013** Keep Schedule C and P/L report-only exclusions out of Current and Retained Earnings.
+- [x] **BS4-013** Keep Schedule C and P/L report-only exclusions out of Current and Retained Earnings.
 
 ### Hierarchy and totals
 
@@ -342,3 +342,4 @@ Add one concise row when a migration, calculation baseline, phase gate, or final
 | 2026-08-21 | BS3-014–BS3-017, BS3-019, BS3-026 | Replaced user-facing source/Chart Add and Edit actions with one accessible role-aware editor using grouped Account Types, immediate detail/parent filtering, imported/custom labels, immutable existing roles, live Balance Sheet or Current Earnings placement, as-of balances, opening-mode validation, and complete blocking/confirmation reference lists. Browser tests cover creation, stable-ID edit, Escape cancellation, custom retention, placement, opening conflict, and reference display. `npm run test:ci` passed all 150 ChromeHeadless tests with 80.01% statements, 66.01% branches, 88.71% functions, and 87.38% lines; production build passed. A15/A18 cross-output acceptance remains open until report/output slices exist. |
 | 2026-08-21 | BS4-001–BS4-005, BS4-007; BS4-006 activity portion | Added validated fiscal defaults/date shortcuts and immutable source-balance snapshots with exact Posted/confirmed-transfer inclusion, state/date exclusions, natural Asset/Liability signs, and visible contra amounts. Focused Slice 10 suite passed all 10 ChromeHeadless tests; opening balances remain deferred to Slice 13 by the slice boundary. |
 | 2026-08-21 | BS4-008–BS4-009, BS4-014, BS4-019–BS4-020 | Added immutable application-level Balance Sheet generation with separate source/Chart identities, exact debit/credit sign transforms, integer Asset/Liability/Equity totals and Difference, and valid empty-book behavior. Focused Slice 11 suite passed all 4 ChromeHeadless tests. |
+| 2026-08-21 | BS4-010–BS4-011, BS4-013 | Extracted one unadjusted P/L detail identity used by P/L and Balance Sheet, added fiscal-period Current Earnings and pre-period Retained Earnings, and kept report-only/Schedule C exclusions out. Focused Balance Sheet plus existing P/L suite passed all 42 ChromeHeadless tests. |
