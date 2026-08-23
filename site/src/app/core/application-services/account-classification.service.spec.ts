@@ -99,6 +99,44 @@ describe('AccountClassificationService through AccountingApplication', () => {
     }), 'ACCOUNT_CLASSIFICATION_INVALID');
   });
 
+  it('allows metadata edits while preserving an unchanged legacy import classification', () => {
+    const created = application.saveGenericAccount({
+      ...financialCommand('OTHER_CURRENT_ASSET', 'Marketplace clearing', 'Legacy marketplace source'),
+      importCapability: { enabled: true, supportedSourceKinds: ['CSV', 'EXCEL', 'AMAZON'] },
+    });
+    const imported = repository.accounts.get(created.accountId)!;
+    imported.detailType = 'Marketplace';
+    imported.classificationStatus = 'REVIEW_REQUIRED';
+
+    const updated = application.saveGenericAccount({
+      ...financialCommand('OTHER_CURRENT_ASSET', 'Marketplace', 'Amazon'),
+      accountId: created.accountId,
+      currentRole: 'FINANCIAL_SOURCE',
+      importCapability: { enabled: imported.importEnabled, supportedSourceKinds: [...imported.supportedSourceKinds] },
+    });
+
+    expect(updated.accountId).toBe(created.accountId);
+    expect(repository.accounts.get(created.accountId)).toEqual(jasmine.objectContaining({
+      name: 'Amazon', detailType: 'Marketplace', classificationStatus: 'REVIEW_REQUIRED',
+      importEnabled: true, supportedSourceKinds: ['CSV', 'EXCEL', 'AMAZON'],
+    }));
+  });
+
+  it('permanently deletes only unused unlocked accounts and reports every blocker', () => {
+    const unused = application.saveGenericAccount(financialCommand('BANK', 'Checking', 'Unused checking'));
+    application.deleteGenericAccount(unused.accountId, 'FINANCIAL_SOURCE');
+    expect(repository.accounts.has(unused.accountId)).toBeFalse();
+    expect(repository.audit.at(-1)).toEqual(jasmine.objectContaining({ operation: 'DELETE_GENERIC_ACCOUNT', entityId: unused.accountId }));
+
+    const balanced = application.saveGenericAccount({ ...financialCommand('BANK', 'Checking', 'Opening balance checking'), openingBalanceMinor: 100n });
+    expectContractFailure(() => application.deleteGenericAccount(balanced.accountId, 'FINANCIAL_SOURCE'), 'ACCOUNT_REFERENCE_CONFLICT', 1);
+    expect(repository.accounts.has(balanced.accountId)).toBeTrue();
+
+    const locked = application.saveGenericAccount({ ...financialCommand('BANK', 'Checking', 'Locked checking'), locked: true });
+    expectContractFailure(() => application.deleteGenericAccount(locked.accountId, 'FINANCIAL_SOURCE'), 'ACCOUNT_REFERENCE_CONFLICT', 1);
+    expect(repository.accounts.has(locked.accountId)).toBeTrue();
+  });
+
   it('previews every Balance Sheet placement and Current Earnings behavior with as-of balances', () => {
     for (const definition of ACCOUNT_TYPE_CATALOG) {
       const preview = application.previewAccountPlacement({ accountType: definition.accountType, accountName: definition.label, asOfDate: '2026-12-31' });

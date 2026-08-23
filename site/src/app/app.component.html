@@ -505,7 +505,7 @@
             }
             @if (genericAccountError) { <p class="generic-account-error" role="alert">{{ genericAccountError }}</p> }
           </div>
-          <footer class="generic-account-editor-footer"><button type="button" class="quiet-button" (click)="closeGenericAccountEditor()">Cancel</button><button type="submit" class="primary-button" [disabled]="!genericAccountDraftValid">Save account</button></footer>
+          <footer class="generic-account-editor-footer">@if (genericAccountDraft.accountId) { <button type="button" class="quiet-button generic-account-delete" (click)="deleteGenericAccount()">Delete account</button> }<button type="button" class="quiet-button" (click)="closeGenericAccountEditor()">Cancel</button><button type="submit" class="primary-button" [disabled]="!genericAccountDraftValid">Save account</button></footer>
         </form>
       </aside>
     </div>

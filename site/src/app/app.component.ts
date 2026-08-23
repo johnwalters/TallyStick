@@ -586,6 +586,23 @@ export class AppComponent {
     }
   }
 
+  deleteGenericAccount(): void {
+    const draft = this.genericAccountDraft;
+    if (!draft?.accountId || !draft.currentRole) return;
+    if (!window.confirm(`Permanently delete ${draft.name}? Only an unused account with no balance, transactions, imports, rules, transfers, or hierarchy links can be deleted.`)) return;
+    try {
+      this.accounting.deleteGenericAccount(draft.accountId, draft.currentRole);
+      this.statusMessage = `Deleted unused account ${draft.name}.`;
+      this.closeGenericAccountEditor();
+      this.refresh();
+    } catch (error) {
+      if (error instanceof BalanceSheetContractError && error.failure.references) {
+        this.genericAccountValidation = { valid: false, blockingReferences: error.failure.references, confirmationReferences: [] };
+      }
+      this.genericAccountError = error instanceof Error ? error.message : 'Unable to delete account.';
+    }
+  }
+
   get genericAccountTypeOptions(): readonly AccountTypeGroupDefinition[] {
     if (this.genericAccountDraft?.requestedRole !== 'FINANCIAL_SOURCE') return this.genericAccountCatalog;
     return this.genericAccountCatalog.map(group => ({ ...group, accountTypes: group.accountTypes.filter(type => ['ASSET', 'LIABILITY'].includes(type.reportingGroup)) })).filter(group => group.accountTypes.length);

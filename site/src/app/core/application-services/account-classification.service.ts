@@ -112,6 +112,27 @@ export class AccountClassificationService {
     });
   }
 
+  delete(accountId: string, role: AccountRole): void {
+    const existing = role === 'FINANCIAL_SOURCE' ? this.repository.accounts.get(accountId) : this.repository.chartAccounts.get(accountId);
+    if (!existing) this.fail('ACCOUNT_CLASSIFICATION_INVALID', `Account not found: ${accountId}.`, accountId);
+    const references = this.references(role, accountId);
+    if (existing.locked) references.unshift({ kind: 'LOCK_STATE', referenceId: accountId, label: `Locked account: ${existing.name}` });
+    const uniqueReferences = this.uniqueReferences(references);
+    if (uniqueReferences.length) {
+      this.fail('ACCOUNT_REFERENCE_CONFLICT', 'Only an unused, unlocked account with a zero balance can be deleted.', accountId, uniqueReferences);
+    }
+    this.repository.transaction(() => {
+      const before = structuredClone(existing);
+      if (role === 'FINANCIAL_SOURCE') this.repository.accounts.delete(accountId);
+      else this.repository.chartAccounts.delete(accountId);
+      this.repository.audit.push({
+        id: newId(), timestampUtc: nowUtc(), operation: 'DELETE_GENERIC_ACCOUNT',
+        entityType: role === 'FINANCIAL_SOURCE' ? 'FinancialAccount' : 'ChartAccount', entityId: accountId,
+        before, after: undefined, reason: 'Permanently delete an unused account.',
+      });
+    });
+  }
+
   preview(command: GetAccountPlacementPreviewCommand): PreviewAccountPlacementResult {
     if (!this.businessDate(command.asOfDate)) this.fail('ACCOUNT_PLACEMENT_INVALID', 'Placement preview requires a valid YYYY-MM-DD as-of date.', command.accountId);
     const placement = getAccountPlacement(command.accountType);
@@ -160,8 +181,15 @@ export class AccountClassificationService {
     const accountId = command.accountId ?? newId();
     const classified = classifyAccount({ accountType: command.accountType, detailType: command.detailType, existingAccount: Boolean(existing), classificationStatus: existing && 'classificationStatus' in existing ? existing.classificationStatus : undefined });
     if (!classified.ok) this.fail('ACCOUNT_CLASSIFICATION_INVALID', classified.error.message, command.accountId);
-    const capability = validateImportCapability({ accountType: command.accountType, detailType: command.detailType, role: command.requestedRole, capability: command.importCapability });
-    if (!capability.ok) this.fail('ACCOUNT_CLASSIFICATION_INVALID', capability.error.message, command.accountId);
+    const requestedCapability = validateImportCapability({ accountType: command.accountType, detailType: command.detailType, role: command.requestedRole, capability: command.importCapability });
+    const preservesLegacyCapability = Boolean(existing && command.requestedRole === 'FINANCIAL_SOURCE' && 'importEnabled' in existing
+      && existing.accountType === command.accountType && existing.detailType.trim() === command.detailType.trim()
+      && existing.importEnabled === command.importCapability.enabled
+      && this.sameValues(existing.supportedSourceKinds, command.importCapability.supportedSourceKinds));
+    if (!requestedCapability.ok && !preservesLegacyCapability) this.fail('ACCOUNT_CLASSIFICATION_INVALID', requestedCapability.error.message, command.accountId);
+    const capability = requestedCapability.ok
+      ? requestedCapability.value
+      : { enabled: command.importCapability.enabled, supportedSourceKinds: [...command.importCapability.supportedSourceKinds] };
     if (command.requestedRole === 'FINANCIAL_SOURCE') {
       const opening = validateOpeningBalance({ accountType: command.accountType, role: command.requestedRole, openingBalanceSource: command.openingBalanceSource, storedOpeningBalanceMinor: command.openingBalanceMinor });
       if (!opening.ok) this.fail('ACCOUNT_CLASSIFICATION_INVALID', opening.error.message, command.accountId);
@@ -191,7 +219,7 @@ export class AccountClassificationService {
     ));
     return {
       accountId, existing, classificationStatus: classified.value.classificationStatus, reportingGroup: classified.value.reportingGroup,
-      importCapability: capability.value, parentAccounts, children, classificationChanged,
+      importCapability: capability, parentAccounts, children, classificationChanged,
       references: existing ? this.references(command.requestedRole, existing.id) : [],
     };
   }
@@ -284,6 +312,10 @@ export class AccountClassificationService {
 
   private uniqueReferences(references: readonly AccountReference[]): AccountReference[] {
     return [...new Map(references.map(reference => [`${reference.kind}:${reference.referenceId}`, reference])).values()];
+  }
+
+  private sameValues(left: readonly string[], right: readonly string[]): boolean {
+    return left.length === right.length && left.every(value => right.includes(value));
   }
 
   private fail(code: 'ACCOUNT_CLASSIFICATION_INVALID' | 'ACCOUNT_REFERENCE_CONFLICT' | 'ACCOUNT_PLACEMENT_INVALID', message: string, accountId?: string, references?: readonly AccountReference[]): never {

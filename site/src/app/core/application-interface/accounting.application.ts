@@ -90,6 +90,7 @@ export interface AccountingApplication {
   getAccountTypeCatalog(): GetAccountTypeCatalogResult;
   validateGenericAccount(command: SaveGenericAccountInput): ValidateGenericAccountResult;
   saveGenericAccount(command: SaveGenericAccountInput): SaveGenericAccountResult;
+  deleteGenericAccount(accountId: string, role: 'FINANCIAL_SOURCE' | 'CHART'): void;
   previewAccountPlacement(command: PreviewAccountPlacementCommand): PreviewAccountPlacementResult;
   getBalanceSheet(query: BalanceSheetQuery): BalanceSheetReport;
   getBalanceSheetDetail(command: GetBalanceSheetDetailCommand): BalanceSheetDetail;

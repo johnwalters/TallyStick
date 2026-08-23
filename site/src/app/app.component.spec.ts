@@ -234,6 +234,30 @@ describe('AppComponent', () => {
     expect(component.genericAccountDraft).toBeUndefined();
   });
 
+  it('renames the migrated marketplace source and deletes an unused source account', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+
+    const marketplace = application.listAccounts().find(account => account.name === 'Marketplace')!;
+    component.editGenericFinancialAccount(marketplace.id);
+    expect(component.genericAccountDraftValid).toBeTrue();
+    component.genericAccountDraft!.name = 'Amazon';
+    component.refreshGenericAccountReview();
+    component.saveGenericAccount();
+    expect(application.getAccount(marketplace.id)).toEqual(jasmine.objectContaining({ name: 'Amazon', detailType: 'Marketplace' }));
+
+    const reserve = application.listAccounts().find(account => account.name === 'Reserve Checking')!;
+    component.editGenericFinancialAccount(reserve.id);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.generic-account-delete')?.textContent).toContain('Delete account');
+    spyOn(window, 'confirm').and.returnValue(true);
+    component.deleteGenericAccount();
+    expect(application.getAccount(reserve.id)).toBeUndefined();
+    expect(component.genericAccountDraft).toBeUndefined();
+  });
+
   it('shows opening-mode errors and every blocking reference before save', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();

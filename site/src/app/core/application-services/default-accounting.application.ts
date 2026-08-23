@@ -114,6 +114,10 @@ export class DefaultAccountingApplication implements AccountingApplication {
     return this.accountClassifications.save(command);
   }
 
+  deleteGenericAccount(accountId: string, role: import('../domain-model/account-taxonomy').AccountRole): void {
+    this.accountClassifications.delete(accountId, role);
+  }
+
   previewAccountPlacement(command: PreviewAccountPlacementCommand): PreviewAccountPlacementResult {
     return this.accountClassifications.preview(command);
   }

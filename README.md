@@ -39,7 +39,9 @@ npm install
 npm run desktop:start
 ```
 
-The desktop command builds the Angular renderer and Electron host, then opens TallyStick. The default database is `tallystick.sqlite` under Electron's per-user application-data directory.
+The desktop command builds the Angular renderer and desktop host, packages the branded macOS application, then opens `TallyStick.app` with the TallyStick name and icon. The default database is `tallystick.sqlite` under the application's per-user data directory.
+
+After the application has been built once, `npm run desktop:launch` opens the existing TallyStick bundle without rebuilding it. `npm run desktop:launch:electron` remains available for framework-level development, where macOS will identify the process as Electron.
 
 For browser-only UI development:
 
