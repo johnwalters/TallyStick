@@ -1910,7 +1910,7 @@ export class AppComponent {
   }
 
   get matchingRuleTestTransactions(): Transaction[] {
-    return this.ruleFacade.testResults().filter(result => result.matched).slice(0, 8)
+    return this.ruleFacade.testResults().filter(result => result.matched)
       .map(result => this.accounting.getTransaction(result.transactionId)).filter((transaction): transaction is Transaction => Boolean(transaction));
   }
 

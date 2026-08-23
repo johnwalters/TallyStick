@@ -476,8 +476,9 @@ describe('AppComponent', () => {
     const application = TestBed.inject(ACCOUNTING_APPLICATION);
     const account = application.listAccounts().find(item => item.name === 'Operating Checking')!;
     const category = application.listChartAccounts().find(item => item.name === 'Operating Expenses')!;
+    const ruleTransactions = Array.from({ length: 11 }, (_, index) => `2026-02-${String(index + 1).padStart(2, '0')},UI RULE VENDOR ${index + 1},-${18 + index}.00`);
     const batch = application.commitImport(application.previewImport({
-      fileName: 'rules-ui.csv', content: 'Date,Description,Amount\n2026-02-08,UI RULE VENDOR,-18.00', kind: 'CSV', destinationAccountId: account.id,
+      fileName: 'rules-ui.csv', content: ['Date,Description,Amount', ...ruleTransactions].join('\n'), kind: 'CSV', destinationAccountId: account.id,
     }).previewToken).batch;
     const transaction = application.listTransactions({ sourceBatchId: batch.id }).items[0];
     const fixture = TestBed.createComponent(AppComponent);
@@ -511,7 +512,9 @@ describe('AppComponent', () => {
     component.testRuleDraft();
     fixture.detectChanges();
     expect(component.matchingRuleTestTransactions.map(item => item.id)).toContain(transaction.id);
-    expect(fixture.nativeElement.querySelector('.rule-test-panel')?.textContent).toContain('1 transaction');
+    expect(component.matchingRuleTestTransactions).toHaveSize(11);
+    expect(fixture.nativeElement.querySelector('.rule-test-panel')?.textContent).toContain('11 transactions');
+    expect(fixture.nativeElement.querySelectorAll('.rule-test-panel li')).toHaveSize(11);
     component.saveRuleDraft();
     fixture.detectChanges();
 
