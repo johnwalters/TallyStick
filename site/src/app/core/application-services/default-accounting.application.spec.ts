@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ACCOUNTING_APPLICATION } from '../application-interface/accounting.application';
 import { ImportPipelineService } from '../import-services/import-pipeline.service';
 import { InMemoryAccountingRepository } from '../repository-gateways/in-memory-accounting.repository';
-import { DefaultAccountingApplication } from './default-accounting.application';
+import { DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID, DEFAULT_OWNER_DRAW_ACCOUNT_ID, DefaultAccountingApplication } from './default-accounting.application';
 import { BackupBundleService } from '../backup-services/backup-bundle.service';
 import { ACCOUNTING_REPOSITORY } from '../repository-gateways/accounting.repository';
 import * as XLSX from 'xlsx';
@@ -32,6 +32,50 @@ describe('DefaultAccountingApplication', () => {
       ],
     });
     app = TestBed.inject(ACCOUNTING_APPLICATION) as DefaultAccountingApplication;
+  });
+
+  it("seeds one standard Owner's Draw equity account and restores it for an existing company", () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    expect(app.listChartAccounts().filter(item => item.id === DEFAULT_OWNER_DRAW_ACCOUNT_ID)).toEqual([
+      jasmine.objectContaining({ name: "Owner's Draw", type: 'EQUITY', accountType: 'EQUITY', detailType: 'Owner draw', archived: false }),
+    ]);
+
+    repository.chartAccounts.delete(DEFAULT_OWNER_DRAW_ACCOUNT_ID);
+    TestBed.runInInjectionContext(() => new DefaultAccountingApplication());
+    TestBed.runInInjectionContext(() => new DefaultAccountingApplication());
+
+    expect([...repository.chartAccounts.values()].filter(item => item.accountType === 'EQUITY' && item.detailType === 'Owner draw')).toHaveSize(1);
+    expect(repository.audit.filter(event => event.operation === 'CREATE_DEFAULT_CHART_ACCOUNT')).toHaveSize(1);
+  });
+
+  it('seeds one standard Advertising and Marketing expense account and restores it for an existing company', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    expect(app.listChartAccounts().filter(item => item.id === DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID)).toEqual([
+      jasmine.objectContaining({ name: 'Advertising and Marketing', type: 'EXPENSE', accountType: 'EXPENSE', detailType: 'Advertising', archived: false }),
+    ]);
+
+    repository.chartAccounts.delete(DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID);
+    TestBed.runInInjectionContext(() => new DefaultAccountingApplication());
+    TestBed.runInInjectionContext(() => new DefaultAccountingApplication());
+
+    expect([...repository.chartAccounts.values()].filter(item => item.accountType === 'EXPENSE' && item.detailType === 'Advertising' && item.name === 'Advertising and Marketing')).toHaveSize(1);
+    expect(repository.audit.filter(event => event.operation === 'CREATE_DEFAULT_CHART_ACCOUNT')).toHaveSize(1);
+  });
+
+  it("posts Owner's Draw to Equity without changing Profit & Loss", () => {
+    const checking = app.listAccounts().find(item => item.name === 'Operating Checking')!;
+    const ownerDraw = app.listChartAccounts().find(item => item.id === DEFAULT_OWNER_DRAW_ACCOUNT_ID)!;
+    const committed = app.commitImport(app.previewImport({
+      fileName: 'owner-draw.csv', content: 'Date,Description,Amount\n2026-01-05,Owner withdrawal,-3000.00', kind: 'CSV', destinationAccountId: checking.id,
+    }).previewToken);
+    const transaction = app.listTransactions({ sourceBatchId: committed.batch.id }).items[0];
+    app.categorize(transaction.id, ownerDraw.id);
+    app.post([transaction.id]);
+
+    expect(app.getProfitLoss('2026-01-01', '2026-12-31', 'YEAR').netProfitMinor).toBe(0n);
+    const balanceSheet = app.getBalanceSheet({ asOfDate: '2026-12-31', includeZeroBalanceAccounts: false });
+    expect(balanceSheet.rows.find(row => row.accountId === ownerDraw.id)).toEqual(jasmine.objectContaining({ section: 'EQUITY', amountMinor: -300_000n }));
+    expect(balanceSheet.differenceMinor).toBe(0n);
   });
 
   it('imports, categorizes, posts, and reports an exact amount', () => {

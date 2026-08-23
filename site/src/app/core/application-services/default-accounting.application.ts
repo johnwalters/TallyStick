@@ -69,6 +69,9 @@ import {
   TransferMatch,
 } from '../domain-model/accounting.types';
 
+export const DEFAULT_OWNER_DRAW_ACCOUNT_ID = 'chart-owner-draw';
+export const DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID = 'chart-advertising-marketing';
+
 @Injectable()
 export class DefaultAccountingApplication implements AccountingApplication {
   private readonly repository = inject(ACCOUNTING_REPOSITORY) as AccountingRepository;
@@ -1805,7 +1808,9 @@ export class DefaultAccountingApplication implements AccountingApplication {
   }
 
   private seed(): void {
-    if (this.repository.accounts.size && this.repository.getCompanyProfile()) return;
+    const ownerDrawExists = [...this.repository.chartAccounts.values()].some(account => account.accountType === 'EQUITY' && account.detailType === 'Owner draw' && !account.archived);
+    const advertisingMarketingExists = [...this.repository.chartAccounts.values()].some(account => account.accountType === 'EXPENSE' && account.detailType === 'Advertising' && account.name.trim().toLowerCase() === 'advertising and marketing' && !account.archived);
+    if (this.repository.accounts.size && this.repository.getCompanyProfile() && ownerDrawExists && advertisingMarketingExists) return;
     this.repository.transaction(() => {
       if (!this.repository.getCompanyProfile()) {
         const timestamp = nowUtc();
@@ -1821,7 +1826,11 @@ export class DefaultAccountingApplication implements AccountingApplication {
           modifiedAt: timestamp,
         }, { mode: 'PRESERVE' });
       }
-      if (this.repository.accounts.size) return;
+      if (this.repository.accounts.size) {
+        this.ensureOwnerDrawAccount(true);
+        this.ensureAdvertisingMarketingAccount(true);
+        return;
+      }
       for (const [name, type] of [['Operating Checking', 'BANK'], ['Business Card', 'CREDIT_CARD'], ['Reserve Checking', 'BANK'], ['Marketplace', 'ENTITY'], ['Other Transactions', 'ENTITY']] as const) {
         const accountType = type === 'BANK' ? 'BANK' : type === 'CREDIT_CARD' ? 'CREDIT_CARD' : 'OTHER_CURRENT_ASSET';
         const account: FinancialAccount = {
@@ -1841,11 +1850,71 @@ export class DefaultAccountingApplication implements AccountingApplication {
         const account: ChartAccount = { id: newId(), name, type, accountType, detailType: this.chartAccountDefinition(accountType).detailTypes[0], displayOrder, archived: false, locked: false };
         this.repository.chartAccounts.set(account.id, account);
       });
+      this.ensureOwnerDrawAccount(false);
+      this.ensureAdvertisingMarketingAccount(false);
       const feeAccount = this.findChartByName('Marketplace Fees')[0];
       const defaultRuleId = newId();
       this.repository.rules.set(defaultRuleId, { id: defaultRuleId, name: 'Example: marketplace fee labels', enabled: false, priority: 10, conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'Marketplace fee' }], chartAccountId: feeAccount });
       this.repository.taxSettings.set(this.repository.company.activeTaxYear, this.getTaxYearSettings(this.repository.company.activeTaxYear));
     });
+  }
+
+  private ensureOwnerDrawAccount(recordAudit: boolean): void {
+    const existing = [...this.repository.chartAccounts.values()].find(account => account.accountType === 'EQUITY' && account.detailType === 'Owner draw');
+    if (existing) {
+      if (!existing.archived) return;
+      const before = structuredClone(existing);
+      existing.archived = false;
+      this.repository.chartAccounts.set(existing.id, existing);
+      if (recordAudit) this.record('RESTORE_DEFAULT_CHART_ACCOUNT', 'ChartAccount', existing.id, before, existing, 'Keep the standard Owner\'s Draw equity account available.');
+      return;
+    }
+    const conflicting = this.repository.chartAccounts.get(DEFAULT_OWNER_DRAW_ACCOUNT_ID);
+    if (conflicting) throw new AccountingError('DEFAULT_ACCOUNT_ID_CONFLICT', `${DEFAULT_OWNER_DRAW_ACCOUNT_ID} is already assigned to ${conflicting.name}.`);
+    const account: ChartAccount = {
+      id: DEFAULT_OWNER_DRAW_ACCOUNT_ID,
+      name: "Owner's Draw",
+      type: 'EQUITY',
+      accountType: 'EQUITY',
+      detailType: 'Owner draw',
+      description: 'Owner withdrawals and distributions that reduce equity without affecting profit.',
+      displayOrder: Math.max(-1, ...[...this.repository.chartAccounts.values()].map(item => item.displayOrder)) + 1,
+      archived: false,
+      locked: false,
+    };
+    this.repository.chartAccounts.set(account.id, account);
+    if (recordAudit) this.record('CREATE_DEFAULT_CHART_ACCOUNT', 'ChartAccount', account.id, undefined, account, 'Add the standard Owner\'s Draw equity account.');
+  }
+
+  private ensureAdvertisingMarketingAccount(recordAudit: boolean): void {
+    const existing = [...this.repository.chartAccounts.values()].find(account =>
+      account.accountType === 'EXPENSE'
+      && account.detailType === 'Advertising'
+      && account.name.trim().toLowerCase() === 'advertising and marketing',
+    );
+    if (existing) {
+      if (!existing.archived) return;
+      const before = structuredClone(existing);
+      existing.archived = false;
+      this.repository.chartAccounts.set(existing.id, existing);
+      if (recordAudit) this.record('RESTORE_DEFAULT_CHART_ACCOUNT', 'ChartAccount', existing.id, before, existing, 'Keep the standard Advertising and Marketing expense account available.');
+      return;
+    }
+    const conflicting = this.repository.chartAccounts.get(DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID);
+    if (conflicting) throw new AccountingError('DEFAULT_ACCOUNT_ID_CONFLICT', `${DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID} is already assigned to ${conflicting.name}.`);
+    const account: ChartAccount = {
+      id: DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID,
+      name: 'Advertising and Marketing',
+      type: 'EXPENSE',
+      accountType: 'EXPENSE',
+      detailType: 'Advertising',
+      description: 'Advertising, promotions, sponsored listings, and other marketing costs.',
+      displayOrder: Math.max(-1, ...[...this.repository.chartAccounts.values()].map(item => item.displayOrder)) + 1,
+      archived: false,
+      locked: false,
+    };
+    this.repository.chartAccounts.set(account.id, account);
+    if (recordAudit) this.record('CREATE_DEFAULT_CHART_ACCOUNT', 'ChartAccount', account.id, undefined, account, 'Add the standard Advertising and Marketing expense account.');
   }
 
   private balanceSheetNotImplemented<T>(operation: string): T {
