@@ -461,13 +461,23 @@ describe('DefaultAccountingApplication', () => {
   });
 
   it('round-trips rules through the documented exchange format and rejects an invalid replacement without changing rules', () => {
+    const account = app.listAccounts().find(item => item.name === 'Operating Checking')!;
     const expense = app.listChartAccounts().find(item => item.name === 'Operating Expenses')!;
-    app.importRules([{ id: 'exchange-rule', name: 'Exchange rule', enabled: true, priority: 1, conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'Vendor' }], chartAccountId: expense.id }]);
-    const preview = app.previewRulesImport(app.exportRules('XLSX') as ArrayBuffer);
+    app.importRules([{ id: 'exchange-rule', name: 'Exchange rule', enabled: true, priority: 1, conditions: [{ field: 'ACCOUNT', operator: 'EQUALS', value: account.id }, { field: 'DESCRIPTION', operator: 'CONTAINS', value: 'Vendor' }], chartAccountId: expense.id }]);
+    const exported = app.exportRules('XLSX') as ArrayBuffer;
+    const workbook = XLSX.read(exported, { type: 'array' });
+    const exportedRow = XLSX.utils.sheet_to_json<Record<string, string>>(workbook.Sheets[workbook.SheetNames[0]], { defval: '' })[0];
+    expect(JSON.parse(exportedRow['Conditions JSON'])).toContain(jasmine.objectContaining({
+      field: 'ACCOUNT', value: account.id, accountName: account.name, accountType: account.accountType, institutionOrEntity: account.institutionOrEntity,
+    }));
+
+    const preview = app.previewRulesImport(exported);
     expect(preview.valid).toBeTrue();
     expect(preview.updatedCount).toBe(1);
+    expect(preview.issues.filter(issue => issue.code === 'RULE_ACCOUNT_REMAPPED_BY_NAME')).toHaveSize(0);
     app.commitRulesImport(preview.previewToken);
     expect(app.listRules()).toEqual(jasmine.objectContaining([jasmine.objectContaining({ id: 'exchange-rule', chartAccountId: expense.id })]));
+    expect(app.listRules()[0].conditions.find(condition => condition.field === 'ACCOUNT')?.value).toBe(account.id);
 
     const CSV = app.exportRules('CSV') as string;
     expect(CSV).toContain('Chart Account ID,Chart Account Name');
@@ -477,6 +487,100 @@ describe('DefaultAccountingApplication', () => {
     expect(invalid.valid).toBeFalse();
     expect(() => app.commitRulesImport(invalid.previewToken)).toThrowError(/Correct every rule-import error/);
     expect(app.listRules()).toEqual(jasmine.objectContaining([jasmine.objectContaining({ id: 'exchange-rule' })]));
+  });
+
+  it('remaps an imported ACCOUNT condition to the unique active financial account with the exported identity', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    const original = app.listAccounts().find(item => item.name === 'Operating Checking')!;
+    const expense = app.listChartAccounts().find(item => item.name === 'Operating Expenses')!;
+    app.importRules([{ id: 'portable-account-rule', name: 'Portable account rule', enabled: true, priority: 1, conditions: [{ field: 'ACCOUNT', operator: 'EQUALS', value: original.id }], chartAccountId: expense.id }]);
+    const exported = app.exportRules('CSV') as string;
+
+    repository.accounts.delete(original.id);
+    repository.accounts.set('replacement-operating-checking', { ...original, id: 'replacement-operating-checking' });
+    const preview = app.previewRulesImport(exported);
+
+    expect(preview.valid).toBeTrue();
+    expect(preview.issues).toContain(jasmine.objectContaining({ severity: 'WARNING', code: 'RULE_ACCOUNT_REMAPPED_BY_NAME', rowNumber: 2 }));
+    expect(preview.rules[0].conditions[0].value).toBe('replacement-operating-checking');
+    app.commitRulesImport(preview.previewToken);
+    expect(app.listRules()[0].conditions[0].value).toBe('replacement-operating-checking');
+  });
+
+  it('blocks a rule import when an ACCOUNT condition cannot be resolved', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    const original = app.listAccounts().find(item => item.name === 'Operating Checking')!;
+    const expense = app.listChartAccounts().find(item => item.name === 'Operating Expenses')!;
+    app.importRules([{ id: 'missing-account-rule', name: 'Missing account rule', enabled: true, priority: 1, conditions: [{ field: 'ACCOUNT', operator: 'EQUALS', value: original.id }], chartAccountId: expense.id }]);
+    const exported = app.exportRules('CSV') as string;
+    repository.accounts.delete(original.id);
+
+    const preview = app.previewRulesImport(exported);
+
+    expect(preview.valid).toBeFalse();
+    expect(preview.issues).toContain(jasmine.objectContaining({ severity: 'ERROR', code: 'RULE_ACCOUNT_NOT_FOUND', rowNumber: 2 }));
+    expect(() => app.commitRulesImport(preview.previewToken)).toThrowError(/Correct every rule-import error/);
+  });
+
+  it('blocks a rule import when exported ACCOUNT identity matches multiple active accounts', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    const original = app.listAccounts().find(item => item.name === 'Operating Checking')!;
+    const expense = app.listChartAccounts().find(item => item.name === 'Operating Expenses')!;
+    app.importRules([{ id: 'ambiguous-account-rule', name: 'Ambiguous account rule', enabled: true, priority: 1, conditions: [{ field: 'ACCOUNT', operator: 'EQUALS', value: original.id }], chartAccountId: expense.id }]);
+    const exported = app.exportRules('CSV') as string;
+    repository.accounts.delete(original.id);
+    repository.accounts.set('replacement-checking-one', { ...original, id: 'replacement-checking-one' });
+    repository.accounts.set('replacement-checking-two', { ...original, id: 'replacement-checking-two' });
+
+    const preview = app.previewRulesImport(exported);
+
+    expect(preview.valid).toBeFalse();
+    expect(preview.issues).toContain(jasmine.objectContaining({ severity: 'ERROR', code: 'RULE_ACCOUNT_AMBIGUOUS', rowNumber: 2 }));
+  });
+
+  it('remaps an imported rule category to the unique active chart account with the exported name', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    const expense = app.listChartAccounts().find(item => item.name === 'Operating Expenses')!;
+    app.importRules([{ id: 'portable-category-rule', name: 'Portable category rule', enabled: true, priority: 1, conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'Vendor' }], chartAccountId: expense.id }]);
+    const exported = app.exportRules('CSV') as string;
+
+    repository.chartAccounts.delete(expense.id);
+    repository.chartAccounts.set('replacement-operating-expenses', { ...expense, id: 'replacement-operating-expenses' });
+    const preview = app.previewRulesImport(exported);
+
+    expect(preview.valid).toBeTrue();
+    expect(preview.issues).toContain(jasmine.objectContaining({ severity: 'WARNING', code: 'RULE_CHART_ACCOUNT_REMAPPED_BY_NAME', rowNumber: 2 }));
+    expect(preview.rules[0].chartAccountId).toBe('replacement-operating-expenses');
+    app.commitRulesImport(preview.previewToken);
+    expect(app.listRules()[0].chartAccountId).toBe('replacement-operating-expenses');
+  });
+
+  it('blocks a rule import when its exported category name cannot be resolved', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    const expense = app.listChartAccounts().find(item => item.name === 'Operating Expenses')!;
+    app.importRules([{ id: 'missing-category-rule', name: 'Missing category rule', enabled: true, priority: 1, conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'Vendor' }], chartAccountId: expense.id }]);
+    const exported = app.exportRules('CSV') as string;
+    repository.chartAccounts.delete(expense.id);
+
+    const preview = app.previewRulesImport(exported);
+
+    expect(preview.valid).toBeFalse();
+    expect(preview.issues).toContain(jasmine.objectContaining({ severity: 'ERROR', code: 'RULE_CHART_ACCOUNT_NOT_FOUND', rowNumber: 2 }));
+  });
+
+  it('blocks a rule import when its exported category name is ambiguous', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    const expense = app.listChartAccounts().find(item => item.name === 'Operating Expenses')!;
+    app.importRules([{ id: 'ambiguous-category-rule', name: 'Ambiguous category rule', enabled: true, priority: 1, conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'Vendor' }], chartAccountId: expense.id }]);
+    const exported = app.exportRules('CSV') as string;
+    repository.chartAccounts.delete(expense.id);
+    repository.chartAccounts.set('replacement-operating-expenses-one', { ...expense, id: 'replacement-operating-expenses-one' });
+    repository.chartAccounts.set('replacement-operating-expenses-two', { ...expense, id: 'replacement-operating-expenses-two' });
+
+    const preview = app.previewRulesImport(exported);
+
+    expect(preview.valid).toBeFalse();
+    expect(preview.issues).toContain(jasmine.objectContaining({ severity: 'ERROR', code: 'RULE_CHART_ACCOUNT_AMBIGUOUS', rowNumber: 2 }));
   });
 
   it('unmatches the counterpart when a matched transfer is excluded, so a reimport can match it again', () => {

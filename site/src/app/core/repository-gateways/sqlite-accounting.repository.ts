@@ -364,6 +364,7 @@ export class SqliteAccountingRepository implements AccountingRepository {
     this.database.execute('DELETE FROM company_profile');
     this.database.execute('UPDATE chart_account SET parent_id = NULL');
     this.database.execute('DELETE FROM chart_account');
+    this.database.execute('UPDATE financial_account SET parent_account_id = NULL');
     this.database.execute('DELETE FROM financial_account');
     this.database.execute('DELETE FROM company');
 
@@ -382,7 +383,7 @@ export class SqliteAccountingRepository implements AccountingRepository {
       profile.phone ?? null, profile.email ?? null, profile.website ?? null, this.taxIdentifier ?? null,
       profile.createdAt, profile.modifiedAt,
     ]);
-    for (const account of this.accounts.values()) {
+    for (const account of this.parentFirst(this.accounts.values(), account => account.parentAccountId)) {
       this.database.execute(`INSERT INTO financial_account(
         id, type, account_type, classification_status, import_enabled, supported_source_kinds_json, opening_balance_source,
         detail_type, name, institution_or_entity, last_four, parent_account_id, description,
@@ -394,7 +395,7 @@ export class SqliteAccountingRepository implements AccountingRepository {
         account.openingBalance.minorUnits, account.openingBalanceDate, account.archived ? 1 : 0, account.locked ? 1 : 0,
       ]);
     }
-    for (const account of this.chartAccounts.values()) {
+    for (const account of this.parentFirst(this.chartAccounts.values(), account => account.parentId)) {
       this.database.execute('INSERT INTO chart_account(id, name, parent_id, type, account_type, detail_type, description, display_order, archived, locked) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
         account.id, account.name, account.parentId ?? null, account.type, account.accountType, account.detailType, account.description ?? null, account.displayOrder, account.archived ? 1 : 0, account.locked ? 1 : 0,
       ]);
@@ -434,6 +435,23 @@ export class SqliteAccountingRepository implements AccountingRepository {
         event.id, event.timestampUtc, event.operation, event.entityType, event.entityId, this.json(event.before), this.json(event.after), event.reason ?? null, event.correlationId ?? null,
       ]);
     }
+  }
+
+  private parentFirst<T extends { id: string }>(items: Iterable<T>, parentId: (item: T) => string | undefined): T[] {
+    const remaining = new Map([...items].map(item => [item.id, item]));
+    const ordered: T[] = [];
+    while (remaining.size) {
+      const ready = [...remaining.values()].filter(item => {
+        const parent = parentId(item);
+        return !parent || !remaining.has(parent);
+      });
+      if (!ready.length) throw new Error('Account hierarchy cannot be persisted because it contains a cycle.');
+      ready.forEach(item => {
+        ordered.push(item);
+        remaining.delete(item.id);
+      });
+    }
+    return ordered;
   }
 
   private snapshot(): RepositorySnapshot {

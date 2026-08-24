@@ -13,6 +13,7 @@ describe('SqliteDatabaseGateway', () => {
     expect(gateway.execute('SELECT COUNT(*) AS count FROM financial_account')[0]['count']).toBe(1);
     expect(gateway.integrityCheck().valid).toBeTrue();
     expect(gateway.foreignKeyCheck().valid).toBeTrue();
+    expect(gateway.execute('PRAGMA foreign_keys')[0]['foreign_keys']).toBe(1);
     expect(gateway.schemaVersion()).toBe(6);
     gateway.close();
   });
@@ -96,6 +97,7 @@ describe('SqliteDatabaseGateway', () => {
       await gateway.open();
       gateway.execute('INSERT INTO company(id, name, currency, fiscal_year_start_month, accounting_basis, active_tax_year) VALUES (?, ?, ?, ?, ?, ?)', ['bridge-company', 'Bridge Company', 'USD', 1, 'CASH', 2026]);
       gateway.transaction(() => gateway.execute('INSERT INTO financial_account(id, type, name, institution_or_entity, opening_balance_minor, opening_balance_date) VALUES (?, ?, ?, ?, ?, ?)', ['bridge-account', 'BANK', 'Bridge Bank', 'Test', '0', '2026-01-01']));
+      expect(gateway.execute('PRAGMA foreign_keys')[0]['foreign_keys']).toBe(1);
       expect(stored?.byteLength ?? 0).toBeGreaterThan(0);
       const reopened = new SqliteDatabaseGateway();
       await reopened.open(stored);
@@ -116,6 +118,28 @@ describe('SqliteDatabaseGateway', () => {
     expect(() => gateway.transaction(() => { gateway.execute('INSERT INTO financial_account(id, type, name, institution_or_entity, opening_balance_minor, opening_balance_date) VALUES (?, ?, ?, ?, ?, ?)', ['rollback-account', 'BANK', 'Rollback Bank', 'Test', '0', '2026-01-01']); throw new Error('rollback'); })).toThrowError('rollback');
     expect(gateway.execute('SELECT COUNT(*) AS count FROM financial_account WHERE id = ?', ['rollback-account'])[0]['count']).toBe(0);
     gateway.close();
+  });
+
+  it('restores renderer state when the desktop host rejects a committed image', async () => {
+    const bridge = (globalThis as { localAccounting?: unknown }).localAccounting;
+    let rejectWrites = false;
+    (globalThis as { localAccounting?: unknown }).localAccounting = {
+      sqlite: {
+        writeSync: () => { if (rejectWrites) throw new Error('host rejected image'); },
+      },
+    };
+    try {
+      const gateway = new SqliteDatabaseGateway();
+      await gateway.open();
+      gateway.execute('INSERT INTO company(id, name, currency, fiscal_year_start_month, accounting_basis, active_tax_year) VALUES (?, ?, ?, ?, ?, ?)', ['rollback-company', 'Rollback Company', 'USD', 1, 'CASH', 2026]);
+      rejectWrites = true;
+      expect(() => gateway.transaction(() => gateway.execute('INSERT INTO financial_account(id, type, name, institution_or_entity, opening_balance_minor, opening_balance_date) VALUES (?, ?, ?, ?, ?, ?)', ['rejected-account', 'BANK', 'Rejected Bank', 'Test', '0', '2026-01-01']))).toThrowError('host rejected image');
+      expect(gateway.execute('SELECT COUNT(*) AS count FROM financial_account')[0]['count']).toBe(0);
+      expect(gateway.execute('PRAGMA foreign_keys')[0]['foreign_keys']).toBe(1);
+      gateway.close();
+    } finally {
+      (globalThis as { localAccounting?: unknown }).localAccounting = bridge;
+    }
   });
 });
 

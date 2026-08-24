@@ -178,4 +178,74 @@ describe('SqliteAccountingRepository', () => {
     expect(afterDeleteRepository.rules.has(saved.id)).toBeFalse();
     expect(afterDeleteRepository.audit.some(event => event.operation === 'DELETE_RULE' && event.entityId === saved.id)).toBeTrue();
   });
+
+  it('renames a seeded financial account without breaking SQLite foreign keys', async () => {
+    await TestBed.configureTestingModule({
+      providers: [
+        SqliteDatabaseGateway,
+        SqliteAccountingRepository,
+        { provide: ACCOUNTING_REPOSITORY, useExisting: SqliteAccountingRepository },
+        ImportPipelineService,
+        BackupBundleService,
+        { provide: ACCOUNTING_APPLICATION, useClass: DefaultAccountingApplication },
+      ],
+    }).compileComponents();
+    const database = TestBed.inject(SqliteDatabaseGateway);
+    const repository = TestBed.inject(SqliteAccountingRepository);
+    await repository.initialize();
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const card = application.listAccounts().find(account => account.name === 'Business Card')!;
+
+    application.updateAccount(card.id, {
+      type: 'CREDIT_CARD',
+      detailType: 'Credit Card',
+      name: 'Amex Card',
+      institutionOrEntity: 'Business',
+      openingBalanceMinor: 0n,
+      openingBalanceDate: '2026-01-01',
+    });
+
+    expect(database.foreignKeyCheck().valid).toBeTrue();
+    expect(database.execute('PRAGMA foreign_keys')[0]['foreign_keys']).toBe(1);
+    const reopenedDatabase = new SqliteDatabaseGateway();
+    const reopenedRepository = new SqliteAccountingRepository(reopenedDatabase);
+    await reopenedRepository.initialize(database.exportBytes());
+    expect(reopenedRepository.accounts.get(card.id)?.name).toBe('Amex Card');
+    expect(reopenedDatabase.foreignKeyCheck().valid).toBeTrue();
+  });
+
+  it('persists financial and chart hierarchies in parent-first order', async () => {
+    const database = new SqliteDatabaseGateway();
+    const repository = new SqliteAccountingRepository(database);
+    await repository.initialize();
+    repository.transaction(() => {
+      repository.accounts.set('card-child', {
+        id: 'card-child', type: 'CREDIT_CARD', accountType: 'CREDIT_CARD', classificationStatus: 'CONFIRMED',
+        importEnabled: true, supportedSourceKinds: ['CSV', 'EXCEL', 'QBO_OFX'], openingBalanceSource: 'DERIVED_EQUITY',
+        detailType: 'Credit Card', name: 'Employee Card', institutionOrEntity: 'Example Card', parentAccountId: 'card-parent',
+        openingBalance: money(0n), openingBalanceDate: '2026-01-01', archived: false, locked: false,
+      });
+      repository.accounts.set('card-parent', {
+        id: 'card-parent', type: 'CREDIT_CARD', accountType: 'CREDIT_CARD', classificationStatus: 'CONFIRMED',
+        importEnabled: true, supportedSourceKinds: ['CSV', 'EXCEL', 'QBO_OFX'], openingBalanceSource: 'DERIVED_EQUITY',
+        detailType: 'Credit Card', name: 'Main Card', institutionOrEntity: 'Example Card',
+        openingBalance: money(0n), openingBalanceDate: '2026-01-01', archived: false, locked: false,
+      });
+      repository.chartAccounts.set('office-child', {
+        id: 'office-child', name: 'Software and apps', parentId: 'office-parent', type: 'EXPENSE', accountType: 'EXPENSE',
+        detailType: 'Office expenses', displayOrder: 2, archived: false, locked: false,
+      });
+      repository.chartAccounts.set('office-parent', {
+        id: 'office-parent', name: 'Office Expenses', type: 'EXPENSE', accountType: 'EXPENSE',
+        detailType: 'Office expenses', displayOrder: 1, archived: false, locked: false,
+      });
+    });
+
+    expect(database.foreignKeyCheck().valid).toBeTrue();
+    const reopenedDatabase = new SqliteDatabaseGateway();
+    const reopenedRepository = new SqliteAccountingRepository(reopenedDatabase);
+    await reopenedRepository.initialize(database.exportBytes());
+    expect(reopenedRepository.accounts.get('card-child')?.parentAccountId).toBe('card-parent');
+    expect(reopenedRepository.chartAccounts.get('office-child')?.parentId).toBe('office-parent');
+  });
 });

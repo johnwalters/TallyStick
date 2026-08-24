@@ -13,7 +13,7 @@ export class SqliteDatabaseGateway {
     this.database?.close();
     const hostBytes = bytes ?? this.readHostBytes();
     this.database = hostBytes ? new this.sql.Database(hostBytes) : new this.sql.Database();
-    this.database.run('PRAGMA foreign_keys = ON;');
+    this.enableForeignKeys();
     this.migrate();
     this.persistHostSync();
   }
@@ -33,23 +33,29 @@ export class SqliteDatabaseGateway {
 
   transaction(work: () => void): void {
     if (!this.database) throw new Error('SQLite database is not open.');
+    const before = this.database.export();
+    this.enableForeignKeys();
     this.database.run('BEGIN');
     try {
       work();
+      const foreignKeys = this.foreignKeyCheck();
+      if (!foreignKeys.valid) {
+        throw new Error(`SQLite foreign-key check failed: ${this.describeForeignKeyViolations(foreignKeys.violations)}.`);
+      }
       this.database.run('COMMIT');
-      // sql.js export finalizes an active transaction, so export only after
-      // COMMIT. A host-write failure is surfaced to the caller; the database
-      // transaction itself has already committed and can be retried safely.
       this.persistHostSync();
     } catch (error) {
       try { this.database.run('ROLLBACK'); } catch { /* preserve the original native/bridge failure */ }
+      this.restoreBytes(before);
       throw error;
     }
   }
 
   exportBytes(): Uint8Array {
     if (!this.database) throw new Error('SQLite database is not open.');
-    return this.database.export();
+    const bytes = this.database.export();
+    this.enableForeignKeys();
+    return bytes;
   }
 
   integrityCheck(): { valid: boolean; message: string } {
@@ -81,7 +87,32 @@ export class SqliteDatabaseGateway {
   private persistHostSync(): void {
     if (!this.database) return;
     const bridge = (globalThis as { localAccounting?: { sqlite?: { writeSync?: (bytes: Uint8Array) => void } } }).localAccounting;
-    bridge?.sqlite?.writeSync?.(this.database.export());
+    const bytes = this.database.export();
+    // sql.js export closes the native handle and recreates it lazily with
+    // connection-level PRAGMAs reset. Re-enable constraints before the next
+    // renderer mutation.
+    this.enableForeignKeys();
+    bridge?.sqlite?.writeSync?.(bytes);
+  }
+
+  private enableForeignKeys(): void {
+    this.database?.run('PRAGMA foreign_keys = ON;');
+  }
+
+  private restoreBytes(bytes: Uint8Array): void {
+    if (!this.sql) throw new Error('SQLite runtime is not initialized.');
+    this.database?.close();
+    this.database = new this.sql.Database(bytes);
+    this.enableForeignKeys();
+  }
+
+  private describeForeignKeyViolations(violations: Array<Record<string, unknown>>): string {
+    return violations.map(violation => {
+      const table = String(violation['table'] ?? 'unknown table');
+      const rowId = String(violation['rowid'] ?? 'unknown row');
+      const parent = String(violation['parent'] ?? 'unknown parent');
+      return `${table} row ${rowId} references ${parent}`;
+    }).join('; ');
   }
 
   private migrate(): void {
@@ -113,6 +144,6 @@ export class SqliteDatabaseGateway {
         throw error;
       }
     }
-    this.database.run('PRAGMA foreign_keys = ON;');
+    this.enableForeignKeys();
   }
 }

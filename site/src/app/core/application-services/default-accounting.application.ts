@@ -329,7 +329,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
   exportRules(format: 'XLSX' | 'CSV'): ArrayBuffer | string {
     const rows = this.listRules().map(rule => ({
       'Rule ID': rule.id, 'Rule Name': rule.name, Enabled: rule.enabled ? 'TRUE' : 'FALSE', Priority: rule.priority,
-      'Match Mode': rule.matchMode ?? 'ALL', 'Conditions JSON': JSON.stringify(rule.conditions), 'Chart Account ID': rule.chartAccountId ?? '',
+      'Match Mode': rule.matchMode ?? 'ALL', 'Conditions JSON': JSON.stringify(this.ruleExchangeConditions(rule)), 'Chart Account ID': rule.chartAccountId ?? '',
       'Chart Account Name': rule.chartAccountId ? this.requireChartAccount(rule.chartAccountId).name : '',
       Payee: rule.payee ?? '', Memo: rule.memo ?? '', 'Tags JSON': JSON.stringify(rule.tags ?? []), 'Suggest Exclude': rule.suggestExclude ? 'TRUE' : 'FALSE',
     }));
@@ -348,22 +348,40 @@ export class DefaultAccountingApplication implements AccountingApplication {
     rawRows.forEach((row, index) => {
       const rowNumber = index + 2;
       try {
-        const conditions = JSON.parse(String(row['Conditions JSON'] ?? '[]')) as RuleCondition[];
+        const rawConditions = JSON.parse(String(row['Conditions JSON'] ?? '[]')) as Array<RuleCondition & {
+          accountName?: string;
+          accountType?: string;
+          institutionOrEntity?: string;
+          lastFour?: string;
+        }>;
+        if (!Array.isArray(rawConditions)) throw new AccountingError('RULE_CONDITIONS_INVALID', 'Conditions JSON must contain an array.');
+        const conditions = rawConditions.map(condition => this.resolveImportedRuleCondition(condition, rowNumber, issues));
         const tags = JSON.parse(String(row['Tags JSON'] ?? '[]')) as string[];
         const enabled = String(row['Enabled']).trim().toLowerCase();
         const excluded = String(row['Suggest Exclude']).trim().toLowerCase();
+        const chartAccountId = this.resolveImportedRuleChartAccount(
+          String(row['Chart Account ID'] ?? '').trim() || undefined,
+          String(row['Chart Account Name'] ?? '').trim() || undefined,
+          rowNumber,
+          issues,
+        );
         const rule: TransactionRule = {
           id: String(row['Rule ID'] ?? '').trim(), name: String(row['Rule Name'] ?? '').trim(),
           enabled: ['true', '1', 'yes'].includes(enabled), priority: Number(row['Priority']),
           matchMode: String(row['Match Mode'] ?? 'ALL').trim().toUpperCase() as 'ALL' | 'ANY', conditions,
-          chartAccountId: String(row['Chart Account ID'] ?? '').trim() || undefined,
+          chartAccountId,
           payee: String(row['Payee'] ?? '').trim() || undefined, memo: String(row['Memo'] ?? '').trim() || undefined,
           tags, suggestExclude: ['true', '1', 'yes'].includes(excluded),
         };
         this.validateExchangeRule(rule);
         rules.push(rule);
       } catch (error) {
-        issues.push({ rowNumber, severity: 'ERROR', code: 'RULE_IMPORT_INVALID', message: error instanceof Error ? error.message : 'Invalid rule row.' });
+        issues.push({
+          rowNumber,
+          severity: 'ERROR',
+          code: error instanceof AccountingError ? error.code : 'RULE_IMPORT_INVALID',
+          message: error instanceof Error ? error.message : 'Invalid rule row.',
+        });
       }
     });
     const seenIds = new Set<string>(); const seenPriorities = new Set<number>();
@@ -382,6 +400,104 @@ export class DefaultAccountingApplication implements AccountingApplication {
     const preview: RuleImportPreview = { previewToken: newId(), valid: !issues.some(issue => issue.severity === 'ERROR'), rules, issues, importedCount: rules.filter(rule => !existing.has(rule.id)).length, updatedCount: rules.filter(rule => existing.has(rule.id)).length, disabledCount: rules.filter(rule => !rule.enabled).length };
     this.rulePreviews.set(preview.previewToken, structuredClone(preview));
     return structuredClone(preview);
+  }
+
+  private ruleExchangeConditions(rule: TransactionRule): Array<RuleCondition & {
+    accountName?: string;
+    accountType?: string;
+    institutionOrEntity?: string;
+    lastFour?: string;
+  }> {
+    return rule.conditions.map(condition => {
+      if (condition.field !== 'ACCOUNT') return structuredClone(condition);
+      const account = this.repository.accounts.get(condition.value);
+      if (!account) return structuredClone(condition);
+      return {
+        ...structuredClone(condition),
+        accountName: account.name,
+        accountType: account.accountType,
+        institutionOrEntity: account.institutionOrEntity,
+        lastFour: account.lastFour,
+      };
+    });
+  }
+
+  private resolveImportedRuleCondition(condition: RuleCondition & {
+    accountName?: string;
+    accountType?: string;
+    institutionOrEntity?: string;
+    lastFour?: string;
+  }, rowNumber: number, issues: RuleImportIssue[]): RuleCondition {
+    const normalized: RuleCondition = {
+      field: condition.field,
+      operator: condition.operator,
+      value: String(condition.value ?? ''),
+      ...(condition.secondValue === undefined ? {} : { secondValue: String(condition.secondValue) }),
+      ...(condition.negate === undefined ? {} : { negate: Boolean(condition.negate) }),
+    };
+    if (normalized.field !== 'ACCOUNT') return normalized;
+
+    const accountById = this.repository.accounts.get(normalized.value);
+    if (accountById && !accountById.archived) return normalized;
+
+    const normalize = (value?: string): string => String(value ?? '').trim().toLowerCase();
+    const accountName = normalize(condition.accountName) || normalize(normalized.value);
+    let candidates = [...this.repository.accounts.values()].filter(account => !account.archived && normalize(account.name) === accountName);
+    if (condition.accountType) candidates = candidates.filter(account => account.accountType === condition.accountType);
+    if (condition.institutionOrEntity) candidates = candidates.filter(account => normalize(account.institutionOrEntity) === normalize(condition.institutionOrEntity));
+    if (condition.lastFour) candidates = candidates.filter(account => normalize(account.lastFour) === normalize(condition.lastFour));
+
+    if (!candidates.length) {
+      throw new AccountingError('RULE_ACCOUNT_NOT_FOUND', `Account condition ${normalized.value} could not be matched to an active account${condition.accountName ? ` named ${condition.accountName}` : ''}. Re-export the rules with account identity or correct the account.`);
+    }
+    if (candidates.length > 1) {
+      throw new AccountingError('RULE_ACCOUNT_AMBIGUOUS', `Account condition ${normalized.value} matches multiple active accounts named ${condition.accountName || normalized.value}. Use institution and last-four details to make the account unique.`);
+    }
+
+    normalized.value = candidates[0].id;
+    issues.push({
+      rowNumber,
+      severity: 'WARNING',
+      code: 'RULE_ACCOUNT_REMAPPED_BY_NAME',
+      message: `Account condition ${condition.accountName || condition.value} was remapped to ${candidates[0].name} (${candidates[0].id}).`,
+    });
+    return normalized;
+  }
+
+  private resolveImportedRuleChartAccount(
+    chartAccountId: string | undefined,
+    chartAccountName: string | undefined,
+    rowNumber: number,
+    issues: RuleImportIssue[],
+  ): string | undefined {
+    if (!chartAccountId && !chartAccountName) return undefined;
+    const accountById = chartAccountId ? this.repository.chartAccounts.get(chartAccountId) : undefined;
+    if (accountById && !accountById.archived) return accountById.id;
+
+    const normalizedName = String(chartAccountName ?? '').trim().toLowerCase();
+    const candidates = [...this.repository.chartAccounts.values()].filter(account =>
+      !account.archived && account.name.trim().toLowerCase() === normalizedName,
+    );
+    if (!candidates.length) {
+      throw new AccountingError(
+        'RULE_CHART_ACCOUNT_NOT_FOUND',
+        `Rule category ${chartAccountName || chartAccountId} could not be matched to an active chart account. Re-export the rules with category names or correct the chart of accounts.`,
+      );
+    }
+    if (candidates.length > 1) {
+      throw new AccountingError(
+        'RULE_CHART_ACCOUNT_AMBIGUOUS',
+        `Rule category ${chartAccountName || chartAccountId} matches multiple active chart accounts. Use a unique full category name.`,
+      );
+    }
+
+    issues.push({
+      rowNumber,
+      severity: 'WARNING',
+      code: 'RULE_CHART_ACCOUNT_REMAPPED_BY_NAME',
+      message: `Rule category ${chartAccountName || chartAccountId} was remapped to ${candidates[0].name} (${candidates[0].id}).`,
+    });
+    return candidates[0].id;
   }
 
   commitRulesImport(previewToken: string): TransactionRule[] {
