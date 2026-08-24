@@ -1,16 +1,14 @@
 # TallyStick Balance Sheet
 
-*Version 1.0 · Implemented August 21, 2026*
-
-*Product Requirements Document · Draft 0.2 · August 16, 2026*
+*Product Requirements Document · Version 1.0 · Implemented August 21, 2026*
 
 Companion documents: [Quicken Replacement PRD](Quicken%20Replacement%20PRD.md) · [Balance Sheet Product Specification](Balance%20Sheet%20PRODUCT_SPEC.md) · [Balance Sheet Task Tracker](Balance%20Sheet%20TASKS.md)
 
 ## 1. Product summary
 
-TallyStick will add an as-of-date Balance Sheet that presents what the configured company owns, owes, and retains. The feature also establishes application-wide company settings and a generic account taxonomy so TallyStick does not depend on one company's name, institutions, marketplaces, categories, or account arrangement. The report will be calculated from financial accounts, opening balances, Posted transactions, matched transfers, posting splits, chart-account hierarchy, and P/L results. Report totals will not be stored or directly editable.
+TallyStick provides an as-of-date Balance Sheet that presents what the configured company owns, owes, and retains. The completed feature also established application-wide company settings and a generic account taxonomy so TallyStick does not depend on one company's name, institutions, marketplaces, categories, or account arrangement. The report is calculated from financial accounts, opening balances, Posted transactions, matched transfers, posting splits, chart-account hierarchy, and P/L results. Report totals are not stored or directly editable.
 
-The first release must provide the same core confidence expected from a QuickBooks Balance Sheet:
+The implemented first release provides the same core confidence expected from a QuickBooks Balance Sheet:
 
 - Assets, Liabilities, and Equity shown in accounting hierarchy.
 - Bold subtotals and totals that follow the Chart of Accounts.
@@ -25,11 +23,11 @@ The first release must provide the same core confidence expected from a QuickBoo
 
 ## 2. Problem
 
-TallyStick currently explains operating performance through P/L Summary and Detail reports, but it does not show the configured company's financial position. The owner cannot see cash, bank, receivable, marketplace-clearing, credit-card, payable, loan, asset, and equity balances in one reconciled statement.
+Before this feature, TallyStick explained operating performance through P/L Summary and Detail reports but did not show the configured company's financial position. The completed Balance Sheet now presents cash, bank, receivable, marketplace-clearing, credit-card, payable, loan, asset, and equity balances in one reconciled statement.
 
-The current product also exposes company-specific assumptions. Company identity is not fully configurable throughout the UI and exports, and the financial-account editor uses the application-specific `ENTITY` type instead of the complete accounting account taxonomy shown in the supplied account-editor references. A generic Balance Sheet requires both gaps to be resolved as part of this feature.
+The pre-feature product also exposed company-specific assumptions. The implementation resolved those gaps by making company identity configurable throughout the UI and outputs and replacing application-specific account assumptions with the complete accounting taxonomy.
 
-Without a Balance Sheet, TallyStick cannot fully replace the financial-statement portion of QuickBooks or expose incomplete conversion balances and account-classification problems before year-end.
+This milestone closes the previously identified financial-position reporting gap and exposes incomplete conversion balances and account-classification problems before year-end.
 
 ## 3. Goals
 
@@ -522,7 +520,7 @@ Existing marketplace and clearing Entity ledgers retain stable IDs and history w
 
 ## 14. Delivery boundary
 
-The Balance Sheet feature is complete only when:
+The Balance Sheet release was accepted after all of the following were verified:
 
 1. All BS-001 through BS-030 requirements are implemented.
 2. All A1 through A19 acceptance scenarios pass.

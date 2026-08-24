@@ -1,12 +1,12 @@
 # TallyStick Balance Sheet Implementation Slices
 
-*Execution catalog · August 21, 2026*
+*Completed execution catalog · August 21, 2026*
 
-This document divides the Balance Sheet feature into small, independently reviewable implementation slices. It supplements the [Balance Sheet Product Specification](Balance%20Sheet%20PRODUCT_SPEC.md) and [Balance Sheet Task Tracker](Balance%20Sheet%20TASKS.md); it does not change their requirements or completion status.
+This document records the 20 small, independently reviewable implementation slices used to deliver the Balance Sheet feature. All 20 slices are complete. It supplements the [Balance Sheet Product Specification](Balance%20Sheet%20PRODUCT_SPEC.md) and [Balance Sheet Task Tracker](Balance%20Sheet%20TASKS.md) and is retained as historical implementation scope and verification guidance.
 
-## How to invoke a slice
+## Historical slice workflow
 
-The user may start a slice by naming it alone, for example:
+During implementation, a slice was started by naming it alone, for example:
 
 > Implement `BS-SLICE-10-SOURCE-BALANCES`.
 
@@ -21,7 +21,7 @@ That instruction authorizes implementation and testing of only the named slice. 
 7. Update applicable checkboxes, Resume status, and the Evidence log in the Task Tracker only after the required behavior passes.
 8. Report the behavior completed, files changed, verification results, and the next slice. Do not commit or push unless separately instructed.
 
-The Task Tracker remains the source of truth for progress. Status is not duplicated here.
+The completed Task Tracker is the source of truth for final status. New product features should use a new slice catalog rather than reopening this one.
 
 ## Rules shared by every slice
 
@@ -183,7 +183,7 @@ The Task Tracker remains the source of truth for progress. Status is not duplica
 **Scope:**
 
 - Build the accessible Company Settings editor with validation, masking, reveal/edit, save, and cancel behavior.
-- Add access from application settings and the future Balance Sheet header integration point.
+- Add access from application settings and the Balance Sheet header integration point.
 - Drive application display identity from Company Settings while preserving TallyStick product branding.
 - Provide reusable report/export identity formatting and omit blank optional fields cleanly.
 - Prove that the tax identifier never enters standard output models.

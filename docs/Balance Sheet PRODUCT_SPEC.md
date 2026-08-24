@@ -2,7 +2,7 @@
 
 *Implementation specification · Version 1.0 · Implemented August 21, 2026*
 
-Authority: [Balance Sheet PRD](Balance%20Sheet%20PRD.md) Draft 0.2  
+Authority: [Balance Sheet PRD](Balance%20Sheet%20PRD.md) Version 1.0
 Companion architecture: [Technical Architecture](Quicken%20Replacement%20Technical%20Architecture.md)  
 Application-wide specification: [Local Accounting Application Product Specification](PRODUCT_SPEC.md)  
 Implementation tracker: [Balance Sheet Task Tracker](Balance%20Sheet%20TASKS.md)
@@ -10,7 +10,7 @@ Execution catalog: [Balance Sheet Implementation Slices](Balance%20Sheet%20IMPLE
 
 ## 1. Purpose and status
 
-This document translates the approved Balance Sheet PRD into implementation-ready contracts, calculations, persistence changes, user-interface behavior, migrations, exports, and verification criteria.
+This document records the implemented contracts, calculations, persistence changes, user-interface behavior, migrations, exports, and verification criteria for the approved Balance Sheet PRD.
 
 It specifies three connected product changes:
 
@@ -787,9 +787,9 @@ Run against an isolated temporary profile and database. Verify company editing, 
 | A15–A16 | 5, 7.1, 17.2–17.4 |
 | A17–A19 | 6, 7.2–7.3, 17.2–17.4 |
 
-## 19. Product-spec completion gate
+## 19. Completed product-spec gate
 
-The feature is not complete until:
+The first Balance Sheet release satisfied all of the following conditions:
 
 1. BS-001 through BS-030 and A1 through A19 pass.
 2. Every visible amount reconciles to its detail or disclosed derived formula.

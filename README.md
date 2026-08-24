@@ -89,9 +89,7 @@ The **Backups** workspace can:
 
 Backup and restore operations use temporary files, integrity checks, foreign-key checks, and atomic activation so a failed operation leaves the current books intact.
 
-## Roadmap
-
-### Balance Sheet
+## Completed Balance Sheet milestone
 
 The Balance Sheet is calculated from ledger detail rather than stored report totals. It includes:
 
@@ -106,7 +104,7 @@ The Balance Sheet is calculated from ledger detail rather than stored report tot
 
 The requirements, implementation contracts, and verification evidence are in the [Balance Sheet PRD](docs/Balance%20Sheet%20PRD.md), [Balance Sheet Product Specification](docs/Balance%20Sheet%20PRODUCT_SPEC.md), and [Balance Sheet Task Tracker](docs/Balance%20Sheet%20TASKS.md).
 
-### Later candidates
+## Future feature candidates
 
 - Comparative Balance Sheet columns and financial ratios.
 - Cash-flow classification and a future Statement of Cash Flows.
@@ -118,7 +116,7 @@ The requirements, implementation contracts, and verification evidence are in the
 - Optional assisted categorization while retaining explainability and user control.
 - Multi-company, multi-user, collaboration, and synchronization capabilities.
 
-These are roadmap candidates, not promises for a particular release.
+The Balance Sheet milestone is complete. These are candidates for the next product discussion, not committed work or promises for a particular release.
 
 ## Architecture
 
@@ -140,7 +138,7 @@ Architectural decisions are recorded under `decisions/`.
 - [Technical Architecture](docs/Quicken%20Replacement%20Technical%20Architecture.md)
 - [Implementation Plan](docs/accounting_plan.md)
 - [Implementation Task Tracker](docs/tasks.md)
-- [Balance Sheet feature documents](docs/Balance%20Sheet%20PRD.md)
+- [Completed Balance Sheet milestone documents](docs/Balance%20Sheet%20PRD.md)
 
 ## Repository layout
 
@@ -152,4 +150,4 @@ Architectural decisions are recorded under `decisions/`.
 
 ## Project status
 
-TallyStick is under active development. Core bookkeeping, P/L and Balance Sheet reporting, rule management, exports, print preview, and local database recovery workflows are implemented. Database migrations are versioned, but forks should still keep verified backups before upgrading or modifying accounting behavior.
+TallyStick has reached a feature-complete checkpoint through core bookkeeping, rule management, P/L reporting, the first Balance Sheet release, exports, print preview, and local database recovery. No next feature has been selected yet. The application remains open to further development, and the future-feature list above will be prioritized separately. Database migrations are versioned, but forks should still keep verified backups before upgrading or modifying accounting behavior.

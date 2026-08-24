@@ -16,18 +16,20 @@ The PRD controls product behavior, the Technical Architecture controls system bo
 
 | Field | Current value |
 | --- | --- |
-| Overall status | MVP implementation in progress; Phase 7 P/L Summary, P/L Detail, hierarchical subtotals, exports, reconciliation, and Electron acceptance are complete |
-| Current phase | Phase 8 backup, restore, and portable export |
-| Next task | P8-002 — include managed attachments in the backup bundle and integrity manifest |
+| Overall status | Feature-complete checkpoint through the first Balance Sheet release; remaining unchecked legacy hardening items are deferred |
+| Current phase | No active implementation phase; next feature selection |
+| Next task | None selected; create a separate specification and tracker after the next feature is chosen |
 | Current branch | Workspace working tree |
 | Development run command | `npm start` |
 | Build command | `npm run build` |
 | Full test command | `npm run test:ci` |
-| Last verified test | `npm run test:ci` — 83 passed; 77.41% statements / 60.92% branches; Angular build and desktop build passed; last isolated Electron smoke passed |
-| Last tracker update | August 11, 2026 |
+| Last verified test | Balance Sheet Slice 20 release proof — 164 ChromeHeadless tests, production build, eight desktop-host tests, performance fixture, privacy scan, and isolated Electron smoke passed |
+| Last tracker update | August 24, 2026 — checkpoint status reconciled after Balance Sheet completion |
 | Known blocker | None |
 
 ## How to update this file
+
+This is now a legacy implementation tracker. Unchecked items remain visible as deferred hardening or documentation follow-up; they are not the active next-feature queue and must not be silently marked complete. New features receive their own requirements, specification, and task tracker.
 
 - Work from top to bottom within the current phase unless a dependency is explicitly noted.
 - Mark a task `[x]` only after its stated behavior and applicable tests pass.
@@ -55,14 +57,15 @@ The PRD controls product behavior, the Technical Architecture controls system bo
 | --- | --- | --- |
 | 0 | Foundation decisions and desktop-boundary proof | Complete |
 | 1 | Angular application foundation | Complete |
-| 2 | SQLite, repositories, migrations, and audit | In progress |
-| 3 | Import framework and initial adapters | In progress |
-| 4 | Accounts, chart of accounts, and rules | In progress |
-| 5 | Transaction review, editing, and posting | In progress |
-| 6 | Bank and credit-card transfer matching | In progress |
-| 7 | P/L and Schedule C-ready reporting | In progress |
-| 8 | Backup, restore, and portable export | In progress |
-| 9 | Replacement proof and MVP release | Not started |
+| 2 | SQLite, repositories, migrations, and audit | Implemented; deferred gate items remain |
+| 3 | Import framework and initial adapters | Implemented; deferred fixture gate remains |
+| 4 | Accounts, chart of accounts, and rules | Implemented; deferred checklist items remain |
+| 5 | Transaction review, editing, and posting | Implemented; deferred checklist items remain |
+| 6 | Bank and credit-card transfer matching | Complete |
+| 7 | P/L and Schedule C-ready reporting | Complete |
+| 8 | Backup, restore, and portable export | Implemented; optional hardening items remain |
+| 9 | Replacement proof and MVP release | Partially complete; remaining hardening deferred |
+| BS | As-of Balance Sheet, outputs, drill-down, and release proof | Complete — see the Balance Sheet tracker |
 
 ## Phase 0 — Foundation decisions
 

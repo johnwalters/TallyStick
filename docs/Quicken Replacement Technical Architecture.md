@@ -1,12 +1,12 @@
 # Replace the interface. Keep the application.
 
-*Technical Architecture Document · Draft 0.2*
+*Technical Architecture Document · Version 1.0 · Current through the completed Balance Sheet milestone*
 
 Companion: [← Product requirements](Quicken%20Replacement%20PRD.md)
 
-The Quicken Replacement will be an Angular application from end to end: replaceable Angular UI components over stable Angular application, accounting, import, reporting, and persistence-gateway services, with local SQLite and automated tests that prove behavior from source file to report.
+TallyStick is an Angular application from end to end: replaceable Angular UI components over stable Angular application, accounting, import, reporting, and persistence-gateway services, with local SQLite and automated tests that prove behavior from source file to report.
 
-- **Companion document:** **[Quicken Replacement PRD · Draft 0.3](Quicken%20Replacement%20PRD.md)**
+- **Companion document:** **[TallyStick Product Requirements · Version 1.0](Quicken%20Replacement%20PRD.md)**
 - **Persistence:** **Local SQLite only**
 - **Network server:** **None required**
 
@@ -172,7 +172,7 @@ A replacement Angular UI is viable when it can perform every PRD workflow using 
 | Feature facade | Own presentation state and translate UI intent into application-interface calls. | Reimplement domain rules or bypass the Application Service Interface. |
 | View-model mapper | Convert application DTOs into labels, table rows, summaries, and display state. | Change financial amounts or make posting decisions. |
 | Application service | Implement a complete use case as an injectable Angular service, coordinating business services and gateways. | Depend on components, templates, routes, or component state. |
-| Accounting/domain service | Implement posting, split, transfer, rule, Money, P/L, tax-adjustment, and reconciliation behavior inside the Angular application. | Access the DOM, SQLite driver, or filesystem directly. |
+| Accounting/domain service | Implement posting, split, transfer, rule, Money, P/L, Balance Sheet, tax-adjustment, and reconciliation behavior inside the Angular application. | Access the DOM, SQLite driver, or filesystem directly. |
 | Importer/report service | Implement import orchestration, normalization, validation, report construction, and drill-down as Angular services. | Put parsing or financial logic into UI components or the desktop host. |
 | Repository/gateway service | Provide Angular-injectable persistence and local-resource operations through typed interfaces. | Expose SQL, native handles, or desktop-shell details to application services. |
 
@@ -477,4 +477,4 @@ If the documents conflict:
 2. Implementation structure follows this architecture document unless a recorded architecture decision supersedes it.
 3. A change that crosses either boundary updates the relevant document before it is considered complete.
 
-Quicken Replacement Technical Architecture · Draft 0.2 · Prepared August 5, 2026 · Companion to PRD Draft 0.3
+TallyStick Technical Architecture · Version 1.0 · Prepared August 5, 2026 · Updated through the completed Balance Sheet milestone August 24, 2026

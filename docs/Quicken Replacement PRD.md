@@ -1,13 +1,13 @@
 # Local books for a small online business
 
-*Product Requirements Document · Draft 0.3*
+*Product Requirements Document · Version 1.0 · Current milestone implemented through Balance Sheet*
 
 Companion: [Technical architecture →](Quicken%20Replacement%20Technical%20Architecture.md)
 
 A focused, local-first accounting application for a small online business: ingest transactions, review and categorize them, and produce accountant-ready financial reports with supporting transaction detail.
 
 - **Primary user:** **Business owner / bookkeeper**
-- **Primary output:** **Cash-basis P/L and transaction detail**
+- **Primary output:** **Cash-basis P/L, reconciled as-of Balance Sheet, and transaction detail**
 - **Deployment:** **Single-user local desktop app**
 
 **Product thesis:** the application is not a general accounting suite and does not replace the existing Amazon analytics service. It is a dependable transaction ledger and classification system that makes year-end tax preparation faster, traceable, and repeatable.
@@ -27,7 +27,7 @@ A focused, local-first accounting application for a small online business: inges
 - Import bank, credit-card, and Amazon-summary data without live bank connections.
 - Make review efficient through reusable deterministic rules and transfer matching.
 - Maintain a clear Pending, Posted, Excluded, and Transfer-matched lifecycle.
-- Produce a date-filtered P/L by month or year, with exportable detail for the accountant.
+- Produce a date-filtered P/L by month or year and a reconciled as-of Balance Sheet, both with exportable detail.
 - Preserve an audit trail so any reported number can be traced to its source transaction.
 
 ### Not in the initial product
@@ -35,7 +35,7 @@ A focused, local-first accounting application for a small online business: inges
 - Direct bank or credit-card connections.
 - Amazon sales analytics, inventory forecasting, SKU profitability, or order management.
 - Invoices, bills, payroll, sales-tax filing, or accounts-payable workflows.
-- Full double-entry financial statements beyond what is needed for transfers and a defensible P/L.
+- A Statement of Cash Flows, general-journal workspace, closing-entry workflow, or other financial statements beyond the implemented P/L and Balance Sheet.
 - Multi-company, multi-user, or cloud collaboration.
 - Automatic tax filing or Schedule C mapping/categorization.
 
@@ -280,6 +280,7 @@ Posted transactions are included in reports. They may be corrected through an au
 | --- | --- | --- |
 | P/L summary | Monthly operations and annual result | Income, COGS, Gross Profit, Expenses, Other Income/Expense, Net Profit; month/year columns; totals. |
 | P/L detail | Audit and accountant review | Every included transaction/split with date, account, payee, memo, GL, amount, and source batch. |
+| Balance Sheet | Financial-position review | Assets, Liabilities, Equity, Current Earnings, Retained Earnings, Opening Balance Equity, exact contribution detail, and accounting-equation Difference as of a selected date. |
 | Schedule C-ready P/L | Tax-preparation review | The existing P/L categories with user-controlled federal and state/local tax-account exclusions, the removed-tax total, active annual settings, and drill-down. |
 | Accountant export | Tax-preparation handoff | Annual unadjusted P/L, Schedule C-ready P/L, active tax settings, GL detail, transaction detail, exclusion log, and notes. |
 | Exception report | Close the books cleanly | Pending, uncategorized, unmatched transfers, parse warnings, and edited-after-posting items. |
@@ -317,11 +318,13 @@ Posted transactions are included in reports. They may be corrected through an au
 5. Review by account/date, accept rule suggestions, manually categorize, split, post, exclude, and undo.
 6. Match bank/card transfers so they do not affect net profit; manually exclude any pending transaction when appropriate.
 7. Generate a monthly and annual P/L whose drill-down reconciles exactly to posted detail.
-8. Generate a Schedule C-ready version that defaults to removing federal income-tax expense, retains state/local income-tax expense, lets the user change either treatment, and clearly discloses the selected settings and removed amount.
-9. Export an accountant package and restore the books from a verified backup.
+8. Generate an as-of Balance Sheet whose displayed amounts reconcile to exact contribution detail and whose Difference is `$0.00` for valid books.
+9. Generate a Schedule C-ready version that defaults to removing federal income-tax expense, retains state/local income-tax expense, lets the user change either treatment, and clearly discloses the selected settings and removed amount.
+10. Export an accountant package and restore the books from a verified backup.
 
 - **100%** — Import source rows accounted for
 - **$0.00** — P/L-to-detail reconciliation difference
+- **$0.00** — Balance Sheet accounting-equation Difference for valid books
 - **100%** — Rejected import rows explained
 - **1** — Restorable year-end backup
 
@@ -343,4 +346,4 @@ The current product default is to exclude federal income-tax expense and retain 
 
 The fictional files under `sample-data/` provide the public validation baseline. They cover two accounting years, multiple import shapes, deterministic categorization scenarios, transfers, exclusions, pending activity, profit and loss, and balance-sheet reconciliation without containing source-company data.
 
-Quicken Replacement PRD · Draft 0.3 · Prepared August 5, 2026 · Local working document
+TallyStick Product Requirements · Version 1.0 · Prepared August 5, 2026 · Updated through the completed Balance Sheet milestone August 24, 2026

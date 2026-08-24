@@ -2,6 +2,8 @@
 
 The first Balance Sheet release is complete on `main` through `BS-SLICE-20-RELEASE-PROOF`.
 
+This handoff closes the Balance Sheet implementation milestone. No Balance Sheet slice remains open, and the next product feature has not yet been selected.
+
 ## Implemented boundaries
 
 - `BalanceSheetReportService` owns immutable as-of calculation, hierarchy, warnings, exact detail, revision checks, and report caching.
@@ -22,4 +24,4 @@ npm run desktop:smoke
 
 The release proof recorded August 21, 2026 passed the 19-scenario, two-company oracle; 164 ChromeHeadless tests; the 10,000-transaction/2,000-account performance fixture; eight desktop-host tests; production build; and isolated Electron smoke. The build retains the previously documented initial-bundle and component-style warning categories.
 
-Future work begins with the later candidates in the PRD and README. Preserve the immutable-report/output boundary and add a new implementation slice before extending behavior.
+Future work will be selected from a separate product discussion. Preserve the immutable-report/output boundary and create new requirements, a product specification, and a separate implementation tracker before extending behavior.

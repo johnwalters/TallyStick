@@ -10,11 +10,13 @@ The plan is organized around usable vertical slices. Each phase must leave the a
 
 ## Current status
 
-- **Overall status:** MVP implementation in progress
-- **Current phase:** Phase 8 — Backup, restore, and portable export
-- **Implementation started:** Yes
-- **Current report status:** P/L Summary/P/L Detail UI, recursive chart hierarchy, bold account-group subtotals, drill-down, report-only exclusions, Schedule C controls, report exports, browser tests, production builds, and isolated Electron smoke are complete.
-- **Primary MVP outcome:** Import source transactions, review and classify them, and produce a traceable cash-basis P/L and Schedule C-ready accountant package.
+- **Overall status:** Feature-complete checkpoint through the first Balance Sheet release
+- **Current phase:** No active implementation phase; the next product feature has not been selected
+- **Implementation started:** Yes; the current milestone is implemented and verified
+- **Current report status:** P/L Summary and Detail, Schedule C controls, as-of Balance Sheet, exact drill-down, CSV/XLSX exports, print/PDF-ready preview, browser tests, production builds, and isolated Electron smoke are complete.
+- **Current product outcome:** Import source transactions, review and classify them, maintain local books, and produce traceable cash-basis P/L and reconciled as-of Balance Sheet reports.
+
+The phase plan below is retained as the original implementation map. Some unchecked hardening and documentation items remain in the legacy task tracker, but they are deferred rather than an active feature phase. Balance Sheet delivery and acceptance are recorded separately in the completed [Balance Sheet Task Tracker](Balance%20Sheet%20TASKS.md).
 
 ## Locked scope and architectural decisions
 
@@ -60,16 +62,17 @@ These decisions come from the source documents and are not reopened by this plan
 
 | Phase | Outcome | Primary PRD trace | Status |
 | --- | --- | --- | --- |
-| 0 | Resolve foundation choices and prove the desktop boundary | Architectural prerequisites | Planned |
-| 1 | Establish the Angular workspace, stable interface, and domain model | All stories | Planned |
-| 2 | Build the SQLite system of record, migrations, and audit foundation | REV-02, OPS-01 | Planned |
-| 3 | Deliver fixture-driven import preview and atomic commit | IMP-01, AMZ-01 | Planned |
-| 4 | Deliver account setup, chart import/export, and rule management | COA-01, CAT-01, RUL-01 | Planned |
-| 5 | Deliver the transaction review and posting workflow | REV-01, REV-02 | Planned |
-| 6 | Deliver bank and credit-card transfer matching | XFR-01 | Planned |
-| 7 | Deliver P/L, drill-down, and Schedule C-ready reporting | RPT-01, TAX-01 | Planned |
-| 8 | Deliver backup, restore, portable export, and operational safeguards | OPS-01 | Planned |
-| 9 | Complete replacement-UI proof, end-to-end acceptance, and release hardening | Entire MVP | Planned |
+| 0 | Resolve foundation choices and prove the desktop boundary | Architectural prerequisites | Complete |
+| 1 | Establish the Angular workspace, stable interface, and domain model | All stories | Complete |
+| 2 | Build the SQLite system of record, migrations, and audit foundation | REV-02, OPS-01 | Implemented; legacy gate follow-up deferred |
+| 3 | Deliver fixture-driven import preview and atomic commit | IMP-01, AMZ-01 | Implemented; legacy fixture gate follow-up deferred |
+| 4 | Deliver account setup, chart import/export, and rule management | COA-01, CAT-01, RUL-01 | Implemented; legacy checklist follow-up deferred |
+| 5 | Deliver the transaction review and posting workflow | REV-01, REV-02 | Implemented; legacy checklist follow-up deferred |
+| 6 | Deliver bank and credit-card transfer matching | XFR-01 | Complete |
+| 7 | Deliver P/L, drill-down, and Schedule C-ready reporting | RPT-01, TAX-01 | Complete |
+| 8 | Deliver backup, restore, portable export, and operational safeguards | OPS-01 | Implemented; optional hardening follow-up deferred |
+| 9 | Complete replacement-UI proof, end-to-end acceptance, and release hardening | Entire MVP | Partially complete; remaining hardening deferred |
+| BS | Deliver reconciled as-of Balance Sheet, outputs, and release proof | Balance Sheet PRD | Complete |
 
 ## Phase 0 — Resolve foundation decisions
 
@@ -462,8 +465,8 @@ A feature or phase is complete only when:
 | Test runners and coverage | Select tools and encode all seven layers in standard commands | Open |
 | Backup bundle | Define contents, manifest, verification, restore, and versioning | Open |
 
-## First implementation milestone
+## Original first implementation milestone
 
-The first milestone is complete when Phases 0 through 3 are finished: a packaged Angular desktop skeleton can open a local SQLite company database and import representative CSV, Excel, QBO/OFX, and Amazon files through a preview into an atomic Pending transaction batch, with source provenance and all fixture and integration tests passing.
+The original first milestone was defined as completion of Phases 0 through 3: a packaged Angular desktop skeleton able to open a local SQLite company database and import representative CSV, Excel, QBO/OFX, and Amazon files through a preview into an atomic Pending transaction batch, with source provenance and fixture and integration tests.
 
 This milestone deliberately stops before production posting. It proves the highest-risk architectural seams—Angular application services, the non-HTTP local bridge, SQLite, file access, adaptable importers, and real-source functional tests—before the ledger begins producing accounting results.

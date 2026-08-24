@@ -1,11 +1,11 @@
 # TallyStick Balance Sheet Task Tracker
 
-*Updatable implementation checklist · Created August 16, 2026*
+*Completed implementation checklist · Created August 16, 2026 · Completed August 21, 2026*
 
 ## Source documents and authority
 
-1. [Balance Sheet PRD](Balance%20Sheet%20PRD.md) Draft 0.2 controls product intent and acceptance.
-2. [Balance Sheet Product Specification](Balance%20Sheet%20PRODUCT_SPEC.md) Draft 0.1 controls implementation contracts and calculations.
+1. [Balance Sheet PRD](Balance%20Sheet%20PRD.md) Version 1.0 controls product intent and acceptance.
+2. [Balance Sheet Product Specification](Balance%20Sheet%20PRODUCT_SPEC.md) Version 1.0 controls implementation contracts and calculations.
 3. [Technical Architecture](Quicken%20Replacement%20Technical%20Architecture.md) controls system boundaries.
 4. [Application Product Specification](PRODUCT_SPEC.md) controls existing application-wide behavior outside this feature.
 5. This tracker controls implementation order and records verified progress; it does not override the documents above.
@@ -18,7 +18,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | --- | --- |
 | Overall status | Slices 1–20 complete; the first Balance Sheet release is verified |
 | Current phase | Phase 7 complete — acceptance, performance, regression, and release proof |
-| Next task | Define a new implementation slice for a future roadmap item |
+| Next task | None for this feature; define the next product feature in a separate specification and tracker |
 | Current branch | `main` working tree |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
@@ -26,10 +26,12 @@ Execution is divided into token-conscious, independently testable units in the [
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
 | Last verified Balance Sheet test | Slice 20: full browser/unit suite, production build, all 8 desktop-host tests, performance fixture, privacy scan, and isolated Electron smoke passed |
-| Last tracker update | August 21, 2026 |
+| Last tracker update | August 24, 2026 — documentation reconciled to completed milestone |
 | Known blocker | None |
 
-## How to update this tracker
+## Historical tracker use
+
+All Balance Sheet tasks and phase gates are complete. This file now records the completed implementation and verification evidence; future features receive their own requirements, specification, slices, and tracker.
 
 - Work from the first unchecked task in the current phase unless a dependency is stated. When a named implementation slice is invoked, the catalog's declared order and dependencies control the next task across checkbox subsections.
 - Mark a task `[x]` only after its behavior and applicable tests pass.
@@ -63,11 +65,11 @@ Execution is divided into token-conscious, independently testable units in the [
 | 0 | Accepted documentation and verified implementation baseline | Complete |
 | 1 | Shared company, account-taxonomy, and Balance Sheet contracts | Complete |
 | 2 | Schema 6, migrations, repositories, and backup compatibility | Complete |
-| 3 | Company Settings and generic account management | In progress; downstream cross-output acceptance remains |
-| 4 | Balance Sheet calculation, hierarchy, warnings, and drill-down | In progress |
-| 5 | Balance Sheet workspace and interaction | Not started |
-| 6 | CSV, XLSX, print preview, and PDF parity | Not started |
-| 7 | Acceptance scenarios, performance, regression, and release proof | Not started |
+| 3 | Company Settings and generic account management | Complete |
+| 4 | Balance Sheet calculation, hierarchy, warnings, and drill-down | Complete |
+| 5 | Balance Sheet workspace and interaction | Complete |
+| 6 | CSV, XLSX, print preview, and PDF parity | Complete |
+| 7 | Acceptance scenarios, performance, regression, and release proof | Complete |
 
 ## Phase 0 — Baseline and implementation preflight
 

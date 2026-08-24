@@ -1,5 +1,7 @@
 # Accounting Application TODOs
 
+**Status:** All follow-up items in this tracker are complete as of August 24, 2026. New product features should be recorded in a new feature specification and tracker.
+
 Follow-up requests explicitly added during implementation sessions. These are separate from the original MVP task baseline in [tasks.md](tasks.md).
 
 Use `[ ]` for an open TODO and `[x]` only after the behavior is implemented and verified.
