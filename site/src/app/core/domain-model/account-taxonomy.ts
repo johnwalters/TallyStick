@@ -121,7 +121,7 @@ export const ACCOUNT_TYPE_GROUPS: readonly AccountTypeGroupDefinition[] = [
     label: 'Expense',
     accountTypes: [
       definition('COGS', 'EXPENSE', 'Cost of Goods Sold', detailTypes('Cost of labor', 'Shipping, freight and delivery', 'Supplies and materials', 'Other costs of goods sold'), 'DEBIT', EXPENSE_TYPES),
-      definition('EXPENSE', 'EXPENSE', 'Expenses', detailTypes('Advertising', 'Bank charges', 'Insurance', 'Office expenses', 'Other business expenses'), 'DEBIT', EXPENSE_TYPES),
+      definition('EXPENSE', 'EXPENSE', 'Expenses', detailTypes('Advertising', 'Bank charges', 'Insurance', 'Interest paid', 'Office expenses', 'Other business expenses'), 'DEBIT', EXPENSE_TYPES),
       definition('OTHER_EXPENSE', 'EXPENSE', 'Other Expense', detailTypes('Depreciation', 'Penalties and settlements', 'Other miscellaneous expense'), 'DEBIT', EXPENSE_TYPES),
     ],
   },

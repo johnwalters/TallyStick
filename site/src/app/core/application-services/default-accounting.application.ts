@@ -73,6 +73,7 @@ export const DEFAULT_OWNER_DRAW_ACCOUNT_ID = 'chart-owner-draw';
 export const DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID = 'chart-advertising-marketing';
 export const DEFAULT_OFFICE_EXPENSES_ACCOUNT_ID = 'chart-office-expenses';
 export const DEFAULT_SOFTWARE_APPS_ACCOUNT_ID = 'chart-software-apps';
+export const DEFAULT_INTEREST_PAID_ACCOUNT_ID = 'chart-interest-paid';
 
 @Injectable()
 export class DefaultAccountingApplication implements AccountingApplication {
@@ -1812,8 +1813,9 @@ export class DefaultAccountingApplication implements AccountingApplication {
   private seed(): void {
     const ownerDrawExists = [...this.repository.chartAccounts.values()].some(account => account.accountType === 'EQUITY' && account.detailType === 'Owner draw' && !account.archived);
     const advertisingMarketingExists = [...this.repository.chartAccounts.values()].some(account => account.accountType === 'EXPENSE' && account.detailType === 'Advertising' && account.name.trim().toLowerCase() === 'advertising and marketing' && !account.archived);
+    const interestPaidExists = [...this.repository.chartAccounts.values()].some(account => account.accountType === 'EXPENSE' && account.detailType === 'Interest paid' && account.name.trim().toLowerCase() === 'interest paid' && !account.parentId && !account.archived);
     const officeExpenseHierarchyExists = this.hasOfficeExpenseHierarchy();
-    if (this.repository.accounts.size && this.repository.getCompanyProfile() && ownerDrawExists && advertisingMarketingExists && officeExpenseHierarchyExists) return;
+    if (this.repository.accounts.size && this.repository.getCompanyProfile() && ownerDrawExists && advertisingMarketingExists && interestPaidExists && officeExpenseHierarchyExists) return;
     this.repository.transaction(() => {
       if (!this.repository.getCompanyProfile()) {
         const timestamp = nowUtc();
@@ -1832,6 +1834,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
       if (this.repository.accounts.size) {
         this.ensureOwnerDrawAccount(true);
         this.ensureAdvertisingMarketingAccount(true);
+        this.ensureInterestPaidAccount(true);
         this.ensureOfficeExpenseHierarchy(true);
         return;
       }
@@ -1856,6 +1859,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
       });
       this.ensureOwnerDrawAccount(false);
       this.ensureAdvertisingMarketingAccount(false);
+      this.ensureInterestPaidAccount(false);
       this.ensureOfficeExpenseHierarchy(false);
       const feeAccount = this.findChartByName('Marketplace Fees')[0];
       const defaultRuleId = newId();
@@ -1942,6 +1946,16 @@ export class DefaultAccountingApplication implements AccountingApplication {
       && account.parentId === officeExpenses.id
       && !account.archived,
     );
+  }
+
+  private ensureInterestPaidAccount(recordAudit: boolean): void {
+    this.ensureDefaultExpenseAccount({
+      id: DEFAULT_INTEREST_PAID_ACCOUNT_ID,
+      name: 'Interest Paid',
+      detailType: 'Interest paid',
+      description: 'Interest paid on business credit cards, loans, and other business debt.',
+      recordAudit,
+    });
   }
 
   private ensureOfficeExpenseHierarchy(recordAudit: boolean): void {

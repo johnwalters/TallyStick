@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ACCOUNTING_APPLICATION } from '../application-interface/accounting.application';
 import { ImportPipelineService } from '../import-services/import-pipeline.service';
 import { InMemoryAccountingRepository } from '../repository-gateways/in-memory-accounting.repository';
-import { DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID, DEFAULT_OFFICE_EXPENSES_ACCOUNT_ID, DEFAULT_OWNER_DRAW_ACCOUNT_ID, DEFAULT_SOFTWARE_APPS_ACCOUNT_ID, DefaultAccountingApplication } from './default-accounting.application';
+import { DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID, DEFAULT_INTEREST_PAID_ACCOUNT_ID, DEFAULT_OFFICE_EXPENSES_ACCOUNT_ID, DEFAULT_OWNER_DRAW_ACCOUNT_ID, DEFAULT_SOFTWARE_APPS_ACCOUNT_ID, DefaultAccountingApplication } from './default-accounting.application';
 import { BackupBundleService } from '../backup-services/backup-bundle.service';
 import { ACCOUNTING_REPOSITORY } from '../repository-gateways/accounting.repository';
 import * as XLSX from 'xlsx';
@@ -59,6 +59,20 @@ describe('DefaultAccountingApplication', () => {
     TestBed.runInInjectionContext(() => new DefaultAccountingApplication());
 
     expect([...repository.chartAccounts.values()].filter(item => item.accountType === 'EXPENSE' && item.detailType === 'Advertising' && item.name === 'Advertising and Marketing')).toHaveSize(1);
+    expect(repository.audit.filter(event => event.operation === 'CREATE_DEFAULT_CHART_ACCOUNT')).toHaveSize(1);
+  });
+
+  it('seeds one standard Interest Paid expense account and restores it for an existing company', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    expect(app.listChartAccounts().filter(item => item.id === DEFAULT_INTEREST_PAID_ACCOUNT_ID)).toEqual([
+      jasmine.objectContaining({ name: 'Interest Paid', type: 'EXPENSE', accountType: 'EXPENSE', detailType: 'Interest paid', parentId: undefined, archived: false }),
+    ]);
+
+    repository.chartAccounts.delete(DEFAULT_INTEREST_PAID_ACCOUNT_ID);
+    TestBed.runInInjectionContext(() => new DefaultAccountingApplication());
+    TestBed.runInInjectionContext(() => new DefaultAccountingApplication());
+
+    expect([...repository.chartAccounts.values()].filter(item => item.accountType === 'EXPENSE' && item.detailType === 'Interest paid' && item.name === 'Interest Paid')).toHaveSize(1);
     expect(repository.audit.filter(event => event.operation === 'CREATE_DEFAULT_CHART_ACCOUNT')).toHaveSize(1);
   });
 

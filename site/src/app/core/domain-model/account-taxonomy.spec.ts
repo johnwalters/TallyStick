@@ -37,7 +37,7 @@ describe('account taxonomy', () => {
       INCOME: ['Sales of product income', 'Service income', 'Other primary income'],
       OTHER_INCOME: ['Interest earned', 'Other investment income', 'Other miscellaneous income'],
       COGS: ['Cost of labor', 'Shipping, freight and delivery', 'Supplies and materials', 'Other costs of goods sold'],
-      EXPENSE: ['Advertising', 'Bank charges', 'Insurance', 'Office expenses', 'Other business expenses'],
+      EXPENSE: ['Advertising', 'Bank charges', 'Insurance', 'Interest paid', 'Office expenses', 'Other business expenses'],
       OTHER_EXPENSE: ['Depreciation', 'Penalties and settlements', 'Other miscellaneous expense'],
     };
     for (const definition of ACCOUNT_TYPE_CATALOG) {
