@@ -4,6 +4,10 @@ TallyStick is a local-first desktop accounting application for small businesses 
 
 The application is built with Angular, TypeScript, Electron, and SQLite. Your books remain in a local SQLite file that you control.
 
+Inspired by Quickbooks and the desire to avoid seeing ads on a constant basis.
+
+All code created by (ChatGPT) models. Kudos to everybody who put stuff on the web to be absorbed. 
+
 ## What TallyStick does today
 
 - Maintains bank, credit-card, marketplace, and other transaction-source accounts.
