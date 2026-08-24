@@ -2,7 +2,7 @@ import { TestBed } from '@angular/core/testing';
 import { ACCOUNTING_APPLICATION } from '../application-interface/accounting.application';
 import { ImportPipelineService } from '../import-services/import-pipeline.service';
 import { InMemoryAccountingRepository } from '../repository-gateways/in-memory-accounting.repository';
-import { DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID, DEFAULT_OWNER_DRAW_ACCOUNT_ID, DefaultAccountingApplication } from './default-accounting.application';
+import { DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID, DEFAULT_OFFICE_EXPENSES_ACCOUNT_ID, DEFAULT_OWNER_DRAW_ACCOUNT_ID, DEFAULT_SOFTWARE_APPS_ACCOUNT_ID, DefaultAccountingApplication } from './default-accounting.application';
 import { BackupBundleService } from '../backup-services/backup-bundle.service';
 import { ACCOUNTING_REPOSITORY } from '../repository-gateways/accounting.repository';
 import * as XLSX from 'xlsx';
@@ -60,6 +60,28 @@ describe('DefaultAccountingApplication', () => {
 
     expect([...repository.chartAccounts.values()].filter(item => item.accountType === 'EXPENSE' && item.detailType === 'Advertising' && item.name === 'Advertising and Marketing')).toHaveSize(1);
     expect(repository.audit.filter(event => event.operation === 'CREATE_DEFAULT_CHART_ACCOUNT')).toHaveSize(1);
+  });
+
+  it('seeds and restores the Operating Expenses, Office Expenses, and Software and apps hierarchy', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    const operatingExpenses = app.listChartAccounts().find(item => item.name === 'Operating Expenses')!;
+    const officeExpenses = app.listChartAccounts().find(item => item.id === DEFAULT_OFFICE_EXPENSES_ACCOUNT_ID)!;
+    const softwareApps = app.listChartAccounts().find(item => item.id === DEFAULT_SOFTWARE_APPS_ACCOUNT_ID)!;
+    expect(officeExpenses).toEqual(jasmine.objectContaining({ name: 'Office Expenses', accountType: 'EXPENSE', detailType: 'Office expenses', parentId: operatingExpenses.id, archived: false }));
+    expect(softwareApps).toEqual(jasmine.objectContaining({ name: 'Software and apps', accountType: 'EXPENSE', detailType: 'Office expenses', parentId: officeExpenses.id, archived: false }));
+
+    repository.chartAccounts.delete(DEFAULT_SOFTWARE_APPS_ACCOUNT_ID);
+    repository.chartAccounts.delete(DEFAULT_OFFICE_EXPENSES_ACCOUNT_ID);
+    TestBed.runInInjectionContext(() => new DefaultAccountingApplication());
+    TestBed.runInInjectionContext(() => new DefaultAccountingApplication());
+
+    const restoredOffice = repository.chartAccounts.get(DEFAULT_OFFICE_EXPENSES_ACCOUNT_ID)!;
+    const restoredSoftware = repository.chartAccounts.get(DEFAULT_SOFTWARE_APPS_ACCOUNT_ID)!;
+    expect(restoredOffice.parentId).toBe(operatingExpenses.id);
+    expect(restoredSoftware.parentId).toBe(restoredOffice.id);
+    expect([...repository.chartAccounts.values()].filter(item => item.name === 'Office Expenses')).toHaveSize(1);
+    expect([...repository.chartAccounts.values()].filter(item => item.name === 'Software and apps')).toHaveSize(1);
+    expect(repository.audit.filter(event => event.operation === 'CREATE_DEFAULT_CHART_ACCOUNT')).toHaveSize(2);
   });
 
   it("posts Owner's Draw to Equity without changing Profit & Loss", () => {

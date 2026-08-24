@@ -71,6 +71,8 @@ import {
 
 export const DEFAULT_OWNER_DRAW_ACCOUNT_ID = 'chart-owner-draw';
 export const DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID = 'chart-advertising-marketing';
+export const DEFAULT_OFFICE_EXPENSES_ACCOUNT_ID = 'chart-office-expenses';
+export const DEFAULT_SOFTWARE_APPS_ACCOUNT_ID = 'chart-software-apps';
 
 @Injectable()
 export class DefaultAccountingApplication implements AccountingApplication {
@@ -1810,7 +1812,8 @@ export class DefaultAccountingApplication implements AccountingApplication {
   private seed(): void {
     const ownerDrawExists = [...this.repository.chartAccounts.values()].some(account => account.accountType === 'EQUITY' && account.detailType === 'Owner draw' && !account.archived);
     const advertisingMarketingExists = [...this.repository.chartAccounts.values()].some(account => account.accountType === 'EXPENSE' && account.detailType === 'Advertising' && account.name.trim().toLowerCase() === 'advertising and marketing' && !account.archived);
-    if (this.repository.accounts.size && this.repository.getCompanyProfile() && ownerDrawExists && advertisingMarketingExists) return;
+    const officeExpenseHierarchyExists = this.hasOfficeExpenseHierarchy();
+    if (this.repository.accounts.size && this.repository.getCompanyProfile() && ownerDrawExists && advertisingMarketingExists && officeExpenseHierarchyExists) return;
     this.repository.transaction(() => {
       if (!this.repository.getCompanyProfile()) {
         const timestamp = nowUtc();
@@ -1829,6 +1832,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
       if (this.repository.accounts.size) {
         this.ensureOwnerDrawAccount(true);
         this.ensureAdvertisingMarketingAccount(true);
+        this.ensureOfficeExpenseHierarchy(true);
         return;
       }
       for (const [name, type] of [['Operating Checking', 'BANK'], ['Business Card', 'CREDIT_CARD'], ['Reserve Checking', 'BANK'], ['Marketplace', 'ENTITY'], ['Other Transactions', 'ENTITY']] as const) {
@@ -1852,6 +1856,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
       });
       this.ensureOwnerDrawAccount(false);
       this.ensureAdvertisingMarketingAccount(false);
+      this.ensureOfficeExpenseHierarchy(false);
       const feeAccount = this.findChartByName('Marketplace Fees')[0];
       const defaultRuleId = newId();
       this.repository.rules.set(defaultRuleId, { id: defaultRuleId, name: 'Example: marketplace fee labels', enabled: false, priority: 10, conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'Marketplace fee' }], chartAccountId: feeAccount });
@@ -1915,6 +1920,99 @@ export class DefaultAccountingApplication implements AccountingApplication {
     };
     this.repository.chartAccounts.set(account.id, account);
     if (recordAudit) this.record('CREATE_DEFAULT_CHART_ACCOUNT', 'ChartAccount', account.id, undefined, account, 'Add the standard Advertising and Marketing expense account.');
+  }
+
+  private hasOfficeExpenseHierarchy(): boolean {
+    const operatingExpenses = [...this.repository.chartAccounts.values()].find(account =>
+      account.accountType === 'EXPENSE' && account.name.trim().toLowerCase() === 'operating expenses' && !account.parentId && !account.archived,
+    );
+    if (!operatingExpenses) return false;
+    const officeExpenses = [...this.repository.chartAccounts.values()].find(account =>
+      account.accountType === 'EXPENSE'
+      && account.detailType === 'Office expenses'
+      && account.name.trim().toLowerCase() === 'office expenses'
+      && account.parentId === operatingExpenses.id
+      && !account.archived,
+    );
+    if (!officeExpenses) return false;
+    return [...this.repository.chartAccounts.values()].some(account =>
+      account.accountType === 'EXPENSE'
+      && account.detailType === 'Office expenses'
+      && account.name.trim().toLowerCase() === 'software and apps'
+      && account.parentId === officeExpenses.id
+      && !account.archived,
+    );
+  }
+
+  private ensureOfficeExpenseHierarchy(recordAudit: boolean): void {
+    const operatingExpenses = this.ensureDefaultExpenseAccount({
+      id: 'chart-operating-expenses',
+      name: 'Operating Expenses',
+      detailType: 'Other business expenses',
+      description: 'General expenses incurred while operating the business.',
+      recordAudit,
+    });
+    const officeExpenses = this.ensureDefaultExpenseAccount({
+      id: DEFAULT_OFFICE_EXPENSES_ACCOUNT_ID,
+      name: 'Office Expenses',
+      detailType: 'Office expenses',
+      parentId: operatingExpenses.id,
+      description: 'Office supplies, services, and general administrative costs.',
+      recordAudit,
+    });
+    this.ensureDefaultExpenseAccount({
+      id: DEFAULT_SOFTWARE_APPS_ACCOUNT_ID,
+      name: 'Software and apps',
+      detailType: 'Office expenses',
+      parentId: officeExpenses.id,
+      description: 'Software subscriptions, applications, and online business tools.',
+      recordAudit,
+    });
+  }
+
+  private ensureDefaultExpenseAccount(command: {
+    id: string;
+    name: string;
+    detailType: string;
+    description: string;
+    recordAudit: boolean;
+    parentId?: string;
+  }): ChartAccount {
+    const candidates = [...this.repository.chartAccounts.values()].filter(account =>
+      account.accountType === 'EXPENSE' && account.name.trim().toLowerCase() === command.name.toLowerCase(),
+    );
+    const existing = candidates.find(account => account.parentId === command.parentId) ?? candidates[0];
+    if (existing) {
+      const before = structuredClone(existing);
+      existing.name = command.name;
+      existing.type = 'EXPENSE';
+      existing.accountType = 'EXPENSE';
+      existing.detailType = command.detailType;
+      existing.parentId = command.parentId;
+      existing.archived = false;
+      this.repository.chartAccounts.set(existing.id, existing);
+      if (command.recordAudit && JSON.stringify(before) !== JSON.stringify(existing)) {
+        this.record(before.archived ? 'RESTORE_DEFAULT_CHART_ACCOUNT' : 'UPDATE_DEFAULT_CHART_ACCOUNT', 'ChartAccount', existing.id, before, existing, `Keep the standard ${command.name} expense account available in the default hierarchy.`);
+      }
+      return existing;
+    }
+    const conflicting = this.repository.chartAccounts.get(command.id);
+    if (conflicting) throw new AccountingError('DEFAULT_ACCOUNT_ID_CONFLICT', `${command.id} is already assigned to ${conflicting.name}.`);
+    const account: ChartAccount = {
+      id: command.id,
+      name: command.name,
+      type: 'EXPENSE',
+      accountType: 'EXPENSE',
+      detailType: command.detailType,
+      parentId: command.parentId,
+      description: command.description,
+      displayOrder: Math.max(-1, ...[...this.repository.chartAccounts.values()].map(item => item.displayOrder)) + 1,
+      archived: false,
+      locked: false,
+    };
+    this.repository.chartAccounts.set(account.id, account);
+    if (command.recordAudit) this.record('CREATE_DEFAULT_CHART_ACCOUNT', 'ChartAccount', account.id, undefined, account, `Add the standard ${command.name} expense account.`);
+    return account;
   }
 
   private balanceSheetNotImplemented<T>(operation: string): T {
