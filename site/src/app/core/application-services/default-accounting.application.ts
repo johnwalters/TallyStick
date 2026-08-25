@@ -35,6 +35,39 @@ import {
   RevealCompanyTaxIdentifierResult,
   UpdateCompanyProfileCommand,
 } from '../domain-model/balance-sheet.types';
+import {
+  ACCOUNT_TYPE_CATALOG,
+} from '../domain-model/account-taxonomy';
+import {
+  CASH_FLOW_CASH_ROLES,
+  CASH_FLOW_CLASSIFICATION_SOURCES,
+  CASH_FLOW_CLASSIFICATION_STATUSES,
+  CASH_FLOW_SECTIONS,
+  CASH_FLOW_TREATMENTS,
+  CashFlowClassificationCatalog,
+  CashFlowClassificationCompatibility,
+  CashFlowClassificationDefault,
+  CashFlowClassificationExportResult,
+  CashFlowClassificationImportCommitResult,
+  CashFlowClassificationImportPreview,
+  CashFlowClassificationPreview,
+  CashFlowClassificationReview,
+  CashFlowContractError,
+  CashFlowDetail,
+  CashFlowExportResult,
+  CashFlowPrintPreviewResult,
+  CashFlowQuery,
+  CashFlowReport,
+  CommitCashFlowClassificationImportCommand,
+  ExportCashFlowClassificationsCommand,
+  ExportCashFlowCommand,
+  GetCashFlowDetailCommand,
+  OpenCashFlowPrintPreviewCommand,
+  PreviewCashFlowClassificationCommand,
+  PreviewCashFlowClassificationImportCommand,
+  SaveCashFlowClassificationCommand,
+} from '../domain-model/cash-flow.types';
+import { getCashFlowPermittedTreatments, seedDefaultCashFlowClassification } from '../domain-model/cash-flow-classification';
 import { DATABASE_LIFECYCLE_GATEWAY } from '../database-lifecycle/database-lifecycle.gateway';
 import { ImportPipelineService } from '../import-services/import-pipeline.service';
 import { BackupBundleService, CURRENT_BACKUP_SCHEMA_VERSION } from '../backup-services/backup-bundle.service';
@@ -74,6 +107,83 @@ export const DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID = 'chart-advertising-marke
 export const DEFAULT_OFFICE_EXPENSES_ACCOUNT_ID = 'chart-office-expenses';
 export const DEFAULT_SOFTWARE_APPS_ACCOUNT_ID = 'chart-software-apps';
 export const DEFAULT_INTEREST_PAID_ACCOUNT_ID = 'chart-interest-paid';
+
+function buildCashFlowCatalog(): CashFlowClassificationCatalog {
+  const definitions = ACCOUNT_TYPE_CATALOG.map(definition => ({
+    definition,
+    roles: ['ASSET', 'LIABILITY'].includes(definition.reportingGroup) ? ['FINANCIAL_SOURCE', 'CHART'] as const : ['CHART'] as const,
+  }));
+  const compatibility: CashFlowClassificationCompatibility[] = definitions.flatMap(({ definition, roles }) => roles.map(accountRole => {
+    const permitted = getCashFlowPermittedTreatments({
+      accountRole,
+      accountType: definition.accountType,
+      detailType: definition.detailTypes[0].value,
+    });
+    return {
+      accountRole,
+      accountType: definition.accountType,
+      permittedCashRoles: accountRole === 'FINANCIAL_SOURCE' ? [...CASH_FLOW_CASH_ROLES] : [],
+      permittedTreatments: permitted.ok ? [...permitted.value] : ['REVIEW_REQUIRED'],
+    };
+  }));
+  const defaults: CashFlowClassificationDefault[] = definitions.flatMap(({ definition, roles }) => roles.flatMap(accountRole => definition.detailTypes.map(detail => {
+    const seeded = seedDefaultCashFlowClassification({ accountRole, accountType: definition.accountType, detailType: detail.value });
+    return seeded.ok ? {
+      accountRole,
+      accountType: definition.accountType,
+      detailType: detail.value,
+      classification: seeded.value,
+    } : undefined;
+  }).filter((value): value is CashFlowClassificationDefault => value !== undefined)));
+
+  return Object.freeze({
+    cashRoles: Object.freeze([...CASH_FLOW_CASH_ROLES]),
+    treatments: Object.freeze([...CASH_FLOW_TREATMENTS]),
+    sections: Object.freeze([...CASH_FLOW_SECTIONS]),
+    statuses: Object.freeze([...CASH_FLOW_CLASSIFICATION_STATUSES]),
+    sources: Object.freeze([...CASH_FLOW_CLASSIFICATION_SOURCES]),
+    compatibility: Object.freeze(compatibility.map(entry => Object.freeze({
+      ...entry,
+      permittedCashRoles: Object.freeze([...entry.permittedCashRoles]),
+      permittedTreatments: Object.freeze([...entry.permittedTreatments]),
+    }))),
+    labels: Object.freeze({
+      cashRoles: Object.freeze({
+        CASH: 'Cash',
+        CASH_EQUIVALENT: 'Cash equivalent',
+        RESTRICTED_CASH: 'Restricted cash',
+        NOT_CASH: 'Not cash',
+        REVIEW_REQUIRED: 'Review required',
+      }),
+      treatments: Object.freeze({
+        CASH_BALANCE: 'Cash balance',
+        OPERATING_REVENUE_EXPENSE: 'Operating revenue/expense',
+        OPERATING_ASSET: 'Operating asset',
+        OPERATING_LIABILITY: 'Operating liability',
+        NONCASH_PNL_ADJUSTMENT: 'Noncash P/L adjustment',
+        INVESTING: 'Investing',
+        FINANCING: 'Financing',
+        NONCASH_DISCLOSURE: 'Noncash disclosure',
+        EXCLUDED: 'Excluded',
+        REVIEW_REQUIRED: 'Review required',
+      }),
+      sections: Object.freeze({
+        OPERATING: 'Operating',
+        INVESTING: 'Investing',
+        FINANCING: 'Financing',
+        CASH_RECONCILIATION: 'Cash reconciliation',
+        NONCASH_DISCLOSURE: 'Noncash disclosure',
+      }),
+    }),
+    defaults: Object.freeze(defaults.map(entry => Object.freeze({
+      ...entry,
+      classification: Object.freeze({ ...entry.classification }),
+    }))),
+    method: 'INDIRECT' as const,
+  });
+}
+
+const CASH_FLOW_CATALOG = buildCashFlowCatalog();
 
 @Injectable()
 export class DefaultAccountingApplication implements AccountingApplication {
@@ -142,6 +252,50 @@ export class DefaultAccountingApplication implements AccountingApplication {
 
   async openBalanceSheetPrintPreview(command: OpenBalanceSheetPrintPreviewCommand): Promise<BalanceSheetPrintPreviewResult> {
     return this.balanceSheetOutputs.openPrintPreview(command.report);
+  }
+
+  getCashFlowClassificationCatalog(): CashFlowClassificationCatalog {
+    return CASH_FLOW_CATALOG;
+  }
+
+  previewCashFlowClassification(command: PreviewCashFlowClassificationCommand): CashFlowClassificationPreview {
+    return this.cashFlowNotImplemented(`Preview Cash Flow classification for ${command.accountRole}/${command.accountId}`);
+  }
+
+  saveCashFlowClassification(command: SaveCashFlowClassificationCommand): CashFlowClassificationReview {
+    return this.cashFlowNotImplemented(`Save Cash Flow classification for ${command.accountRole}/${command.accountId}`);
+  }
+
+  getCashFlowClassificationReview(query: CashFlowQuery): CashFlowClassificationReview {
+    return this.cashFlowNotImplemented(`Read Cash Flow classification review for ${query.startDate} through ${query.endDate}`);
+  }
+
+  getCashFlowReport(query: CashFlowQuery): CashFlowReport {
+    return this.cashFlowNotImplemented(`Generate Cash Flow report for ${query.startDate} through ${query.endDate}`);
+  }
+
+  getCashFlowDetail(command: GetCashFlowDetailCommand): CashFlowDetail {
+    return this.cashFlowNotImplemented(`Read Cash Flow detail ${command.detailKey}`);
+  }
+
+  async exportCashFlow(command: ExportCashFlowCommand): Promise<CashFlowExportResult> {
+    return this.cashFlowNotImplemented(`Export Cash Flow report ${command.reportId} as ${command.format}`);
+  }
+
+  async openCashFlowPrintPreview(command: OpenCashFlowPrintPreviewCommand): Promise<CashFlowPrintPreviewResult> {
+    return this.cashFlowNotImplemented(`Open Cash Flow print preview ${command.reportId}`);
+  }
+
+  previewCashFlowClassificationImport(command: PreviewCashFlowClassificationImportCommand): CashFlowClassificationImportPreview {
+    return this.cashFlowNotImplemented(`Preview ${command.rows.length} Cash Flow classification import rows`);
+  }
+
+  commitCashFlowClassificationImport(command: CommitCashFlowClassificationImportCommand): CashFlowClassificationImportCommitResult {
+    return this.cashFlowNotImplemented(`Commit Cash Flow classification import ${command.previewId}`);
+  }
+
+  exportCashFlowClassifications(command: ExportCashFlowClassificationsCommand): CashFlowClassificationExportResult {
+    return this.cashFlowNotImplemented(`Export Cash Flow classifications for revision ${command.databaseRevision}`);
   }
 
   listAccounts(): FinancialAccount[] {
@@ -2149,6 +2303,14 @@ export class DefaultAccountingApplication implements AccountingApplication {
     throw new BalanceSheetContractError({
       code: 'BALANCE_SHEET_NOT_IMPLEMENTED',
       message: `${operation} is defined by the Balance Sheet contract but is not implemented yet.`,
+      retryable: false,
+    });
+  }
+
+  private cashFlowNotImplemented<T>(operation: string): T {
+    throw new CashFlowContractError({
+      code: 'CASH_FLOW_NOT_IMPLEMENTED',
+      message: `${operation} is defined by the Cash Flow public contract but is not implemented in the current slice.`,
       retryable: false,
     });
   }

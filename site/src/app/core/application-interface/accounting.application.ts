@@ -32,6 +32,27 @@ import {
   SaveGenericAccountResult,
   ValidateGenericAccountResult,
 } from '../domain-model/balance-sheet.types';
+import {
+  CashFlowClassificationCatalog,
+  CashFlowClassificationExportResult,
+  CashFlowClassificationImportCommitResult,
+  CashFlowClassificationImportPreview,
+  CashFlowClassificationPreview,
+  CashFlowClassificationReview,
+  CashFlowDetail,
+  CashFlowExportResult,
+  CashFlowQuery,
+  CashFlowReport,
+  CommitCashFlowClassificationImportCommand,
+  CashFlowPrintPreviewResult,
+  ExportCashFlowCommand,
+  ExportCashFlowClassificationsCommand,
+  GetCashFlowDetailCommand,
+  OpenCashFlowPrintPreviewCommand,
+  PreviewCashFlowClassificationCommand,
+  PreviewCashFlowClassificationImportCommand,
+  SaveCashFlowClassificationCommand,
+} from '../domain-model/cash-flow.types';
 
 export interface SaveAccountCommand {
   type: FinancialAccount['type'];
@@ -96,6 +117,17 @@ export interface AccountingApplication {
   getBalanceSheetDetail(command: GetBalanceSheetDetailCommand): BalanceSheetDetail;
   exportBalanceSheet(command: ExportBalanceSheetCommand): Promise<BalanceSheetExportResult>;
   openBalanceSheetPrintPreview(command: OpenBalanceSheetPrintPreviewCommand): Promise<BalanceSheetPrintPreviewResult>;
+  getCashFlowClassificationCatalog(): CashFlowClassificationCatalog;
+  previewCashFlowClassification(command: PreviewCashFlowClassificationCommand): CashFlowClassificationPreview;
+  saveCashFlowClassification(command: SaveCashFlowClassificationCommand): CashFlowClassificationReview;
+  getCashFlowClassificationReview(query: CashFlowQuery): CashFlowClassificationReview;
+  getCashFlowReport(query: CashFlowQuery): CashFlowReport;
+  getCashFlowDetail(command: GetCashFlowDetailCommand): CashFlowDetail;
+  exportCashFlow(command: ExportCashFlowCommand): Promise<CashFlowExportResult>;
+  openCashFlowPrintPreview(command: OpenCashFlowPrintPreviewCommand): Promise<CashFlowPrintPreviewResult>;
+  previewCashFlowClassificationImport(command: PreviewCashFlowClassificationImportCommand): CashFlowClassificationImportPreview;
+  commitCashFlowClassificationImport(command: CommitCashFlowClassificationImportCommand): CashFlowClassificationImportCommitResult;
+  exportCashFlowClassifications(command: ExportCashFlowClassificationsCommand): CashFlowClassificationExportResult;
   listAccounts(): FinancialAccount[];
   createAccount(command: CreateAccountCommand): FinancialAccount;
   getAccount(id: string): FinancialAccount | undefined;

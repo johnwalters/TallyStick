@@ -16,17 +16,17 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slice 2 complete; baseline oracle and classification core verified |
-| Current phase | Phase 1 — Cash Flow classification domain and public contracts |
-| Next task | `CF1-006` through `CF1-012` via `CF-SLICE-03-PUBLIC-CONTRACTS` |
+| Overall status | Slice 3 complete; public contracts verified |
+| Current phase | Phase 2 — Schema 7 migration, persistence, revision, and recovery compatibility |
+| Next task | `CF2-001` through `CF2-013` via `CF-SLICE-04-SCHEMA-7-MIGRATION` |
 | Current branch | `cash-flow` |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Cash Flow test | Slice 2 review corrections: fixture oracles, 192 browser/unit tests, boundary checks, and production build passed; no persistence/native changes in scope |
-| Last tracker update | August 25, 2026 — `CF-SLICE-02-CLASSIFICATION-CORE` review corrections completed |
+| Last verified Cash Flow test | Slice 3 review corrections: fixture oracles, 203 browser/unit tests, boundary checks, and production build passed; no persistence/calculation/UI changes in scope |
+| Last tracker update | August 25, 2026 — `CF-SLICE-03-PUBLIC-CONTRACTS` review corrections completed |
 | Known blocker | None |
 
 ## Tracker use
@@ -66,7 +66,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | Phase | Outcome | Status |
 | --- | --- | --- |
 | 0 | Accepted documents, verified baseline, and exact calculation oracle | Complete |
-| 1 | Cash Flow classification domain and public contracts | In progress |
+| 1 | Cash Flow classification domain and public contracts | Complete |
 | 2 | Schema 7 migration, persistence, revision, and recovery compatibility | Not started |
 | 3 | Classification services, chart exchange, and review UI | Not started |
 | 4 | Cash balances and indirect Operating activities | Not started |
@@ -106,14 +106,14 @@ Execution is divided into token-conscious, independently testable units in the [
 
 ### Public contracts
 
-- [ ] **CF1-006** Add immutable query, report, section, row, status, warning, contribution, disclosure, and reconciliation contracts.
-- [ ] **CF1-007** Add stable semantic row IDs, immutable report IDs, and database revision IDs independent of labels.
-- [ ] **CF1-008** Add classification preview/save/review and Chart import/export contracts.
-- [ ] **CF1-009** Add exact detail-key contracts for every report row and supplemental disclosure.
-- [ ] **CF1-010** Add typed invalid-query, classification, stale-revision, reconciliation, export, and print failures.
-- [ ] **CF1-011** Extend `AccountingApplication` and feature-facade state without leaking SQL, repository, Electron, workbook, or filesystem types.
-- [ ] **CF1-012** Test exhaustive mappings, invalid combinations, immutability, stable IDs, integer money, and dependency boundaries.
-- [ ] **CF1-GATE** Exit gate: domain mappings and application contracts compile, are exhaustive, and pass focused boundary tests.
+- [x] **CF1-006** Add immutable query, report, section, row, status, warning, contribution, disclosure, and reconciliation contracts.
+- [x] **CF1-007** Add stable semantic row IDs, immutable report IDs, and database revision IDs independent of labels.
+- [x] **CF1-008** Add classification preview/save/review and Chart import/export contracts.
+- [x] **CF1-009** Add exact detail-key contracts for every report row and supplemental disclosure.
+- [x] **CF1-010** Add typed invalid-query, classification, stale-revision, reconciliation, export, and print failures.
+- [x] **CF1-011** Extend `AccountingApplication` and feature-facade state without leaking SQL, repository, Electron, workbook, or filesystem types.
+- [x] **CF1-012** Test exhaustive mappings, invalid combinations, immutability, stable IDs, integer money, and dependency boundaries.
+- [x] **CF1-GATE** Exit gate: domain mappings and application contracts compile, are exhaustive, and pass focused boundary tests.
 
 ## Phase 2 — Schema 7, persistence, and recovery
 
@@ -260,6 +260,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | 2026-08-25 | Documentation setup | PRD, Product Specification, Task Tracker, and Implementation Slices created and cross-referenced | Complete |
 | 2026-08-25 | `CF-SLICE-01-BASELINE-ORACLE` | Fixture oracle, 181 browser/unit tests, production build, all 8 desktop-host tests, and isolated Electron smoke | Complete |
 | 2026-08-25 | `CF-SLICE-02-CLASSIFICATION-CORE` | Corrected Loan payable to Financing, routed custom and ambiguous details to Review required, changed ambiguous financial cash role to Review required, separated default seeding from preservation/reclassification, and added exhaustive taxonomy/failure-path tests; `npm run test:ci` (192 browser/unit tests plus boundaries and fixture oracles) and `npm run build` passed | Complete |
+| 2026-08-25 | `CF-SLICE-03-PUBLIC-CONTRACTS` | Added immutable query/report/detail/classification contracts, permissive raw exchange preview input with strict normalized output, role-valid catalog compatibility/defaults, classification exchange facade methods, Cash Flow feature facade state, dedicated deferred-operation failures, and exhaustive boundary tests; `npm run test:ci` (203 browser/unit tests plus boundaries and fixture oracles) and `npm run build` passed | Complete |
 | 2026-08-25 | Slice 1 pre-change baseline | `test:ci`: 181 passed; production build passed; `test:desktop-host`: 8 passed including validated restore/safety backup; isolated `desktop:smoke` passed | Complete |
 | 2026-08-25 | `CF-SLICE-01-BASELINE-ORACLE` | Independent validator passed for 2 neutral companies, A1–A20, schema-6 counts, exact integer totals/source Balance Sheets/cash composition/detail/warnings, 2025–2026 fiscal coverage, migration targets, and privacy terms | Complete |
 | 2026-08-25 | Slice 1 post-change verification | `test:ci`: Cash Flow oracle plus 181 browser/unit tests passed; production build passed; `test:desktop-host`: 8 passed; isolated `desktop:smoke` passed | Complete |
