@@ -16,17 +16,17 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slice 1 complete; baseline and independent A1–A20 calculation oracle verified |
+| Overall status | Slice 2 complete; baseline oracle and classification core verified |
 | Current phase | Phase 1 — Cash Flow classification domain and public contracts |
-| Next task | `CF1-001` through `CF1-005` via `CF-SLICE-02-CLASSIFICATION-CORE` |
+| Next task | `CF1-006` through `CF1-012` via `CF-SLICE-03-PUBLIC-CONTRACTS` |
 | Current branch | `cash-flow` |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Cash Flow test | Slice 1: fixture oracle, 181 browser/unit tests, production build, all 8 desktop-host tests, and isolated Electron smoke passed |
-| Last tracker update | August 25, 2026 — `CF-SLICE-01-BASELINE-ORACLE` completed |
+| Last verified Cash Flow test | Slice 2 review corrections: fixture oracles, 192 browser/unit tests, boundary checks, and production build passed; no persistence/native changes in scope |
+| Last tracker update | August 25, 2026 — `CF-SLICE-02-CLASSIFICATION-CORE` review corrections completed |
 | Known blocker | None |
 
 ## Tracker use
@@ -66,7 +66,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | Phase | Outcome | Status |
 | --- | --- | --- |
 | 0 | Accepted documents, verified baseline, and exact calculation oracle | Complete |
-| 1 | Cash Flow classification domain and public contracts | Ready |
+| 1 | Cash Flow classification domain and public contracts | In progress |
 | 2 | Schema 7 migration, persistence, revision, and recovery compatibility | Not started |
 | 3 | Classification services, chart exchange, and review UI | Not started |
 | 4 | Cash balances and indirect Operating activities | Not started |
@@ -98,11 +98,11 @@ Execution is divided into token-conscious, independently testable units in the [
 
 ### Classification core
 
-- [ ] **CF1-001** Add exhaustive `CashRole` values: `CASH`, `CASH_EQUIVALENT`, `RESTRICTED_CASH`, `NOT_CASH`, and `REVIEW_REQUIRED`.
-- [ ] **CF1-002** Add exhaustive `CashFlowTreatment` values from the Product Specification.
-- [ ] **CF1-003** Define structural defaults and compatibility rules without account-name or category-name matching.
-- [ ] **CF1-004** Add pure validators for financial-account cash roles and financial/Chart-account treatments.
-- [ ] **CF1-005** Preserve imported/custom provenance while making unresolved classifications explicitly review-required.
+- [x] **CF1-001** Add exhaustive `CashRole` values: `CASH`, `CASH_EQUIVALENT`, `RESTRICTED_CASH`, `NOT_CASH`, and `REVIEW_REQUIRED`.
+- [x] **CF1-002** Add exhaustive `CashFlowTreatment` values from the Product Specification.
+- [x] **CF1-003** Define structural defaults and compatibility rules without account-name or category-name matching.
+- [x] **CF1-004** Add pure validators for financial-account cash roles and financial/Chart-account treatments.
+- [x] **CF1-005** Preserve imported/custom provenance while making unresolved classifications explicitly review-required.
 
 ### Public contracts
 
@@ -258,6 +258,8 @@ Execution is divided into token-conscious, independently testable units in the [
 | Date | Slice or gate | Evidence | Result |
 | --- | --- | --- | --- |
 | 2026-08-25 | Documentation setup | PRD, Product Specification, Task Tracker, and Implementation Slices created and cross-referenced | Complete |
+| 2026-08-25 | `CF-SLICE-01-BASELINE-ORACLE` | Fixture oracle, 181 browser/unit tests, production build, all 8 desktop-host tests, and isolated Electron smoke | Complete |
+| 2026-08-25 | `CF-SLICE-02-CLASSIFICATION-CORE` | Corrected Loan payable to Financing, routed custom and ambiguous details to Review required, changed ambiguous financial cash role to Review required, separated default seeding from preservation/reclassification, and added exhaustive taxonomy/failure-path tests; `npm run test:ci` (192 browser/unit tests plus boundaries and fixture oracles) and `npm run build` passed | Complete |
 | 2026-08-25 | Slice 1 pre-change baseline | `test:ci`: 181 passed; production build passed; `test:desktop-host`: 8 passed including validated restore/safety backup; isolated `desktop:smoke` passed | Complete |
 | 2026-08-25 | `CF-SLICE-01-BASELINE-ORACLE` | Independent validator passed for 2 neutral companies, A1–A20, schema-6 counts, exact integer totals/source Balance Sheets/cash composition/detail/warnings, 2025–2026 fiscal coverage, migration targets, and privacy terms | Complete |
 | 2026-08-25 | Slice 1 post-change verification | `test:ci`: Cash Flow oracle plus 181 browser/unit tests passed; production build passed; `test:desktop-host`: 8 passed; isolated `desktop:smoke` passed | Complete |
