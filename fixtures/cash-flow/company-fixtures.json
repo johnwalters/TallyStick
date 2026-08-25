@@ -1,0 +1,54 @@
+{
+  "schemaVersion": 1,
+  "profiles": [
+    {
+      "companyId": "company-copper-kettle",
+      "legalName": "Copper Kettle Studio LLC",
+      "displayName": "Copper Kettle Studio",
+      "address": {
+        "line1": "18 Fictional Foundry Lane",
+        "locality": "Sample Junction",
+        "region": "CO",
+        "postalCode": "80000",
+        "countryCode": "US"
+      },
+      "currencyCode": "USD",
+      "fiscalYearStartMonth": 1,
+      "accountingBasis": "ACCRUAL",
+      "activeTaxYear": 2026,
+      "institutions": ["Foundry Community Bank", "Example Card Cooperative"],
+      "financialAccounts": [
+        { "id": "copper-cash-a", "name": "Daily funds", "accountType": "BANK", "detailType": "Checking", "cashRole": "CASH" },
+        { "id": "copper-cash-b", "name": "Future projects", "accountType": "BANK", "detailType": "Savings", "cashRole": "CASH_EQUIVALENT" },
+        { "id": "copper-card", "name": "Studio charge line", "accountType": "CREDIT_CARD", "detailType": "Credit Card", "cashRole": "NOT_CASH" },
+        { "id": "copper-clearing", "name": "Order settlement ledger", "accountType": "OTHER_CURRENT_ASSET", "detailType": "Clearing account", "cashRole": "NOT_CASH" }
+      ],
+      "chartAccountNames": ["Trade receivables", "Materials on hand", "Supplier balances", "Production equipment", "Member capital"]
+    },
+    {
+      "companyId": "company-northwind-repair",
+      "legalName": "Northwind Repair Cooperative",
+      "displayName": "Northwind Repair",
+      "address": {
+        "line1": "700 Demonstration Wharf",
+        "line2": "Unit 4",
+        "locality": "Example Harbor",
+        "region": "ME",
+        "postalCode": "04000",
+        "countryCode": "US"
+      },
+      "currencyCode": "USD",
+      "fiscalYearStartMonth": 7,
+      "accountingBasis": "ACCRUAL",
+      "activeTaxYear": 2026,
+      "institutions": ["Northline Credit Union", "Workshop Finance Services"],
+      "financialAccounts": [
+        { "id": "northwind-cash-a", "name": "Workshop till", "accountType": "BANK", "detailType": "Cash on hand", "cashRole": "CASH" },
+        { "id": "northwind-cash-b", "name": "Seasonal reserve", "accountType": "BANK", "detailType": "Savings", "cashRole": "CASH_EQUIVALENT" },
+        { "id": "northwind-restricted", "name": "Customer deposits held", "accountType": "BANK", "detailType": "Trust account", "cashRole": "RESTRICTED_CASH" },
+        { "id": "northwind-card", "name": "Parts purchasing facility", "accountType": "CREDIT_CARD", "detailType": "Credit Card", "cashRole": "NOT_CASH" }
+      ],
+      "chartAccountNames": ["Invoices due", "Repair parts", "Vendor obligations", "Shop machinery", "Cooperative shares"]
+    }
+  ]
+}

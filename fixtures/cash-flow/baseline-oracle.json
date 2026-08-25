@@ -1,0 +1,562 @@
+{
+  "schemaVersion": 1,
+  "currencyCode": "USD",
+  "moneyUnit": "INTEGER_MINOR_UNITS",
+  "method": "INDIRECT",
+  "semanticRows": [
+    { "rowId": "NET_PROFIT", "totalField": "netProfitMinor", "detailBasis": "period P/L split contributions" },
+    { "rowId": "NONCASH_ADJUSTMENTS", "totalField": "noncashAdjustmentsMinor", "detailBasis": "classified noncash reversal rows" },
+    { "rowId": "OPERATING_ASSET_ADJUSTMENTS", "totalField": "operatingAssetAdjustmentsMinor", "detailBasis": "opening minus ending classified operating-asset rows" },
+    { "rowId": "OPERATING_LIABILITY_ADJUSTMENTS", "totalField": "operatingLiabilityAdjustmentsMinor", "detailBasis": "ending minus opening classified operating-liability rows" },
+    { "rowId": "NET_OPERATING", "totalField": "netOperatingMinor", "detailBasis": "Net Profit plus three adjustment totals" },
+    { "rowId": "NET_INVESTING", "totalField": "netInvestingMinor", "detailBasis": "classified Investing cash-side rows" },
+    { "rowId": "NET_FINANCING", "totalField": "netFinancingMinor", "detailBasis": "classified Financing cash-side rows" },
+    { "rowId": "NET_CHANGE", "totalField": "netChangeInCashMinor", "detailBasis": "Operating plus Investing plus Financing" },
+    { "rowId": "BEGINNING_CASH", "totalField": "beginningCashMinor", "detailBasis": "opening cash composition" },
+    { "rowId": "CALCULATED_ENDING_CASH", "totalField": "calculatedEndingCashMinor", "detailBasis": "Beginning Cash plus Net Change" },
+    { "rowId": "ENDING_CASH", "totalField": "endingCashMinor", "detailBasis": "ending cash composition" },
+    { "rowId": "DIFFERENCE", "totalField": "differenceMinor", "detailBasis": "Calculated Ending Cash minus Ending Cash" },
+    { "rowId": "RESTRICTED_CASH_BEGINNING", "totalField": "restrictedCashBeginningMinor", "detailBasis": "opening restricted-cash composition" },
+    { "rowId": "RESTRICTED_CASH_ENDING", "totalField": "restrictedCashEndingMinor", "detailBasis": "ending restricted-cash composition" },
+    { "rowId": "UNCLASSIFIED_CASH_ACTIVITY", "totalField": "unclassifiedCashActivityMinor", "detailBasis": "unresolved cash-side contributions" }
+  ],
+  "databaseBaseline": {
+    "databaseSchemaVersion": 6,
+    "counts": {
+      "company": 1,
+      "financialAccount": 6,
+      "chartAccount": 27,
+      "transactionRecord": 198,
+      "postingSplit": 146,
+      "transferMatch": 25
+    },
+    "canonicalReports": {
+      "2025-12-31": { "totalAssetsMinor": 10630060, "totalLiabilitiesMinor": 840000, "totalEquityMinor": 9790060, "differenceMinor": 0 },
+      "2026-08-31": { "totalAssetsMinor": 14829840, "totalLiabilitiesMinor": 1050000, "totalEquityMinor": 13779840, "differenceMinor": 0 }
+    },
+    "backupRestoreProof": {
+      "suite": "site/src/desktop-host/database-lifecycle.node-test.ts",
+      "test": "restores a validated copy, preserves the selected backup, and safety-backs up current books",
+      "requiredAssertions": [
+        "restored database becomes active",
+        "selected backup bytes remain unchanged",
+        "pre-restore database is preserved in a verified safety backup",
+        "active database path remains recorded"
+      ]
+    }
+  },
+  "scenarios": [
+    {
+      "id": "A1",
+      "name": "Cash sale",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-01-01", "endDate": "2026-01-31" },
+      "inputs": [{ "id": "a1-sale", "kind": "POSTED_TRANSACTION", "cashAmountMinor": 10000, "chartTreatment": "OPERATING_REVENUE_EXPENSE" }],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 10000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 10000, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 10000, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 10000, "beginningCashMinor": 0, "calculatedEndingCashMinor": 10000, "endingCashMinor": 10000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 10000, "NET_OPERATING": 10000, "NET_CHANGE": 10000, "BEGINNING_CASH": 0, "ENDING_CASH": 10000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [{ "sourceId": "a1-sale:income", "amountMinor": 10000 }],
+        "NET_OPERATING": [{ "sourceId": "NET_PROFIT", "amountMinor": 10000 }],
+        "NET_CHANGE": [{ "sourceId": "NET_OPERATING", "amountMinor": 10000 }],
+        "BEGINNING_CASH": [],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 10000 }],
+        "DIFFERENCE": []
+      },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A2",
+      "name": "Cash operating expense",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-02-01", "endDate": "2026-02-28" },
+      "inputs": [{ "id": "a2-expense", "kind": "POSTED_TRANSACTION", "cashAmountMinor": -4000, "chartTreatment": "OPERATING_REVENUE_EXPENSE" }],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 6000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 6000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "copper-cash-a", "amountMinor": 10000 }], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 6000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": -4000, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": -4000, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": -4000, "beginningCashMinor": 10000, "calculatedEndingCashMinor": 6000, "endingCashMinor": 6000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": -4000, "NET_OPERATING": -4000, "NET_CHANGE": -4000, "BEGINNING_CASH": 10000, "ENDING_CASH": 6000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [{ "sourceId": "a2-expense:expense", "amountMinor": -4000 }],
+        "NET_OPERATING": [{ "sourceId": "NET_PROFIT", "amountMinor": -4000 }],
+        "NET_CHANGE": [{ "sourceId": "NET_OPERATING", "amountMinor": -4000 }],
+        "BEGINNING_CASH": [{ "sourceId": "copper-cash-a:open", "amountMinor": 10000 }],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 6000 }],
+        "DIFFERENCE": []
+      },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A3",
+      "name": "Credit-card purchase and payment",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-03-01", "endDate": "2026-03-31" },
+      "inputs": [
+        { "id": "a3-card-charge", "businessDate": "2026-03-10", "kind": "POSTED_TRANSACTION", "financialAccountId": "copper-card", "expenseMinor": -10000 },
+        { "id": "a3-card-payment", "businessDate": "2026-03-25", "kind": "MATCHED_TRANSFER", "fromAccountId": "copper-cash-a", "toAccountId": "copper-card", "cashAmountMinor": -10000 }
+      ],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 20000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 20000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "copper-cash-a", "amountMinor": 20000 }], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 10000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "checkpoints": [{ "endDate": "2026-03-15", "netProfitMinor": -10000, "operatingLiabilityAdjustmentsMinor": 10000, "netOperatingMinor": 0, "endingCashMinor": 20000, "differenceMinor": 0 }],
+      "expectedTotals": { "netProfitMinor": -10000, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": -10000, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": -10000, "beginningCashMinor": 20000, "calculatedEndingCashMinor": 10000, "endingCashMinor": 10000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": -10000, "WORKING_CAPITAL:copper-card": 0, "NET_OPERATING": -10000, "NET_CHANGE": -10000, "BEGINNING_CASH": 20000, "ENDING_CASH": 10000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [{ "sourceId": "a3-card-charge:expense", "amountMinor": -10000 }],
+        "WORKING_CAPITAL:copper-card": [],
+        "NET_OPERATING": [{ "sourceId": "NET_PROFIT", "amountMinor": -10000 }],
+        "NET_CHANGE": [{ "sourceId": "NET_OPERATING", "amountMinor": -10000 }],
+        "BEGINNING_CASH": [{ "sourceId": "copper-cash-a:open", "amountMinor": 20000 }],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 10000 }],
+        "DIFFERENCE": []
+      },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A4",
+      "name": "Accounts receivable",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-04-01", "endDate": "2026-04-30" },
+      "inputs": [
+        { "id": "a4-invoice", "businessDate": "2026-04-05", "kind": "POSTED_TRANSACTION", "incomeMinor": 20000, "receivableIncreaseMinor": 20000 },
+        { "id": "a4-collection", "businessDate": "2026-04-20", "kind": "POSTED_TRANSACTION", "cashAmountMinor": 20000, "receivableDecreaseMinor": 20000 }
+      ],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 20000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 20000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 20000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "checkpoints": [{ "endDate": "2026-04-10", "netProfitMinor": 20000, "operatingAssetAdjustmentsMinor": -20000, "netOperatingMinor": 0, "endingCashMinor": 0, "differenceMinor": 0 }],
+      "expectedTotals": { "netProfitMinor": 20000, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 20000, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 20000, "beginningCashMinor": 0, "calculatedEndingCashMinor": 20000, "endingCashMinor": 20000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 20000, "WORKING_CAPITAL:receivables": 0, "NET_OPERATING": 20000, "NET_CHANGE": 20000, "BEGINNING_CASH": 0, "ENDING_CASH": 20000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [{ "sourceId": "a4-invoice:income", "amountMinor": 20000 }],
+        "WORKING_CAPITAL:receivables": [],
+        "NET_OPERATING": [{ "sourceId": "NET_PROFIT", "amountMinor": 20000 }],
+        "NET_CHANGE": [{ "sourceId": "NET_OPERATING", "amountMinor": 20000 }],
+        "BEGINNING_CASH": [],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 20000 }],
+        "DIFFERENCE": []
+      },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A5",
+      "name": "Inventory and accounts payable",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-05-01", "endDate": "2026-05-31" },
+      "inputs": [
+        { "id": "a5-inventory-credit", "kind": "POSTED_TRANSACTION", "inventoryIncreaseMinor": 12000, "payableIncreaseMinor": 12000 },
+        { "id": "a5-supplier-payment", "kind": "POSTED_TRANSACTION", "cashAmountMinor": -7000, "payableDecreaseMinor": 7000 }
+      ],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 30000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 30000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 35000, "totalLiabilitiesMinor": 5000, "totalEquityMinor": 30000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "copper-cash-a", "amountMinor": 30000 }], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 23000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 0, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": -12000, "operatingLiabilityAdjustmentsMinor": 5000, "netOperatingMinor": -7000, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": -7000, "beginningCashMinor": 30000, "calculatedEndingCashMinor": 23000, "endingCashMinor": 23000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 0, "WORKING_CAPITAL:inventory": -12000, "WORKING_CAPITAL:accounts-payable": 5000, "NET_OPERATING": -7000, "NET_CHANGE": -7000, "BEGINNING_CASH": 30000, "ENDING_CASH": 23000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [],
+        "WORKING_CAPITAL:inventory": [{ "sourceId": "a5-inventory-credit:inventory", "amountMinor": -12000 }],
+        "WORKING_CAPITAL:accounts-payable": [{ "sourceId": "a5-inventory-credit:payable", "amountMinor": 12000 }, { "sourceId": "a5-supplier-payment:payable", "amountMinor": -7000 }],
+        "NET_OPERATING": [{ "sourceId": "WORKING_CAPITAL:inventory", "amountMinor": -12000 }, { "sourceId": "WORKING_CAPITAL:accounts-payable", "amountMinor": 5000 }],
+        "NET_CHANGE": [{ "sourceId": "NET_OPERATING", "amountMinor": -7000 }],
+        "BEGINNING_CASH": [{ "sourceId": "copper-cash-a:open", "amountMinor": 30000 }],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 23000 }],
+        "DIFFERENCE": []
+      },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A6",
+      "name": "Fixed-asset purchase",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-06-01", "endDate": "2026-06-30" },
+      "inputs": [{ "id": "a6-equipment", "kind": "POSTED_TRANSACTION", "cashAmountMinor": -50000, "chartTreatment": "INVESTING" }],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 60000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 60000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 60000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 60000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "copper-cash-a", "amountMinor": 60000 }], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 10000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 0, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 0, "netInvestingMinor": -50000, "netFinancingMinor": 0, "netChangeInCashMinor": -50000, "beginningCashMinor": 60000, "calculatedEndingCashMinor": 10000, "endingCashMinor": 10000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 0, "INVESTING:fixed-assets": -50000, "NET_INVESTING": -50000, "NET_CHANGE": -50000, "BEGINNING_CASH": 60000, "ENDING_CASH": 10000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [],
+        "INVESTING:fixed-assets": [{ "sourceId": "a6-equipment:cash", "amountMinor": -50000 }],
+        "NET_INVESTING": [{ "sourceId": "INVESTING:fixed-assets", "amountMinor": -50000 }],
+        "NET_CHANGE": [{ "sourceId": "NET_INVESTING", "amountMinor": -50000 }],
+        "BEGINNING_CASH": [{ "sourceId": "copper-cash-a:open", "amountMinor": 60000 }],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 10000 }],
+        "DIFFERENCE": []
+      },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A7",
+      "name": "Depreciation",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-07-01", "endDate": "2026-07-31" },
+      "inputs": [{ "id": "a7-depreciation", "kind": "POSTING_SPLIT", "pnlContributionMinor": -6000, "chartTreatment": "NONCASH_PNL_ADJUSTMENT" }],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 16000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 16000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "copper-cash-a", "amountMinor": 10000 }], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 10000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": -6000, "noncashAdjustmentsMinor": 6000, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 0, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 0, "beginningCashMinor": 10000, "calculatedEndingCashMinor": 10000, "endingCashMinor": 10000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": -6000, "NONCASH:depreciation": 6000, "NET_OPERATING": 0, "NET_CHANGE": 0, "BEGINNING_CASH": 10000, "ENDING_CASH": 10000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [{ "sourceId": "a7-depreciation:pnl", "amountMinor": -6000 }],
+        "NONCASH:depreciation": [{ "sourceId": "a7-depreciation:reversal", "amountMinor": 6000 }],
+        "NET_OPERATING": [{ "sourceId": "NET_PROFIT", "amountMinor": -6000 }, { "sourceId": "NONCASH:depreciation", "amountMinor": 6000 }],
+        "NET_CHANGE": [],
+        "BEGINNING_CASH": [{ "sourceId": "copper-cash-a:open", "amountMinor": 10000 }],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 10000 }],
+        "DIFFERENCE": []
+      },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A8",
+      "name": "Loan proceeds and split payment",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-08-01", "endDate": "2026-08-31" },
+      "inputs": [
+        { "id": "a8-loan-proceeds", "kind": "POSTED_TRANSACTION", "cashAmountMinor": 100000, "chartTreatment": "FINANCING" },
+        { "id": "a8-loan-payment", "kind": "POSTED_TRANSACTION", "cashAmountMinor": -11000, "splits": [{ "id": "a8-principal", "cashAmountMinor": -10000, "treatment": "FINANCING" }, { "id": "a8-interest", "pnlContributionMinor": -1000, "treatment": "OPERATING_REVENUE_EXPENSE" }] }
+      ],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 20000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 20000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 109000, "totalLiabilitiesMinor": 90000, "totalEquityMinor": 19000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "copper-cash-a", "amountMinor": 20000 }], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 109000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": -1000, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": -1000, "netInvestingMinor": 0, "netFinancingMinor": 90000, "netChangeInCashMinor": 89000, "beginningCashMinor": 20000, "calculatedEndingCashMinor": 109000, "endingCashMinor": 109000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": -1000, "NET_OPERATING": -1000, "FINANCING:loan-proceeds": 100000, "FINANCING:loan-principal": -10000, "NET_FINANCING": 90000, "NET_CHANGE": 89000, "BEGINNING_CASH": 20000, "ENDING_CASH": 109000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [{ "sourceId": "a8-interest:pnl", "amountMinor": -1000 }],
+        "NET_OPERATING": [{ "sourceId": "NET_PROFIT", "amountMinor": -1000 }],
+        "FINANCING:loan-proceeds": [{ "sourceId": "a8-loan-proceeds:cash", "amountMinor": 100000 }],
+        "FINANCING:loan-principal": [{ "sourceId": "a8-principal:cash", "amountMinor": -10000 }],
+        "NET_FINANCING": [{ "sourceId": "FINANCING:loan-proceeds", "amountMinor": 100000 }, { "sourceId": "FINANCING:loan-principal", "amountMinor": -10000 }],
+        "NET_CHANGE": [{ "sourceId": "NET_OPERATING", "amountMinor": -1000 }, { "sourceId": "NET_FINANCING", "amountMinor": 90000 }],
+        "BEGINNING_CASH": [{ "sourceId": "copper-cash-a:open", "amountMinor": 20000 }],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 109000 }],
+        "DIFFERENCE": []
+      },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A9",
+      "name": "Owner contribution and draw",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-09-01", "endDate": "2026-09-30" },
+      "inputs": [
+        { "id": "a9-contribution", "kind": "POSTED_TRANSACTION", "cashAmountMinor": 60000, "chartTreatment": "FINANCING" },
+        { "id": "a9-draw", "kind": "POSTED_TRANSACTION", "cashAmountMinor": -15000, "chartTreatment": "FINANCING" }
+      ],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 55000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 55000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "copper-cash-a", "amountMinor": 10000 }], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 55000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 0, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 0, "netInvestingMinor": 0, "netFinancingMinor": 45000, "netChangeInCashMinor": 45000, "beginningCashMinor": 10000, "calculatedEndingCashMinor": 55000, "endingCashMinor": 55000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 0, "FINANCING:owner-contribution": 60000, "FINANCING:owner-draw": -15000, "NET_FINANCING": 45000, "NET_CHANGE": 45000, "BEGINNING_CASH": 10000, "ENDING_CASH": 55000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [],
+        "FINANCING:owner-contribution": [{ "sourceId": "a9-contribution:cash", "amountMinor": 60000 }],
+        "FINANCING:owner-draw": [{ "sourceId": "a9-draw:cash", "amountMinor": -15000 }],
+        "NET_FINANCING": [{ "sourceId": "FINANCING:owner-contribution", "amountMinor": 60000 }, { "sourceId": "FINANCING:owner-draw", "amountMinor": -15000 }],
+        "NET_CHANGE": [{ "sourceId": "NET_FINANCING", "amountMinor": 45000 }],
+        "BEGINNING_CASH": [{ "sourceId": "copper-cash-a:open", "amountMinor": 10000 }],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 55000 }],
+        "DIFFERENCE": []
+      },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A10",
+      "name": "Cash-to-cash transfer",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-10-01", "endDate": "2026-10-31" },
+      "inputs": [{ "id": "a10-transfer", "kind": "MATCHED_TRANSFER", "fromAccountId": "copper-cash-a", "toAccountId": "copper-cash-b", "cashAmountMinor": 30000 }],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 100000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 100000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 100000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 100000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "copper-cash-a", "amountMinor": 80000 }, { "accountId": "copper-cash-b", "amountMinor": 20000 }], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 50000 }, { "accountId": "copper-cash-b", "amountMinor": 50000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 0, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 0, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 0, "beginningCashMinor": 100000, "calculatedEndingCashMinor": 100000, "endingCashMinor": 100000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 0, "NET_OPERATING": 0, "NET_INVESTING": 0, "NET_FINANCING": 0, "NET_CHANGE": 0, "BEGINNING_CASH": 100000, "ENDING_CASH": 100000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [], "NET_OPERATING": [], "NET_INVESTING": [], "NET_FINANCING": [], "NET_CHANGE": [],
+        "BEGINNING_CASH": [{ "sourceId": "copper-cash-a:open", "amountMinor": 80000 }, { "sourceId": "copper-cash-b:open", "amountMinor": 20000 }],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 50000 }, { "sourceId": "copper-cash-b:end", "amountMinor": 50000 }],
+        "DIFFERENCE": []
+      },
+      "diagnosticContributions": [{ "sourceId": "a10-transfer", "amountMinor": 0 }],
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A11",
+      "name": "Noncash asset acquisition",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-11-01", "endDate": "2026-11-30" },
+      "inputs": [{ "id": "a11-noncash-acquisition", "kind": "POSTED_NONCASH_JOURNAL", "assetIncreaseMinor": 50000, "debtIncreaseMinor": 50000 }],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 60000, "totalLiabilitiesMinor": 50000, "totalEquityMinor": 10000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "copper-cash-a", "amountMinor": 10000 }], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 10000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 0, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 0, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 0, "beginningCashMinor": 10000, "calculatedEndingCashMinor": 10000, "endingCashMinor": 10000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 0, "NONCASH_DISCLOSURE:asset-financed-by-debt": 50000, "NET_CHANGE": 0, "BEGINNING_CASH": 10000, "ENDING_CASH": 10000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [],
+        "NONCASH_DISCLOSURE:asset-financed-by-debt": [{ "sourceId": "a11-noncash-acquisition", "amountMinor": 50000 }],
+        "NET_CHANGE": [],
+        "BEGINNING_CASH": [{ "sourceId": "copper-cash-a:open", "amountMinor": 10000 }],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 10000 }],
+        "DIFFERENCE": []
+      },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A12",
+      "name": "Restricted cash",
+      "companyId": "company-northwind-repair",
+      "period": { "startDate": "2026-01-01", "endDate": "2026-01-31" },
+      "inputs": [{ "id": "a12-restricted-transfer", "kind": "MATCHED_TRANSFER", "fromAccountId": "northwind-cash-a", "toAccountId": "northwind-restricted", "cashAmountMinor": 20000, "restrictedTreatment": "REVIEW_REQUIRED" }],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 50000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 50000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 50000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 50000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "northwind-cash-a", "amountMinor": 50000 }], "ending": [{ "accountId": "northwind-cash-a", "amountMinor": 30000 }], "restrictedOpening": [], "restrictedEnding": [{ "accountId": "northwind-restricted", "amountMinor": 20000 }] },
+      "expectedTotals": { "netProfitMinor": 0, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 0, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 0, "beginningCashMinor": 50000, "calculatedEndingCashMinor": 50000, "endingCashMinor": 30000, "differenceMinor": 20000, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 20000, "unclassifiedCashActivityMinor": -20000 },
+      "expectedRows": { "NET_PROFIT": 0, "RESTRICTED_CASH_ENDING": 20000, "UNCLASSIFIED_CASH_ACTIVITY": -20000, "NET_CHANGE": 0, "BEGINNING_CASH": 50000, "ENDING_CASH": 30000, "DIFFERENCE": 20000 },
+      "detailGroups": {
+        "NET_PROFIT": [],
+        "RESTRICTED_CASH_ENDING": [{ "sourceId": "northwind-restricted:end", "amountMinor": 20000 }],
+        "UNCLASSIFIED_CASH_ACTIVITY": [{ "sourceId": "a12-restricted-transfer", "amountMinor": -20000 }],
+        "NET_CHANGE": [],
+        "BEGINNING_CASH": [{ "sourceId": "northwind-cash-a:open", "amountMinor": 50000 }],
+        "ENDING_CASH": [{ "sourceId": "northwind-cash-a:end", "amountMinor": 30000 }],
+        "DIFFERENCE": [{ "sourceId": "a12-restricted-transfer:reconciliation", "amountMinor": 20000 }]
+      },
+      "expectedStatus": "REVIEW_REQUIRED",
+      "expectedWarnings": ["RESTRICTED_CASH_PRESENT", "UNCLASSIFIED_CASH_ACTIVITY", "CASH_FLOW_DIFFERENCE_NONZERO"]
+    },
+    {
+      "id": "A13",
+      "name": "In-period opening balance",
+      "companyId": "company-northwind-repair",
+      "period": { "startDate": "2026-02-01", "endDate": "2026-02-28" },
+      "inputs": [{ "id": "a13-opening", "businessDate": "2026-02-10", "kind": "OPENING_BALANCE", "financialAccountId": "northwind-cash-a", "amountMinor": 25000 }],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 25000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 25000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [], "ending": [{ "accountId": "northwind-cash-a", "amountMinor": 25000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 0, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 0, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 0, "beginningCashMinor": 0, "calculatedEndingCashMinor": 0, "endingCashMinor": 25000, "differenceMinor": -25000, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 25000 },
+      "expectedRows": { "NET_PROFIT": 0, "UNCLASSIFIED_CASH_ACTIVITY": 25000, "NET_CHANGE": 0, "BEGINNING_CASH": 0, "ENDING_CASH": 25000, "DIFFERENCE": -25000 },
+      "detailGroups": {
+        "NET_PROFIT": [],
+        "UNCLASSIFIED_CASH_ACTIVITY": [{ "sourceId": "a13-opening", "amountMinor": 25000 }],
+        "NET_CHANGE": [], "BEGINNING_CASH": [],
+        "ENDING_CASH": [{ "sourceId": "northwind-cash-a:end", "amountMinor": 25000 }],
+        "DIFFERENCE": [{ "sourceId": "a13-opening:reconciliation", "amountMinor": -25000 }]
+      },
+      "expectedStatus": "REVIEW_REQUIRED",
+      "expectedWarnings": ["OPENING_CASH_BALANCE_WITHIN_PERIOD", "UNCLASSIFIED_CASH_ACTIVITY", "CASH_FLOW_DIFFERENCE_NONZERO"]
+    },
+    {
+      "id": "A14",
+      "name": "Unclassified activity",
+      "companyId": "company-northwind-repair",
+      "period": { "startDate": "2026-03-01", "endDate": "2026-03-31" },
+      "inputs": [{ "id": "a14-unclassified", "kind": "POSTED_TRANSACTION", "cashAmountMinor": -3000, "counterAccountTreatment": "REVIEW_REQUIRED" }],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "northwind-cash-a", "amountMinor": 10000 }], "ending": [{ "accountId": "northwind-cash-a", "amountMinor": 7000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 0, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 0, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 0, "beginningCashMinor": 10000, "calculatedEndingCashMinor": 10000, "endingCashMinor": 7000, "differenceMinor": 3000, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": -3000 },
+      "expectedRows": { "NET_PROFIT": 0, "UNCLASSIFIED_CASH_ACTIVITY": -3000, "NET_CHANGE": 0, "BEGINNING_CASH": 10000, "ENDING_CASH": 7000, "DIFFERENCE": 3000 },
+      "detailGroups": {
+        "NET_PROFIT": [],
+        "UNCLASSIFIED_CASH_ACTIVITY": [{ "sourceId": "a14-unclassified", "amountMinor": -3000 }],
+        "NET_CHANGE": [],
+        "BEGINNING_CASH": [{ "sourceId": "northwind-cash-a:open", "amountMinor": 10000 }],
+        "ENDING_CASH": [{ "sourceId": "northwind-cash-a:end", "amountMinor": 7000 }],
+        "DIFFERENCE": [{ "sourceId": "a14-unclassified:reconciliation", "amountMinor": 3000 }]
+      },
+      "expectedStatus": "REVIEW_REQUIRED",
+      "expectedWarnings": ["CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED", "UNCLASSIFIED_CASH_ACTIVITY", "CASH_FLOW_DIFFERENCE_NONZERO"]
+    },
+    {
+      "id": "A15",
+      "name": "State exclusion",
+      "companyId": "company-northwind-repair",
+      "period": { "startDate": "2026-04-01", "endDate": "2026-04-30" },
+      "inputs": [
+        { "id": "a15-pending", "kind": "PENDING_TRANSACTION", "cashAmountMinor": 5000 },
+        { "id": "a15-excluded", "kind": "EXCLUDED_TRANSACTION", "cashAmountMinor": -2000 },
+        { "id": "a15-undone", "kind": "UNDONE_POSTED_TRANSACTION", "cashAmountMinor": 3000 }
+      ],
+      "excludedSourceIds": ["a15-pending", "a15-excluded", "a15-undone"],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "northwind-cash-a", "amountMinor": 10000 }], "ending": [{ "accountId": "northwind-cash-a", "amountMinor": 10000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 0, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 0, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 0, "beginningCashMinor": 10000, "calculatedEndingCashMinor": 10000, "endingCashMinor": 10000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 0, "NET_OPERATING": 0, "NET_CHANGE": 0, "BEGINNING_CASH": 10000, "ENDING_CASH": 10000, "DIFFERENCE": 0 },
+      "detailGroups": { "NET_PROFIT": [], "NET_OPERATING": [], "NET_CHANGE": [], "BEGINNING_CASH": [{ "sourceId": "northwind-cash-a:open", "amountMinor": 10000 }], "ENDING_CASH": [{ "sourceId": "northwind-cash-a:end", "amountMinor": 10000 }], "DIFFERENCE": [] },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A16",
+      "name": "Non-calendar fiscal year",
+      "companyId": "company-northwind-repair",
+      "period": { "preset": "FISCAL_YEAR", "startDate": "2025-07-01", "endDate": "2026-06-30" },
+      "inputs": [
+        { "id": "a16-income", "businessDate": "2025-09-15", "kind": "POSTED_TRANSACTION", "cashAmountMinor": 25000, "chartTreatment": "OPERATING_REVENUE_EXPENSE" },
+        { "id": "a16-expense", "businessDate": "2026-05-20", "kind": "POSTED_TRANSACTION", "cashAmountMinor": -10000, "chartTreatment": "OPERATING_REVENUE_EXPENSE" }
+      ],
+      "balanceSheets": {
+        "openingDate": "2025-06-30",
+        "opening": { "totalAssetsMinor": 50000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 50000, "differenceMinor": 0 },
+        "endingDate": "2026-06-30",
+        "ending": { "totalAssetsMinor": 65000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 65000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "northwind-cash-a", "amountMinor": 50000 }], "ending": [{ "accountId": "northwind-cash-a", "amountMinor": 65000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 15000, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 15000, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 15000, "beginningCashMinor": 50000, "calculatedEndingCashMinor": 65000, "endingCashMinor": 65000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 15000, "NET_OPERATING": 15000, "NET_CHANGE": 15000, "BEGINNING_CASH": 50000, "ENDING_CASH": 65000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [{ "sourceId": "a16-income:pnl", "amountMinor": 25000 }, { "sourceId": "a16-expense:pnl", "amountMinor": -10000 }],
+        "NET_OPERATING": [{ "sourceId": "NET_PROFIT", "amountMinor": 15000 }],
+        "NET_CHANGE": [{ "sourceId": "NET_OPERATING", "amountMinor": 15000 }],
+        "BEGINNING_CASH": [{ "sourceId": "northwind-cash-a:open", "amountMinor": 50000 }],
+        "ENDING_CASH": [{ "sourceId": "northwind-cash-a:end", "amountMinor": 65000 }],
+        "DIFFERENCE": []
+      },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A17",
+      "name": "Empty valid report",
+      "companyId": "company-northwind-repair",
+      "period": { "startDate": "2026-07-01", "endDate": "2026-07-31" },
+      "inputs": [],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "northwind-cash-a", "amountMinor": 0 }], "ending": [{ "accountId": "northwind-cash-a", "amountMinor": 0 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 0, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 0, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 0, "beginningCashMinor": 0, "calculatedEndingCashMinor": 0, "endingCashMinor": 0, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 0, "NET_OPERATING": 0, "NET_INVESTING": 0, "NET_FINANCING": 0, "NET_CHANGE": 0, "BEGINNING_CASH": 0, "ENDING_CASH": 0, "DIFFERENCE": 0 },
+      "detailGroups": { "NET_PROFIT": [], "NET_OPERATING": [], "NET_INVESTING": [], "NET_FINANCING": [], "NET_CHANGE": [], "BEGINNING_CASH": [], "ENDING_CASH": [], "DIFFERENCE": [] },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A18",
+      "name": "Export parity",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-08-01", "endDate": "2026-08-31" },
+      "inputs": [
+        { "id": "a18-sale", "kind": "POSTED_TRANSACTION", "cashAmountMinor": 12500, "chartTreatment": "OPERATING_REVENUE_EXPENSE" },
+        { "id": "a18-expense", "kind": "POSTED_TRANSACTION", "cashAmountMinor": -2500, "chartTreatment": "OPERATING_REVENUE_EXPENSE" }
+      ],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 5000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 5000, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 15000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 15000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "copper-cash-a", "amountMinor": 5000 }], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 15000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 10000, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 10000, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 10000, "beginningCashMinor": 5000, "calculatedEndingCashMinor": 15000, "endingCashMinor": 15000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 10000, "NET_OPERATING": 10000, "NET_CHANGE": 10000, "BEGINNING_CASH": 5000, "ENDING_CASH": 15000, "DIFFERENCE": 0 },
+      "detailGroups": {
+        "NET_PROFIT": [{ "sourceId": "a18-sale:pnl", "amountMinor": 12500 }, { "sourceId": "a18-expense:pnl", "amountMinor": -2500 }],
+        "NET_OPERATING": [{ "sourceId": "NET_PROFIT", "amountMinor": 10000 }],
+        "NET_CHANGE": [{ "sourceId": "NET_OPERATING", "amountMinor": 10000 }],
+        "BEGINNING_CASH": [{ "sourceId": "copper-cash-a:open", "amountMinor": 5000 }],
+        "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 15000 }],
+        "DIFFERENCE": []
+      },
+      "outputs": ["SCREEN", "SUMMARY_CSV", "STATEMENT_XLSX", "DETAIL_XLSX", "CLASSIFICATIONS_XLSX", "PRINT_PREVIEW", "PDF"],
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A19",
+      "name": "Historical stability after rename",
+      "companyId": "company-copper-kettle",
+      "period": { "startDate": "2026-09-01", "endDate": "2026-09-30" },
+      "inputs": [{ "id": "a19-sale", "kind": "POSTED_TRANSACTION", "cashAmountMinor": 10000, "chartTreatment": "OPERATING_REVENUE_EXPENSE" }],
+      "renameExpectation": { "stableAccountId": "copper-cash-a", "beforeLabel": "Daily funds", "afterLabel": "Primary workshop funds", "rowId": "CASH_RECONCILIATION:FINANCIAL_SOURCE:copper-cash-a", "contributionId": "cash-balance:copper-cash-a:2026-09-30", "amountsUnchanged": true },
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 10000, "totalLiabilitiesMinor": 0, "totalEquityMinor": 10000, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [], "ending": [{ "accountId": "copper-cash-a", "amountMinor": 10000 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 10000, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 10000, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 10000, "beginningCashMinor": 0, "calculatedEndingCashMinor": 10000, "endingCashMinor": 10000, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 10000, "NET_OPERATING": 10000, "NET_CHANGE": 10000, "BEGINNING_CASH": 0, "ENDING_CASH": 10000, "DIFFERENCE": 0 },
+      "detailGroups": { "NET_PROFIT": [{ "sourceId": "a19-sale:pnl", "amountMinor": 10000 }], "NET_OPERATING": [{ "sourceId": "NET_PROFIT", "amountMinor": 10000 }], "NET_CHANGE": [{ "sourceId": "NET_OPERATING", "amountMinor": 10000 }], "BEGINNING_CASH": [], "ENDING_CASH": [{ "sourceId": "copper-cash-a:end", "amountMinor": 10000 }], "DIFFERENCE": [] },
+      "expectedStatus": "COMPLETE",
+      "expectedWarnings": []
+    },
+    {
+      "id": "A20",
+      "name": "Structural schema-6 classification migration",
+      "companyId": "company-northwind-repair",
+      "period": { "startDate": "2026-10-01", "endDate": "2026-10-31" },
+      "migrationExpectations": [
+        { "id": "m-checking", "accountRole": "FINANCIAL_SOURCE", "accountType": "BANK", "detailType": "Checking", "cashRole": "CASH", "treatment": "CASH_BALANCE", "status": "CONFIRMED" },
+        { "id": "m-savings", "accountRole": "FINANCIAL_SOURCE", "accountType": "BANK", "detailType": "Savings", "cashRole": "CASH_EQUIVALENT", "treatment": "CASH_BALANCE", "status": "CONFIRMED" },
+        { "id": "m-money-market", "accountRole": "FINANCIAL_SOURCE", "accountType": "BANK", "detailType": "Money Market", "cashRole": "REVIEW_REQUIRED", "treatment": "REVIEW_REQUIRED", "status": "REVIEW_REQUIRED" },
+        { "id": "m-trust", "accountRole": "FINANCIAL_SOURCE", "accountType": "BANK", "detailType": "Trust account", "cashRole": "RESTRICTED_CASH", "treatment": "CASH_BALANCE", "status": "CONFIRMED" },
+        { "id": "m-card", "accountRole": "FINANCIAL_SOURCE", "accountType": "CREDIT_CARD", "detailType": "Credit Card", "cashRole": "NOT_CASH", "treatment": "OPERATING_LIABILITY", "status": "CONFIRMED" },
+        { "id": "m-clearing", "accountRole": "FINANCIAL_SOURCE", "accountType": "OTHER_CURRENT_ASSET", "detailType": "Clearing account", "cashRole": "NOT_CASH", "treatment": "OPERATING_ASSET", "status": "CONFIRMED" },
+        { "id": "m-receivable", "accountRole": "CHART", "accountType": "ACCOUNTS_RECEIVABLE", "detailType": "Accounts receivable", "treatment": "OPERATING_ASSET", "status": "CONFIRMED" },
+        { "id": "m-inventory", "accountRole": "CHART", "accountType": "OTHER_CURRENT_ASSET", "detailType": "Inventory", "treatment": "OPERATING_ASSET", "status": "CONFIRMED" },
+        { "id": "m-fixed", "accountRole": "CHART", "accountType": "FIXED_ASSET", "detailType": "Machinery and equipment", "treatment": "INVESTING", "status": "CONFIRMED" },
+        { "id": "m-loan", "accountRole": "CHART", "accountType": "LONG_TERM_LIABILITY", "detailType": "Notes payable", "treatment": "FINANCING", "status": "CONFIRMED" },
+        { "id": "m-equity", "accountRole": "CHART", "accountType": "EQUITY", "detailType": "Owner equity", "treatment": "FINANCING", "status": "CONFIRMED" },
+        { "id": "m-depreciation", "accountRole": "CHART", "accountType": "OTHER_EXPENSE", "detailType": "Depreciation", "treatment": "NONCASH_PNL_ADJUSTMENT", "status": "CONFIRMED" },
+        { "id": "m-custom", "accountRole": "CHART", "accountType": "OTHER_CURRENT_ASSET", "detailType": "Imported custom detail", "treatment": "REVIEW_REQUIRED", "status": "REVIEW_REQUIRED" }
+      ],
+      "nameIndependencePairs": [
+        { "leftId": "m-checking", "rightStructure": { "accountRole": "FINANCIAL_SOURCE", "accountType": "BANK", "detailType": "Checking" }, "rightName": "Unrelated neutral label" },
+        { "leftId": "m-fixed", "rightStructure": { "accountRole": "CHART", "accountType": "FIXED_ASSET", "detailType": "Machinery and equipment" }, "rightName": "Another fictional label" }
+      ],
+      "balanceSheets": {
+        "opening": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 },
+        "ending": { "totalAssetsMinor": 0, "totalLiabilitiesMinor": 0, "totalEquityMinor": 0, "differenceMinor": 0 }
+      },
+      "cashComposition": { "opening": [{ "accountId": "m-checking", "amountMinor": 0 }], "ending": [{ "accountId": "m-checking", "amountMinor": 0 }], "restrictedOpening": [], "restrictedEnding": [] },
+      "expectedTotals": { "netProfitMinor": 0, "noncashAdjustmentsMinor": 0, "operatingAssetAdjustmentsMinor": 0, "operatingLiabilityAdjustmentsMinor": 0, "netOperatingMinor": 0, "netInvestingMinor": 0, "netFinancingMinor": 0, "netChangeInCashMinor": 0, "beginningCashMinor": 0, "calculatedEndingCashMinor": 0, "endingCashMinor": 0, "differenceMinor": 0, "restrictedCashBeginningMinor": 0, "restrictedCashEndingMinor": 0, "unclassifiedCashActivityMinor": 0 },
+      "expectedRows": { "NET_PROFIT": 0, "NET_OPERATING": 0, "NET_INVESTING": 0, "NET_FINANCING": 0, "NET_CHANGE": 0, "BEGINNING_CASH": 0, "ENDING_CASH": 0, "DIFFERENCE": 0 },
+      "detailGroups": { "NET_PROFIT": [], "NET_OPERATING": [], "NET_INVESTING": [], "NET_FINANCING": [], "NET_CHANGE": [], "BEGINNING_CASH": [], "ENDING_CASH": [], "DIFFERENCE": [] },
+      "expectedStatus": "REVIEW_REQUIRED",
+      "expectedWarnings": ["CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED"]
+    }
+  ]
+}

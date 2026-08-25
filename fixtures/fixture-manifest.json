@@ -14,5 +14,15 @@
     "acceptanceScenarios": 19,
     "moneyUnit": "INTEGER_MINOR_UNITS"
   },
+  "cashFlowBaseline": {
+    "companyFixtureFile": "cash-flow/company-fixtures.json",
+    "acceptanceOracleFile": "cash-flow/baseline-oracle.json",
+    "databaseSchemaVersion": 6,
+    "companyProfiles": 2,
+    "acceptanceScenarios": 20,
+    "fixtureYears": [2025, 2026],
+    "moneyUnit": "INTEGER_MINOR_UNITS",
+    "method": "INDIRECT"
+  },
   "provenance": "All fixture values are fictional source-shape examples documented in README.md. The larger public-safe accounting dataset is under sample-data/."
 }
