@@ -28,9 +28,9 @@
 .chart-heading h2 { margin-bottom: 7px; }
 .chart-heading p:not(.eyebrow) { margin: 0; color: #7c8881; font-size: 13px; }
 .chart-toolbar { align-items: flex-end; margin: 18px 0 12px; }
-.chart-toolbar label { display: grid; min-width: 180px; gap: 5px; color: #68736d; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.chart-toolbar > label { display: grid; min-width: 180px; gap: 5px; color: #68736d; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .chart-toolbar .chart-search { flex: 1 1 360px; }
-.chart-toolbar input, .chart-toolbar select { box-sizing: border-box; width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid #d9ddd7; border-radius: 8px; background: #fff; color: #31564b; font: inherit; letter-spacing: normal; text-transform: none; }
+.chart-toolbar input, .chart-toolbar select { box-sizing: border-box; width: 100%; min-height: 38px; padding: 8px 10px; border: 1px solid #d9ddd7; border-radius: 8px; background: #fff; color: #31564b; font-size: 13px; letter-spacing: normal; text-transform: none; }
 .chart-exchange-actions { display: flex; gap: 8px; }
 .chart-table-wrap { overflow-x: auto; border-top: 1px solid #dce2dc; border-bottom: 1px solid #dce2dc; }
 .chart-table { min-width: 1050px; table-layout: auto; }
@@ -51,7 +51,7 @@
 .chart-status.archived { background: #f0efeb; color: #7a7c77; }
 .archived-chart-account { opacity: .68; }
 .chart-actions { display: flex; gap: 7px; white-space: nowrap; }
-.chart-actions button { padding: 7px 10px; border: 1px solid #d9ddd7; border-radius: 999px; background: #fff; color: #31564b; cursor: pointer; font: inherit; font-size: 11px; }
+.chart-actions button { padding: 7px 10px; border: 1px solid #d9ddd7; border-radius: 999px; background: #fff; color: #31564b; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
 .chart-actions button.danger { border-color: #e6c6bc; color: #985742; }
 .chart-empty { padding: 64px 20px !important; color: #87918b; text-align: center; }
 .chart-editor-backdrop, .account-editor-backdrop { position: fixed; z-index: 60; inset: 0; display: flex; justify-content: flex-end; background: #102b2766; backdrop-filter: blur(2px); }
@@ -178,7 +178,7 @@ h2 { color: #17332f; font: 600 28px/1.15 Georgia, serif; letter-spacing: -.02em;
 .status-dot { width: 8px; height: 8px; background: #4f946f; border-radius: 50%; }
 .section-heading { margin: 46px 0 18px; }
 .quiet-button, .actions button { border: 1px solid #d9ddd7; border-radius: 999px; background: #fff; color: #31564b; cursor: pointer; font: inherit; }
-.quiet-button { padding: 9px 15px; }
+.quiet-button { padding: 9px 15px; font-size: 12px; }
 .account-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; }
 .account-tile { position: relative; min-width: 0; }
 .account-tile.archived { opacity: .62; }
@@ -200,7 +200,7 @@ h2 { color: #17332f; font: 600 28px/1.15 Georgia, serif; letter-spacing: -.02em;
 .file-button, .primary-button { display: inline-flex; align-items: center; padding: 10px 15px; border: 0; border-radius: 999px; background: #b87d4e; color: #fff; cursor: pointer; font-size: 12px; font-weight: 700; white-space: nowrap; }
 .file-button:disabled { cursor: not-allowed; opacity: .5; }
 .transaction-file-input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
-.quiet-file-button { display: inline-flex; align-items: center; padding: 9px 15px; border: 1px solid #d9ddd7; border-radius: 999px; background: #fff; color: #31564b; cursor: pointer; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.quiet-file-button { display: inline-flex; align-items: center; padding: 9px 15px; border: 1px solid #d9ddd7; border-radius: 999px; background: #fff; color: #31564b; cursor: pointer; font-size: 12px; white-space: nowrap; }
 .quiet-file-button input { display: none; }
 .primary-button { background: #17332f; }
 .primary-button:disabled, .quiet-button:disabled, .category-picker-trigger:disabled { cursor: not-allowed; opacity: .45; }
@@ -402,8 +402,8 @@ footer { margin-top: 26px; color: #9aa49e; font-size: 11px; }
 .rules-heading p:not(.eyebrow) { margin: 0; color: #68736d; font-size: 13px; }
 .new-rule-button { padding: 11px 18px; }
 .rules-toolbar { display: grid; grid-template-columns: minmax(300px, 1fr) 170px auto; align-items: end; gap: 10px; padding: 14px 0; border-top: 1px solid #d9e1da; border-bottom: 1px solid #d9e1da; }
-.rules-toolbar > label { display: grid; gap: 5px; color: #68736d; font-size: 9px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
-.rules-toolbar input, .rules-toolbar select { min-height: 38px; padding: 8px 10px; border: 1px solid #d9ddd7; border-radius: 8px; background: #fff; color: #31564b; font: inherit; letter-spacing: normal; text-transform: none; }
+.rules-toolbar > label { display: grid; gap: 5px; color: #68736d; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.rules-toolbar input, .rules-toolbar select { min-height: 38px; padding: 8px 10px; border: 1px solid #d9ddd7; border-radius: 8px; background: #fff; color: #31564b; font-size: 13px; letter-spacing: normal; text-transform: none; }
 .rule-exchange-actions { display: flex; align-items: center; justify-content: flex-end; gap: 7px; }
 .rules-workspace .rule-import-preview { box-sizing: border-box; margin: 12px 0; }
 .rules-table-wrap { margin-top: 14px; overflow-x: auto; border: 1px solid #d9e1da; border-radius: 11px; background: #fff; }
@@ -424,7 +424,7 @@ footer { margin-top: 26px; color: #9aa49e; font-size: 11px; }
 .rule-status { display: inline-flex; padding: 4px 7px; border-radius: 999px; background: #eaf5ee; color: #3d7657; font-size: 9px; font-weight: 900; letter-spacing: .06em; text-transform: uppercase; }
 .rule-status.disabled { background: #eceeea; color: #727d76; }
 .rule-actions { display: flex; flex-wrap: wrap; gap: 5px; }
-.rule-actions button { padding: 5px 7px; border: 1px solid #d7ded8; border-radius: 6px; background: #fff; color: #31564b; cursor: pointer; font: inherit; font-size: 10px; font-weight: 700; }
+.rule-actions button { padding: 5px 7px; border: 1px solid #d7ded8; border-radius: 6px; background: #fff; color: #31564b; cursor: pointer; font: inherit; font-size: 11px; font-weight: 700; }
 .rule-actions button:hover { border-color: #8aa496; background: #edf7f0; }
 .rule-actions button.danger { border-color: #e6c6bc; color: #985742; }
 .rules-empty { padding: 50px !important; color: #829088; text-align: center; }
