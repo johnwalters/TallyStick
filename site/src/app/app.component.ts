@@ -14,6 +14,21 @@ import { ChartAccountFacade } from './features/chart-accounts/chart-account.faca
 import { BalanceSheetContractError, BalanceSheetDetail, BalanceSheetReport, CompanyProfile, balanceSheetShortcutDate, normalizeBalanceSheetQuery, reportCompanyIdentity, ReportCompanyIdentity, UpdateCompanyProfileCommand } from './core/domain-model/balance-sheet.types';
 import { AccountChangeValidation, AccountRole, AccountingAccountType, AccountTypeGroupDefinition, ImportSourceKind, SaveGenericAccountCommand } from './core/domain-model/account-taxonomy';
 import { BalanceSheetFacade } from './features/balance-sheet/balance-sheet.facade';
+import { CashFlowFacade } from './features/cash-flow/cash-flow.facade';
+import { CashFlowClassificationReviewComponent, CashFlowClassificationEditorDraft } from './features/cash-flow/cash-flow-classification-review.component';
+import {
+  CASH_FLOW_CASH_ROLES,
+  CASH_FLOW_TREATMENTS,
+  CashFlowCashRole,
+  CashFlowClassificationExchangeRow,
+  CashFlowClassificationPreview,
+  CashFlowClassificationReview,
+  CashFlowClassificationReviewItem,
+  CashFlowClassificationReviewReasonCode,
+  CashFlowClassificationSaveImpact,
+  CashFlowQuery,
+  CashFlowTreatment,
+} from './core/domain-model/cash-flow.types';
 
 type TransactionSortColumn = 'DATE_ACCOUNT' | 'SOURCE' | 'CATEGORY' | 'AMOUNT';
 type TransactionSortDirection = 'ASC' | 'DESC';
@@ -25,6 +40,7 @@ type ReportBasis = 'UNADJUSTED' | 'SCHEDULE_C';
 type ReportSortColumn = 'DATE' | 'ACCOUNT' | 'DESCRIPTION' | 'CATEGORY' | 'AMOUNT';
 type ReportSortDirection = 'ASC' | 'DESC';
 type ReportSummaryRowKind = 'GROUP' | 'ACCOUNT' | 'SUBTOTAL' | 'SYNTHETIC';
+type ClassificationReviewFilter = 'ALL' | 'REVIEW_REQUIRED' | 'CASH' | 'OPERATING' | 'INVESTING' | 'FINANCING' | 'NONCASH';
 
 interface ReportSummaryDisplayRow {
   id: string;
@@ -105,7 +121,7 @@ const TRANSACTION_VIEW_STORAGE_KEY = 'accounting.transaction-view.v1';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, FormsModule],
+  imports: [RouterOutlet, FormsModule, CashFlowClassificationReviewComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })
@@ -187,8 +203,29 @@ export class AppComponent {
   chartDraft?: ChartAccountDraft;
   chartSortColumn: ChartSortColumn = 'ORDER';
   chartSortDirection: 'ASC' | 'DESC' = 'ASC';
+  classificationReviewOpen = false;
+  classificationReview?: CashFlowClassificationReview;
+  classificationRows: readonly CashFlowClassificationExchangeRow[] = [];
+  classificationReviewStartDate = '';
+  classificationReviewEndDate = '';
+  classificationReviewFilter: ClassificationReviewFilter = 'REVIEW_REQUIRED';
+  classificationReviewSearch = '';
+  classificationSelectedAccountKey = '';
+  private classificationReviewReturnFocus?: HTMLElement;
+  classificationEditor?: CashFlowClassificationEditorDraft;
+  classificationPreview?: CashFlowClassificationPreview;
+  classificationError = '';
+  classificationSaveMessage = '';
+  classificationSaveImpact?: CashFlowClassificationSaveImpact;
   readonly chartAccountTypes = CHART_ACCOUNT_TYPES;
   readonly financialAccountTypes = FINANCIAL_ACCOUNT_TYPES;
+  readonly cashFlowCashRoles = CASH_FLOW_CASH_ROLES;
+  readonly cashFlowTreatments = CASH_FLOW_TREATMENTS;
+  readonly classificationMoneyForReview = (value: bigint): string => this.classificationMoney(value);
+  readonly classificationCashRoleLabelForReview = (role: CashFlowCashRole): string => this.classificationCashRoleLabel(role);
+  readonly classificationTreatmentLabelForReview = (treatment: CashFlowTreatment): string => this.classificationTreatmentLabel(treatment);
+  readonly classificationReasonLabelForReview = (reason: CashFlowClassificationReviewReasonCode): string => this.classificationReasonLabel(reason);
+  readonly classificationReasonTextForReview = (item: CashFlowClassificationReviewItem): string => this.classificationReviewItemReasonText(item);
   readonly ruleConditionFields: RuleCondition['field'][] = ['ACCOUNT', 'DIRECTION', 'DESCRIPTION', 'PAYEE', 'MEMO', 'AMOUNT', 'SOURCE_TYPE'];
   readonly ruleConditionOperators: RuleCondition['operator'][] = ['EQUALS', 'CONTAINS', 'STARTS_WITH', 'RANGE'];
 
@@ -203,12 +240,15 @@ export class AppComponent {
     private readonly backupFacade: BackupFacade,
     private readonly chartAccountFacade: ChartAccountFacade,
     readonly balanceSheetFacade: BalanceSheetFacade,
+    readonly cashFlowFacade: CashFlowFacade,
   ) {
     this.companyProfile = this.accounting.getCompanyProfile();
     this.genericAccountCatalog = this.accounting.getAccountTypeCatalog();
     const reportYear = this.accounting.getCompany().activeTaxYear;
     this.reportStartDate = `${reportYear}-01-01`;
     this.reportEndDate = `${reportYear}-12-31`;
+    this.classificationReviewStartDate = this.reportStartDate;
+    this.classificationReviewEndDate = this.reportEndDate;
     const balanceQuery = normalizeBalanceSheetQuery({}, this.accounting.getCompany());
     this.balanceSheetAsOf = balanceQuery.ok ? balanceQuery.value.asOfDate : `${reportYear}-12-31`;
     this.reportTaxSettings = this.accounting.getTaxYearSettings(reportYear);
@@ -452,6 +492,255 @@ export class AppComponent {
     return true;
   }
 
+  private cashFlowClassificationQuery(): CashFlowQuery | undefined {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(this.classificationReviewStartDate) || !/^\d{4}-\d{2}-\d{2}$/.test(this.classificationReviewEndDate)) {
+      this.classificationError = 'Enter a valid start and end date for classification review.';
+      return undefined;
+    }
+    if (this.classificationReviewStartDate > this.classificationReviewEndDate) {
+      this.classificationError = 'Classification review start date must be on or before the end date.';
+      return undefined;
+    }
+    return { startDate: this.classificationReviewStartDate, endDate: this.classificationReviewEndDate, includeZeroRows: true };
+  }
+
+  classificationSelectionKey(role: 'FINANCIAL_SOURCE' | 'CHART', accountId: string): string {
+    return `${role}:${accountId}`;
+  }
+
+  openClassificationReview(opener?: HTMLElement | null): void {
+    const active = opener ?? (document.activeElement instanceof HTMLElement ? document.activeElement : undefined);
+    if (active) this.classificationReviewReturnFocus = active;
+    this.classificationReviewOpen = true;
+    this.classificationReviewFilter = 'REVIEW_REQUIRED';
+    this.classificationReviewSearch = '';
+    this.classificationSelectedAccountKey = '';
+    this.classificationEditor = undefined;
+    this.classificationPreview = undefined;
+    this.classificationSaveMessage = '';
+    this.classificationSaveImpact = undefined;
+    this.loadClassificationState();
+  }
+
+  closeClassificationReview(): void {
+    this.classificationReviewOpen = false;
+    this.classificationSelectedAccountKey = '';
+    this.classificationEditor = undefined;
+    this.classificationPreview = undefined;
+    this.classificationSaveMessage = '';
+    this.classificationSaveImpact = undefined;
+    const returnFocus = this.classificationReviewReturnFocus;
+    this.classificationReviewReturnFocus = undefined;
+    queueMicrotask(() => {
+      if (returnFocus?.isConnected) returnFocus.focus();
+    });
+  }
+
+
+  refreshClassificationReview(): void {
+    if (!this.classificationReviewOpen) return;
+    this.loadClassificationState();
+    if (this.classificationSelectedAccountKey) {
+      const selected = this.classificationReview?.accounts.find(item => this.classificationSelectionKey(item.accountRole, item.accountId) === this.classificationSelectedAccountKey);
+      if (selected) this.setClassificationEditor(selected.accountRole, selected.accountId, selected);
+      else this.classificationEditor = undefined;
+    }
+  }
+
+  private loadClassificationState(): void {
+    const query = this.cashFlowClassificationQuery();
+    if (!query) return;
+    this.classificationError = '';
+    this.cashFlowFacade.loadCatalog();
+    this.cashFlowFacade.loadClassificationReview(query);
+    this.classificationReview = this.cashFlowFacade.classificationReview();
+    const facadeError = this.cashFlowFacade.error();
+    if (facadeError || !this.classificationReview) {
+      this.classificationError = facadeError ?? 'Unable to load Cash Flow classifications.';
+      this.classificationRows = [];
+      return;
+    }
+    const exported = this.cashFlowFacade.exportClassifications({ databaseRevision: this.classificationReview.databaseRevision });
+    this.classificationRows = exported?.rows ?? [];
+  }
+
+  get filteredClassificationReviewItems(): readonly CashFlowClassificationReviewItem[] {
+    const query = this.classificationReviewSearch.trim().toLocaleLowerCase();
+    return (this.classificationReview?.accounts ?? []).filter(item => {
+      const matchesFilter = this.classificationReviewFilter === 'ALL'
+        || (this.classificationReviewFilter === 'REVIEW_REQUIRED' && (item.status === 'REVIEW_REQUIRED' || item.reviewReasons?.length))
+        || (this.classificationReviewFilter === 'CASH' && item.accountRole === 'FINANCIAL_SOURCE' && ['CASH', 'CASH_EQUIVALENT', 'RESTRICTED_CASH', 'REVIEW_REQUIRED'].includes(item.cashRole ?? ''))
+        || (this.classificationReviewFilter === 'OPERATING' && item.treatment.startsWith('OPERATING'))
+        || (this.classificationReviewFilter === 'INVESTING' && item.treatment === 'INVESTING')
+        || (this.classificationReviewFilter === 'FINANCING' && item.treatment === 'FINANCING')
+        || (this.classificationReviewFilter === 'NONCASH' && ['NONCASH_PNL_ADJUSTMENT', 'NONCASH_DISCLOSURE', 'EXCLUDED'].includes(item.treatment));
+      if (!matchesFilter) return false;
+      if (!query) return true;
+      return `${item.accountPath} ${item.accountType} ${item.detailType} ${item.rationale}`.toLocaleLowerCase().includes(query);
+    });
+  }
+
+  selectClassificationReviewItem(item: CashFlowClassificationReviewItem): void {
+    this.classificationSelectedAccountKey = this.classificationSelectionKey(item.accountRole, item.accountId);
+    this.setClassificationEditor(item.accountRole, item.accountId, item);
+  }
+
+  private setClassificationEditor(role: 'FINANCIAL_SOURCE' | 'CHART', accountId: string, reviewItem?: CashFlowClassificationReviewItem): void {
+    const row = this.classificationRows.find(candidate => candidate.accountRole === role && candidate.accountId === accountId);
+    if (!row) {
+      this.classificationError = 'The selected account classification is no longer available. Reload the review.';
+      this.classificationEditor = undefined;
+      return;
+    }
+    const current = reviewItem?.currentClassification;
+    const suggested = reviewItem?.suggestedClassification;
+    const fallback = current ?? suggested ?? {
+      ...(row.cashRole === undefined ? {} : { cashRole: row.cashRole }),
+      treatment: row.treatment,
+      status: row.status,
+      source: row.source,
+      rationale: row.rationale,
+    };
+    this.classificationEditor = {
+      accountRole: role,
+      accountId,
+      accountPath: row.accountPath,
+      accountType: row.accountType,
+      detailType: row.detailType,
+      archived: Boolean(reviewItem?.archived || reviewItem?.reviewReasons?.includes('ARCHIVED_ACCOUNT')),
+      ...(fallback.cashRole === undefined ? {} : { cashRole: fallback.cashRole }),
+      treatment: fallback.treatment,
+      rationale: current?.rationale ?? suggested?.rationale ?? row.rationale,
+      expectedModifiedAtUtc: current?.modifiedAtUtc ?? row.modifiedAtUtc,
+      periodActivityMinor: reviewItem?.periodActivityMinor ?? 0n,
+      reportImpactMinor: reviewItem?.reportImpactMinor ?? 0n,
+      ...(current ? { currentClassification: current } : {}),
+      ...(suggested ? { suggestedClassification: suggested } : {}),
+      reviewReasons: reviewItem?.reviewReasons ?? [],
+    };
+    this.classificationPreview = undefined;
+    this.classificationError = '';
+    this.previewClassificationEditor();
+  }
+
+  openClassificationEditor(role: 'FINANCIAL_SOURCE' | 'CHART', accountId: string): void {
+    if (!this.classificationReviewOpen) this.openClassificationReview();
+    this.classificationSelectedAccountKey = this.classificationSelectionKey(role, accountId);
+    const reviewItem = this.classificationReview?.accounts.find(item => item.accountRole === role && item.accountId === accountId);
+    this.setClassificationEditor(role, accountId, reviewItem);
+  }
+
+  classificationEditorChanged(): void {
+    this.classificationSaveMessage = '';
+    this.previewClassificationEditor();
+  }
+
+  classificationEditorFieldChanged(change: Partial<CashFlowClassificationEditorDraft>): void {
+    if (this.classificationEditor) Object.assign(this.classificationEditor, change);
+    this.classificationEditorChanged();
+  }
+
+  classificationReviewFilterChanged(value: string): void {
+    if (['ALL', 'REVIEW_REQUIRED', 'CASH', 'OPERATING', 'INVESTING', 'FINANCING', 'NONCASH'].includes(value)) {
+      this.classificationReviewFilter = value as ClassificationReviewFilter;
+    }
+  }
+
+  private previewClassificationEditor(): void {
+    const draft = this.classificationEditor;
+    if (!draft) return;
+    this.cashFlowFacade.previewClassification({
+      accountRole: draft.accountRole,
+      accountId: draft.accountId,
+      ...(draft.cashRole === undefined ? {} : { cashRole: draft.cashRole }),
+      treatment: draft.treatment,
+      query: this.classificationReview?.query ?? this.cashFlowClassificationQuery(),
+    });
+    this.classificationPreview = this.cashFlowFacade.classificationPreview();
+    if (this.classificationPreview?.periodActivityMinor !== undefined) {
+      draft.periodActivityMinor = this.classificationPreview.periodActivityMinor;
+      draft.reportImpactMinor = this.classificationPreview.reportImpactMinor ?? this.classificationPreview.periodActivityMinor;
+    }
+    this.classificationError = this.cashFlowFacade.error() ?? (this.classificationPreview?.failures.map(failure => failure.message).join(' ') ?? '');
+  }
+
+  saveClassificationEditor(): void {
+    const draft = this.classificationEditor;
+    if (!draft || !this.classificationEditorSaveEnabled) return;
+    this.cashFlowFacade.saveClassification({
+      accountRole: draft.accountRole,
+      accountId: draft.accountId,
+      ...(draft.cashRole === undefined ? {} : { cashRole: draft.cashRole }),
+      treatment: draft.treatment,
+      userRationale: draft.rationale.trim(),
+      expectedModifiedAtUtc: draft.expectedModifiedAtUtc,
+      query: this.classificationReview?.query ?? this.cashFlowClassificationQuery(),
+    });
+    const savedReview = this.cashFlowFacade.classificationReview();
+    const error = this.cashFlowFacade.error();
+    if (error || !savedReview) {
+      this.classificationError = error ?? 'Unable to save Cash Flow classification.';
+      return;
+    }
+    this.classificationSaveImpact = savedReview.saveImpact ?? savedReview.impact;
+    this.classificationSaveMessage = `Saved classification for ${draft.accountPath}. Affected report sections will use it after refresh.`;
+    this.statusMessage = `Saved Cash Flow classification for ${draft.accountPath}.`;
+    this.loadClassificationState();
+    const updatedItem = this.classificationReview?.accounts.find(item => item.accountRole === draft.accountRole && item.accountId === draft.accountId);
+    this.setClassificationEditor(draft.accountRole, draft.accountId, updatedItem);
+  }
+
+  cancelClassificationEditor(): void {
+    const draft = this.classificationEditor;
+    if (!draft) return;
+    const reviewItem = this.classificationReview?.accounts.find(item => item.accountRole === draft.accountRole && item.accountId === draft.accountId);
+    this.setClassificationEditor(draft.accountRole, draft.accountId, reviewItem);
+    this.classificationSaveMessage = '';
+    this.classificationSaveImpact = undefined;
+  }
+
+  get classificationEditorSaveEnabled(): boolean {
+    const draft = this.classificationEditor;
+    if (!draft || draft.archived || !draft.rationale.trim() || !this.classificationPreview?.valid || !this.classificationEditorStructureStable) return false;
+    return true;
+  }
+
+  get classificationEditorStructureStable(): boolean {
+    const editor = this.classificationEditor;
+    if (!editor) return false;
+    const generic = this.genericAccountDraft;
+    if (generic?.accountId === editor.accountId && generic.requestedRole === editor.accountRole) return generic.accountType === editor.accountType && generic.detailType === editor.detailType;
+    const financial = this.financialAccountDraft;
+    if (financial?.id === editor.accountId && editor.accountRole === 'FINANCIAL_SOURCE') return financial.type === editor.accountType && financial.detailType === editor.detailType;
+    return true;
+  }
+
+  classificationTreatmentLabel(treatment: CashFlowTreatment): string {
+    return this.cashFlowFacade.catalog()?.labels.treatments[treatment] ?? treatment.replaceAll('_', ' ').toLocaleLowerCase().replace(/\b\w/g, value => value.toUpperCase());
+  }
+
+  classificationCashRoleLabel(role: CashFlowCashRole): string {
+    return this.cashFlowFacade.catalog()?.labels.cashRoles[role] ?? role.replaceAll('_', ' ').toLocaleLowerCase().replace(/\b\w/g, value => value.toUpperCase());
+  }
+
+  classificationReasonLabel(reason: CashFlowClassificationReviewReasonCode): string {
+    const labels: Record<CashFlowClassificationReviewReasonCode, string> = {
+      MISSING_CLASSIFICATION: 'Missing classification',
+      INVALID_CLASSIFICATION: 'Invalid classification',
+      STRUCTURE_CHANGED: 'Account structure changed',
+      AMBIGUOUS_STRUCTURE: 'Custom or ambiguous structure',
+      CLASSIFICATION_REVIEW_REQUIRED: 'Classification is marked Review required',
+      ARCHIVED_ACCOUNT: 'Archived account',
+    };
+    return labels[reason];
+  }
+
+  classificationReviewItemReasonText(item: CashFlowClassificationReviewItem): string {
+    return item.reviewReasons?.map(reason => this.classificationReasonLabel(reason)).join(' · ') || item.rationale;
+  }
+
+  classificationMoney(value: bigint): string { return formatMoney(money(value)); }
+
   openNewGenericAccount(role: AccountRole): void {
     const year = this.accounting.getCompany().activeTaxYear;
     const accountType: AccountingAccountType = role === 'FINANCIAL_SOURCE' ? 'BANK' : 'EXPENSE';
@@ -465,6 +754,8 @@ export class AppComponent {
     };
     this.genericAccountPriorType = accountType;
     this.genericAccountReferencesConfirmed = false;
+    this.classificationEditor = undefined;
+    this.classificationPreview = undefined;
     this.refreshGenericAccountReview();
   }
 
@@ -480,6 +771,8 @@ export class AppComponent {
     };
     this.genericAccountPriorType = account.accountType;
     this.genericAccountReferencesConfirmed = false;
+    this.loadClassificationState();
+    this.setClassificationEditor('FINANCIAL_SOURCE', account.id, this.classificationReview?.accounts.find(item => item.accountRole === 'FINANCIAL_SOURCE' && item.accountId === account.id));
     this.refreshGenericAccountReview();
   }
 
@@ -495,6 +788,8 @@ export class AppComponent {
     };
     this.genericAccountPriorType = account.accountType;
     this.genericAccountReferencesConfirmed = false;
+    this.loadClassificationState();
+    this.setClassificationEditor('CHART', account.id, this.classificationReview?.accounts.find(item => item.accountRole === 'CHART' && item.accountId === account.id));
     this.refreshGenericAccountReview();
   }
 
@@ -504,6 +799,9 @@ export class AppComponent {
     this.genericAccountValidation = undefined;
     this.genericAccountError = '';
     this.genericAccountReferencesConfirmed = false;
+    this.classificationEditor = undefined;
+    this.classificationPreview = undefined;
+    this.classificationSaveMessage = '';
   }
 
   genericAccountRoleChanged(): void {
@@ -1358,6 +1656,8 @@ export class AppComponent {
       parentAccountId: undefined, description: '', openingBalanceText: '0.00', openingBalanceDate: `${year}-01-01`,
       locked: false, archived: false,
     };
+    this.classificationEditor = undefined;
+    this.classificationPreview = undefined;
   }
 
   editFinancialAccount(id: string): void {
@@ -1370,9 +1670,16 @@ export class AppComponent {
       openingBalanceText: this.minorUnitsToInput(account.openingBalance.minorUnits), openingBalanceDate: account.openingBalanceDate,
       locked: account.locked, archived: account.archived,
     };
+    this.loadClassificationState();
+    this.setClassificationEditor('FINANCIAL_SOURCE', account.id, this.classificationReview?.accounts.find(item => item.accountRole === 'FINANCIAL_SOURCE' && item.accountId === account.id));
   }
 
-  closeFinancialAccountEditor(): void { this.financialAccountDraft = undefined; }
+  closeFinancialAccountEditor(): void {
+    this.financialAccountDraft = undefined;
+    this.classificationEditor = undefined;
+    this.classificationPreview = undefined;
+    this.classificationSaveMessage = '';
+  }
 
   financialAccountTypeChanged(): void {
     if (!this.financialAccountDraft) return;

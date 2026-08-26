@@ -46,6 +46,173 @@ describe('AppComponent', () => {
     expect(fixture.nativeElement.querySelector('#reports-workspace')).toBeNull();
   });
 
+  it('opens the Cash Flow classification review, exposes structural reasons, and saves a validated stable-ID change', () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const created = application.saveGenericAccount({
+      requestedRole: 'CHART', accountType: 'EXPENSE', detailType: 'Other business expenses', name: 'Classification review expense',
+      importCapability: { enabled: false, supportedSourceKinds: [] }, openingBalanceSource: 'DERIVED_EQUITY', openingBalanceMinor: 0n,
+      openingBalanceDate: '2026-01-01', displayOrder: 900, locked: false,
+    });
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    repository.chartAccounts.get(created.accountId)!.detailType = 'Custom UI detail';
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.openClassificationReview();
+    fixture.detectChanges();
+
+    const panel = fixture.nativeElement.querySelector('.cash-flow-review-panel') as HTMLElement;
+    expect(panel).toBeTruthy();
+    expect(panel.textContent).toContain('Review classifications');
+    const reviewItem = component.classificationReview?.accounts.find(item => item.accountId === created.accountId)!;
+    expect(reviewItem.reviewReasons).toContain('AMBIGUOUS_STRUCTURE');
+    expect(panel.textContent).toContain('Custom or ambiguous structure');
+
+    component.selectClassificationReviewItem(reviewItem);
+    fixture.detectChanges();
+    expect(panel.querySelector('.cash-flow-review-editor')?.textContent).toContain('Classification review expense');
+    component.classificationEditor!.treatment = 'FINANCING';
+    component.classificationEditor!.rationale = 'Owner-financed expense policy for this test account.';
+    component.classificationEditorChanged();
+    fixture.detectChanges();
+    const save = Array.from(panel.querySelectorAll('button')).find(button => button.textContent?.trim() === 'Save classification') as HTMLButtonElement;
+    expect(save.disabled).toBeFalse();
+    save.click();
+    fixture.detectChanges();
+
+    const revision = application.getCashFlowClassificationReview({ startDate: '2026-01-01', endDate: '2026-12-31', includeZeroRows: true }).databaseRevision;
+    const exported = application.exportCashFlowClassifications({ databaseRevision: revision });
+    expect(exported.rows.find(row => row.accountId === created.accountId)?.treatment).toBe('FINANCING');
+    expect(component.classificationSaveMessage).toContain('Classification review expense');
+    expect(component.classificationReview?.accounts.find(item => item.accountId === created.accountId)?.currentClassification?.treatment).toBe('FINANCING');
+    expect(component.classificationEditor?.expectedModifiedAtUtc).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+  });
+
+  it('blocks an incompatible Cash Flow combination in the account editor before save', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const account = component.accounts.find(item => item.name === 'Operating Checking')!;
+    component.editGenericFinancialAccount(account.id);
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.cash-flow-classification-section')?.textContent).toContain('Cash Flow classification');
+    component.classificationEditor!.cashRole = 'CASH';
+    component.classificationEditor!.treatment = 'FINANCING';
+    component.classificationEditorChanged();
+    fixture.detectChanges();
+    expect(component.classificationPreview?.valid).toBeFalse();
+    const save = (Array.from(fixture.nativeElement.querySelectorAll('.cash-flow-classification-section button')) as HTMLButtonElement[]).find(button => button.textContent?.trim() === 'Save classification') as HTMLButtonElement;
+    expect(save.disabled).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.classification-preview.invalid')).toBeTruthy();
+  });
+
+  it('returns confirmed participating accounts in the complete review and keeps role namespaces distinct', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.openClassificationReview();
+    fixture.detectChanges();
+    const review = component.classificationReview!;
+    const checking = review.accounts.find(item => item.accountPath.endsWith('Operating Checking'))!;
+    expect(checking.currentClassification).toBeTruthy();
+    expect(checking.currentClassification?.modifiedAtUtc).toMatch(/^\d{4}-\d{2}-\d{2}T/);
+    expect(checking.reviewReasons ?? []).not.toContain('MISSING_CLASSIFICATION');
+    expect(component.filteredClassificationReviewItems.some(item => item.accountId === checking.accountId)).toBeFalse();
+    component.classificationReviewFilter = 'ALL';
+    expect(component.filteredClassificationReviewItems.some(item => item.accountId === checking.accountId)).toBeTrue();
+    expect(component.classificationSelectionKey('FINANCIAL_SOURCE', checking.accountId)).not.toBe(component.classificationSelectionKey('CHART', checking.accountId));
+  });
+
+  it('rejects a stale classification save and preserves the externally updated value', () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.openClassificationReview();
+    fixture.detectChanges();
+    const item = component.classificationReview!.accounts.find(candidate => candidate.accountPath.endsWith('Operating Checking'))!;
+    component.selectClassificationReviewItem(item);
+    const expectedModifiedAtUtc = component.classificationEditor!.expectedModifiedAtUtc;
+    expect(expectedModifiedAtUtc).toBeTruthy();
+    application.saveCashFlowClassification({
+      accountRole: 'FINANCIAL_SOURCE', accountId: item.accountId, cashRole: 'CASH', treatment: 'CASH_BALANCE',
+      userRationale: 'External update wins this concurrency test.', expectedModifiedAtUtc,
+      query: component.classificationReview!.query,
+    });
+    component.classificationEditor!.rationale = 'Stale UI update must not overwrite the external change.';
+    component.classificationEditorChanged();
+    component.saveClassificationEditor();
+    expect(component.classificationError).toContain('Reload and try again');
+    const revision = application.getCashFlowClassificationReview(component.classificationReview!.query).databaseRevision;
+    const row = application.exportCashFlowClassifications({ databaseRevision: revision }).rows.find(candidate => candidate.accountId === item.accountId)!;
+    expect(row.rationale).toBe('External update wins this concurrency test.');
+  });
+
+  it('uses the selected classification period for preview and save impact', () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.classificationReviewStartDate = '2026-01-01';
+    component.classificationReviewEndDate = '2026-01-31';
+    component.openClassificationReview();
+    fixture.detectChanges();
+    const item = component.classificationReview!.accounts.find(candidate => candidate.accountPath.endsWith('Operating Checking'))!;
+    component.selectClassificationReviewItem(item);
+    expect(component.classificationPreview?.query).toEqual(component.classificationReview!.query);
+    expect(component.classificationPreview?.periodActivityMinor).toBe(component.classificationEditor!.periodActivityMinor);
+    component.classificationEditor!.rationale = 'Selected-period impact test.';
+    component.classificationEditorChanged();
+    component.saveClassificationEditor();
+    expect(component.classificationSaveImpact?.query).toEqual(component.classificationReview!.query);
+  });
+
+  it('focuses the review dialog, traps Tab, restores the opener, and closes on Escape', async () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const trigger = fixture.nativeElement.querySelector('.section-heading-actions .quiet-button') as HTMLButtonElement;
+    trigger.focus();
+    trigger.click();
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const panel = fixture.nativeElement.querySelector('.cash-flow-review-panel') as HTMLElement;
+    expect(document.activeElement).toBe(panel);
+    const focusable = Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+    const last = focusable[focusable.length - 1];
+    last.focus();
+    const tab = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true });
+    panel.dispatchEvent(tab);
+    expect(document.activeElement).toBe(focusable[0]);
+    const search = panel.querySelector('input') as HTMLInputElement;
+    search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    await fixture.whenStable();
+    expect(fixture.nativeElement.querySelector('.cash-flow-review-panel')).toBeNull();
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it('keeps archived classification editors read-only', () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    const chart = [...repository.chartAccounts.values()].find(account => !account.archived)!;
+    application.archiveChartAccount(chart.id, true);
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.openClassificationReview();
+    fixture.detectChanges();
+    const item = component.classificationReview!.accounts.find(candidate => candidate.accountRole === 'CHART' && candidate.accountId === chart.id)!;
+    component.selectClassificationReviewItem(item);
+    fixture.detectChanges();
+    expect(item.archived).toBeTrue();
+    expect(component.classificationEditor?.archived).toBeTrue();
+    const controls = fixture.nativeElement.querySelectorAll('.cash-flow-review-editor select, .cash-flow-review-editor textarea') as NodeListOf<HTMLSelectElement | HTMLTextAreaElement>;
+    expect(controls.length).toBeGreaterThan(0);
+    expect((fixture.nativeElement.querySelector('.cash-flow-review-editor fieldset') as HTMLFieldSetElement).disabled).toBeTrue();
+    expect(Array.from(controls).every(control => control.matches(':disabled'))).toBeTrue();
+    expect(fixture.nativeElement.querySelector('.cash-flow-review-editor')?.textContent).toContain('read-only');
+  });
+
   it('edits two neutral company identities, refreshes branding, and excludes tax data from standard identity', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();

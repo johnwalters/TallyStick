@@ -210,7 +210,7 @@ export class InMemoryAccountingRepository implements AccountingRepository {
     if (persisted) throw new Error(`Existing Cash Flow classification for ${accountId} no longer matches its account structure. Reclassify it explicitly before saving the account.`);
     const seeded = getDefaultCashFlowClassification({ accountRole, accountType: normalizedAccountType, detailType: normalizedDetailType });
     if (!seeded.ok) throw new Error(`Unable to seed Cash Flow classification for ${accountId}: ${seeded.error.code}.`);
-    return { ...seeded.value, accountRole, accountId, accountType: normalizedAccountType, detailType: normalizedDetailType };
+    return { ...seeded.value, accountRole, accountId, accountType: normalizedAccountType, detailType: normalizedDetailType, modifiedAtUtc: nowUtc() };
   }
 
   private revision(value: unknown): string {

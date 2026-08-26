@@ -36,7 +36,7 @@
       <p class="eyebrow">01 · ACCOUNTS</p>
       <h2>Account overview</h2>
     </div>
-    <button type="button" class="primary-button" (click)="openNewGenericAccount('FINANCIAL_SOURCE')">Add account</button>
+    <div class="section-heading-actions"><button type="button" class="quiet-button" (click)="openClassificationReview($any($event.currentTarget))">Review classifications</button><button type="button" class="primary-button" (click)="openNewGenericAccount('FINANCIAL_SOURCE')">Add account</button></div>
   </section>
 
   <section class="account-grid">
@@ -231,7 +231,7 @@
   <section id="chart-workspace" class="chart-workspace workspace-panel" role="tabpanel" aria-labelledby="chart-workspace-tab">
     <header class="chart-heading">
       <div><p class="eyebrow">CHART OF ACCOUNTS</p><h2>Accounting categories</h2><p>{{ managedChartAccountCount }} accounts define transaction categories and report hierarchy.</p></div>
-      <button type="button" class="primary-button" (click)="openNewGenericAccount('CHART')">New account</button>
+      <div class="section-heading-actions"><button type="button" class="quiet-button" (click)="openClassificationReview($any($event.currentTarget))">Review classifications</button><button type="button" class="primary-button" (click)="openNewGenericAccount('CHART')">New account</button></div>
     </header>
 
     <div class="chart-toolbar">
@@ -456,6 +456,42 @@
   </section>
   }
 
+  @if (classificationReviewOpen) {
+      <app-cash-flow-classification-review
+        [review]="classificationReview"
+        [items]="filteredClassificationReviewItems"
+        [editor]="classificationEditor"
+        [preview]="classificationPreview"
+        [saveImpact]="classificationSaveImpact"
+        [error]="classificationError"
+        [saveMessage]="classificationSaveMessage"
+        [saveEnabled]="classificationEditorSaveEnabled"
+        [structureStable]="classificationEditorStructureStable"
+        [startDate]="classificationReviewStartDate"
+        [endDate]="classificationReviewEndDate"
+        [filter]="classificationReviewFilter"
+        [search]="classificationReviewSearch"
+        [selectedKey]="classificationSelectedAccountKey"
+        [cashRoles]="cashFlowCashRoles"
+        [treatments]="cashFlowTreatments"
+        [selectionKey]="classificationSelectionKey"
+        [money]="classificationMoneyForReview"
+        [cashRoleLabel]="classificationCashRoleLabelForReview"
+        [treatmentLabel]="classificationTreatmentLabelForReview"
+        [reasonLabel]="classificationReasonLabelForReview"
+        [reasonText]="classificationReasonTextForReview"
+        (close)="closeClassificationReview()"
+        (refresh)="refreshClassificationReview()"
+        (select)="selectClassificationReviewItem($event)"
+        (fieldChange)="classificationEditorFieldChanged($event)"
+        (startDateChange)="classificationReviewStartDate = $event; refreshClassificationReview()"
+        (endDateChange)="classificationReviewEndDate = $event; refreshClassificationReview()"
+        (filterChange)="classificationReviewFilterChanged($event)"
+        (searchChange)="classificationReviewSearch = $event"
+        (cancel)="cancelClassificationEditor()"
+        (save)="saveClassificationEditor()" />
+  }
+
   @if (genericAccountDraft) {
     <div class="generic-account-editor-backdrop" (click)="closeGenericAccountEditor()">
       <aside class="generic-account-editor-panel" role="dialog" aria-modal="true" aria-labelledby="generic-account-editor-title" tabindex="-1" (keydown.escape)="closeGenericAccountEditor()" (click)="$event.stopPropagation()">
@@ -493,6 +529,27 @@
 
             @if (genericAccountPreview) {
               <section class="generic-placement-preview" aria-live="polite"><div><span>Statement placement</span><strong>{{ genericAccountPreview.fullPath }}</strong></div>@if (genericAccountPreview.behavior === 'CURRENT_EARNINGS') { <p><strong>Current Earnings</strong><small>This Income or Expense account contributes through earnings and does not appear as an individual Balance Sheet line.</small></p> } @else { <p><strong>{{ genericAccountCurrentBalance || '$0.00' }}</strong><small>Current balance as of {{ genericAccountPreview.asOfDate }}</small></p> }</section>
+            }
+
+            @if (genericAccountDraft.accountId && classificationEditor) {
+              <section class="cash-flow-classification-section" aria-labelledby="cash-flow-classification-editor-heading">
+                <div class="cash-flow-section-heading"><div><h3 id="cash-flow-classification-editor-heading">Cash Flow classification</h3><p>Controls Statement of Cash Flows placement only. Account ID, categorization, imports, P/L, and Balance Sheet placement stay unchanged.</p></div><span class="classification-source-badge">{{ classificationEditor.currentClassification?.source || classificationEditor.suggestedClassification?.source || 'CURRENT' }}</span></div>
+                @if (classificationEditor.reviewReasons.length) { <div class="classification-reasons" role="status"><strong>Review context</strong><ul>@for (reason of classificationEditor.reviewReasons; track reason) { <li>{{ classificationReasonLabel(reason) }}</li> }</ul></div> }
+                @if (classificationEditor.suggestedClassification) { <div class="classification-suggestion"><strong>Structural suggestion</strong><span>{{ classificationEditor.suggestedClassification.cashRole ? classificationCashRoleLabel(classificationEditor.suggestedClassification.cashRole) + ' · ' : '' }}{{ classificationTreatmentLabel(classificationEditor.suggestedClassification.treatment) }}</span><small>{{ classificationEditor.suggestedClassification.rationale }}</small></div> }
+                @if (classificationEditor.archived) { <p class="cash-flow-classification-note" role="status">This archived account is read-only. Restore it before changing its Cash Flow classification.</p> }
+                <fieldset class="cash-flow-editor-fields" [disabled]="classificationEditor.archived || !classificationEditorStructureStable">
+                  @if (classificationEditor.accountRole === 'FINANCIAL_SOURCE') { <label><span>Cash role</span><select name="genericCashFlowCashRole" [(ngModel)]="classificationEditor.cashRole" (change)="classificationEditorChanged()">@for (role of cashFlowCashRoles; track role) { <option [value]="role">{{ classificationCashRoleLabel(role) }}</option> }</select></label> }
+                  <label><span>Cash Flow treatment</span><select name="genericCashFlowTreatment" [(ngModel)]="classificationEditor.treatment" (change)="classificationEditorChanged()">@for (treatment of cashFlowTreatments; track treatment) { <option [value]="treatment">{{ classificationTreatmentLabel(treatment) }}</option> }</select></label>
+                  <label><span>Rationale <small>Required for every saved change</small></span><textarea name="genericCashFlowRationale" rows="3" [(ngModel)]="classificationEditor.rationale" (ngModelChange)="classificationSaveMessage = ''" placeholder="Explain the accounting policy for this Cash Flow classification"></textarea></label>
+                </fieldset>
+                @if (!classificationEditorStructureStable) { <p class="cash-flow-classification-note" role="status">Save the account structure first. Cash Flow classification is validated against the saved Account Type and Detail Type.</p> }
+                @if (classificationPreview; as preview) { <div class="classification-preview" [class.invalid]="!preview.valid" role="status"><strong>{{ preview.valid ? 'Proposed placement' : 'Cannot save this combination' }}</strong><span>{{ preview.statementLabel }}</span><small>{{ preview.rationale }}</small>@if (!preview.valid) { <ul>@for (failure of preview.failures; track failure.code) { <li>{{ failure.message }}</li> }</ul> }</div> }
+                @if (classificationError) { <p class="cash-flow-classification-error" role="alert">{{ classificationError }}</p> }
+                @if (classificationSaveMessage) { <p class="cash-flow-classification-success" role="status">{{ classificationSaveMessage }}</p> }
+                <div class="cash-flow-classification-actions"><button type="button" class="quiet-button" (click)="cancelClassificationEditor()">Cancel</button><button type="button" class="primary-button" [disabled]="!classificationEditorSaveEnabled" (click)="saveClassificationEditor()">Save classification</button></div>
+              </section>
+            } @else if (!genericAccountDraft.accountId) {
+              <section class="cash-flow-classification-section cash-flow-classification-new" aria-label="Cash Flow classification"><h3>Cash Flow classification</h3><p>After this account is created, its structural Cash Flow default will be available for review here.</p></section>
             }
 
             @if (genericAccountValidation; as validation) {
@@ -537,6 +594,24 @@
           </div>
           @if (financialAccountDraft.id) {
             <div class="account-current-balance"><span>Current calculated balance</span><strong>{{ financialAccountCurrentBalance }}</strong><small>Opening balance plus Posted and matched-transfer activity.</small></div>
+          }
+          @if (financialAccountDraft.id && classificationEditor) {
+            <section class="cash-flow-classification-section" aria-labelledby="financial-cash-flow-classification-heading">
+              <div class="cash-flow-section-heading"><div><h3 id="financial-cash-flow-classification-heading">Cash Flow classification</h3><p>Cash role and treatment affect Statement of Cash Flows only.</p></div><span class="classification-source-badge">{{ classificationEditor.currentClassification?.source || classificationEditor.suggestedClassification?.source || 'CURRENT' }}</span></div>
+              @if (classificationEditor.reviewReasons.length) { <div class="classification-reasons" role="status"><strong>Review context</strong><ul>@for (reason of classificationEditor.reviewReasons; track reason) { <li>{{ classificationReasonLabel(reason) }}</li> }</ul></div> }
+              @if (classificationEditor.suggestedClassification) { <div class="classification-suggestion"><strong>Structural suggestion</strong><span>{{ classificationEditor.suggestedClassification.cashRole ? classificationCashRoleLabel(classificationEditor.suggestedClassification.cashRole) + ' · ' : '' }}{{ classificationTreatmentLabel(classificationEditor.suggestedClassification.treatment) }}</span><small>{{ classificationEditor.suggestedClassification.rationale }}</small></div> }
+              @if (classificationEditor.archived) { <p class="cash-flow-classification-note" role="status">This archived account is read-only. Restore it before changing its Cash Flow classification.</p> }
+              <fieldset class="cash-flow-editor-fields" [disabled]="classificationEditor.archived || !classificationEditorStructureStable">
+                <label><span>Cash role</span><select [(ngModel)]="classificationEditor.cashRole" (change)="classificationEditorChanged()">@for (role of cashFlowCashRoles; track role) { <option [value]="role">{{ classificationCashRoleLabel(role) }}</option> }</select></label>
+                <label><span>Cash Flow treatment</span><select [(ngModel)]="classificationEditor.treatment" (change)="classificationEditorChanged()">@for (treatment of cashFlowTreatments; track treatment) { <option [value]="treatment">{{ classificationTreatmentLabel(treatment) }}</option> }</select></label>
+                <label><span>Rationale <small>Required for every saved change</small></span><textarea rows="3" [(ngModel)]="classificationEditor.rationale" (ngModelChange)="classificationSaveMessage = ''" placeholder="Explain the accounting policy for this Cash Flow classification"></textarea></label>
+              </fieldset>
+              @if (!classificationEditorStructureStable) { <p class="cash-flow-classification-note" role="status">Save the account structure first. Cash Flow classification is validated against the saved Account Type and Detail Type.</p> }
+              @if (classificationPreview; as preview) { <div class="classification-preview" [class.invalid]="!preview.valid" role="status"><strong>{{ preview.valid ? 'Proposed placement' : 'Cannot save this combination' }}</strong><span>{{ preview.statementLabel }}</span><small>{{ preview.rationale }}</small>@if (!preview.valid) { <ul>@for (failure of preview.failures; track failure.code) { <li>{{ failure.message }}</li> }</ul> }</div> }
+              @if (classificationError) { <p class="cash-flow-classification-error" role="alert">{{ classificationError }}</p> }
+              @if (classificationSaveMessage) { <p class="cash-flow-classification-success" role="status">{{ classificationSaveMessage }}</p> }
+              <div class="cash-flow-classification-actions"><button type="button" class="quiet-button" (click)="cancelClassificationEditor()">Cancel</button><button type="button" class="primary-button" [disabled]="!classificationEditorSaveEnabled" (click)="saveClassificationEditor()">Save classification</button></div>
+            </section>
           }
           <div class="account-state-controls">
             <label><input type="checkbox" [(ngModel)]="financialAccountDraft.locked" /><span>Lock account</span><small>Locked accounts cannot be archived.</small></label>

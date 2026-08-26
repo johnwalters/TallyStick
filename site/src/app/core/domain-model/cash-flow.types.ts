@@ -247,6 +247,8 @@ export interface CashFlowClassificationTarget {
 export interface PreviewCashFlowClassificationCommand extends CashFlowClassificationTarget {
   readonly cashRole?: CashFlowCashRole;
   readonly treatment: CashFlowTreatment;
+  /** The period used for proposed activity/report-impact feedback. */
+  readonly query?: CashFlowQuery;
 }
 
 export interface CashFlowClassificationPreview {
@@ -255,6 +257,9 @@ export interface CashFlowClassificationPreview {
   readonly statementSection?: CashFlowSection;
   readonly statementLabel: string;
   readonly rationale: string;
+  readonly query?: CashFlowQuery;
+  readonly periodActivityMinor?: bigint;
+  readonly reportImpactMinor?: bigint;
   readonly failures: readonly CashFlowClassificationFailure[];
 }
 
@@ -349,6 +354,8 @@ export interface CashFlowClassificationExchangeRow {
   readonly status: CashFlowClassificationStatus;
   readonly source: CashFlowClassificationSource;
   readonly rationale: string;
+  /** Optimistic-concurrency token for direct editor entry and round trips. */
+  readonly modifiedAtUtc?: string;
 }
 
 /**

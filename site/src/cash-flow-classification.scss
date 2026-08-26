@@ -1,0 +1,67 @@
+.section-heading-actions { display: flex; align-items: center; gap: 9px; flex-wrap: wrap; }
+.cash-flow-classification-section { display: grid; gap: 13px; padding: 17px 0 3px; border-top: 1px solid #dce2dc; }
+.cash-flow-classification-section h3, .cash-flow-review-editor h3 { margin: 0; color: #17332f; font: 600 17px Georgia, serif; }
+.cash-flow-section-heading, .cash-flow-review-editor-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 14px; }
+.cash-flow-section-heading p, .cash-flow-review-editor-heading p:not(.eyebrow) { margin: 5px 0 0; color: #7c8881; font-size: 11px; line-height: 1.45; }
+.classification-source-badge, .classification-archived-badge { flex: 0 0 auto; padding: 5px 8px; border-radius: 999px; background: #edf1ec; color: #68736d; font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.classification-archived-badge { background: #f7e9e4; color: #985742; }
+.cash-flow-classification-section label, .cash-flow-review-editor label { display: grid; gap: 7px; color: #52665b; font-size: 11px; font-weight: 800; }
+.cash-flow-editor-fields { display: grid; gap: 14px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.cash-flow-editor-fields:disabled { opacity: .68; }
+.cash-flow-classification-section label small, .cash-flow-review-editor label small { color: #89948e; font-weight: 500; }
+.cash-flow-classification-section input, .cash-flow-classification-section select, .cash-flow-classification-section textarea, .cash-flow-review-editor input, .cash-flow-review-editor select, .cash-flow-review-editor textarea { box-sizing: border-box; width: 100%; min-height: 40px; padding: 9px 11px; border: 1px solid #cfd7d0; border-radius: 8px; background: #fff; color: #17332f; font: inherit; font-weight: 500; }
+.cash-flow-classification-section textarea, .cash-flow-review-editor textarea { resize: vertical; }
+.cash-flow-classification-section input:focus, .cash-flow-classification-section select:focus, .cash-flow-classification-section textarea:focus, .cash-flow-review-editor input:focus, .cash-flow-review-editor select:focus, .cash-flow-review-editor textarea:focus { border-color: #b87d4e; outline: 2px solid #b87d4e33; }
+.cash-flow-classification-new { padding: 15px; border-left: 3px solid #b87d4e; background: #f4f6f1; }
+.cash-flow-classification-new p { margin: 4px 0 0; color: #68736d; font-size: 11px; }
+.classification-reasons, .classification-current, .classification-suggestion, .classification-preview { display: grid; gap: 5px; padding: 11px 13px; border-left: 3px solid #b87d4e; background: #fff9ef; color: #52665b; font-size: 11px; }
+.classification-reasons { border-left-color: #985742; background: #fff5f1; }
+.classification-reasons strong, .classification-current strong, .classification-suggestion strong, .classification-preview strong { color: #17332f; }
+.classification-reasons ul, .classification-preview ul { margin: 0; padding-left: 18px; }
+.classification-reasons li, .classification-preview li { margin: 2px 0; }
+.classification-current { border-left-color: #829088; background: #f4f6f2; }
+.classification-impact { display: grid; gap: 5px; padding: 11px 13px; border-left: 3px solid #4f946f; background: #edf7f0; color: #52665b; font-size: 11px; }
+.classification-impact strong { color: #17332f; }
+.classification-impact span { color: #17332f; font-weight: 800; }
+.classification-impact small { color: #68736d; line-height: 1.4; }
+.classification-impact-saved { border-left-color: #17332f; background: #f0f5f0; }
+.classification-current span, .classification-suggestion span, .classification-preview span { color: #17332f; font-weight: 800; }
+.classification-current small, .classification-suggestion small, .classification-preview small { color: #68736d; line-height: 1.4; }
+.classification-preview { border-left-color: #4f946f; background: #edf7f0; }
+.classification-preview.invalid { border-left-color: #985742; background: #fff5f1; }
+.cash-flow-classification-note, .cash-flow-classification-error, .cash-flow-classification-success { margin: 0; padding: 10px 12px; font-size: 11px; line-height: 1.45; }
+.cash-flow-classification-note { border-left: 3px solid #b87d4e; background: #fff9ef; color: #7d5b27; }
+.cash-flow-classification-error { border-left: 3px solid #985742; background: #fff5f1; color: #7d3f2f; }
+.cash-flow-classification-success { border-left: 3px solid #4f946f; background: #edf7f0; color: #356448; }
+.cash-flow-classification-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.cash-flow-review-backdrop { position: fixed; z-index: 80; inset: 0; display: flex; justify-content: flex-end; background: #102b2766; backdrop-filter: blur(2px); }
+.cash-flow-review-panel { display: flex; width: min(980px, 100vw); height: 100%; background: #fbfcf9; box-shadow: -20px 0 48px #102b2730; animation: chart-editor-enter .18s ease-out; flex-direction: column; }
+.cash-flow-review-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; padding: 28px 30px 22px; border-bottom: 1px solid #dce2dc; }
+.cash-flow-review-header h2 { margin-bottom: 6px; }
+.cash-flow-review-header p:not(.eyebrow) { max-width: 710px; margin: 0; color: #7c8881; font-size: 12px; line-height: 1.5; }
+.cash-flow-review-close { border: 0; background: transparent; color: #68736d; cursor: pointer; font: 300 30px/1 Arial, sans-serif; }
+.cash-flow-review-body { display: grid; align-content: start; min-height: 0; gap: 18px; padding: 22px 30px 30px; overflow-y: auto; }
+.cash-flow-review-filters { display: grid; grid-template-columns: 130px 130px 180px minmax(220px, 1fr); gap: 10px; align-items: end; }
+.cash-flow-review-filters label { display: grid; gap: 6px; color: #52665b; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.cash-flow-review-filters label > span { display: block; }
+.cash-flow-review-filters input, .cash-flow-review-filters select { box-sizing: border-box; width: 100%; min-height: 39px; padding: 9px 10px; border: 1px solid #d9ddd7; border-radius: 9px; background: #fff; color: #31564b; font: inherit; font-size: 12px; letter-spacing: normal; text-transform: none; }
+.cash-flow-review-summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 18px; padding: 11px 13px; border: 1px solid #dce2dc; border-radius: 9px; background: #f4f6f2; color: #68736d; font-size: 11px; }
+.cash-flow-review-summary strong { color: #17332f; font-size: 16px; }
+.cash-flow-review-layout { display: grid; min-height: 390px; grid-template-columns: minmax(280px, .9fr) minmax(360px, 1.1fr); gap: 16px; }
+.cash-flow-review-list { display: grid; align-content: start; gap: 8px; max-height: 680px; overflow-y: auto; }
+.cash-flow-review-item { display: grid; gap: 5px; padding: 13px 14px; border: 1px solid #dce2dc; border-radius: 9px; background: #fff; color: #52665b; cursor: pointer; text-align: left; }
+.cash-flow-review-item:hover, .cash-flow-review-item:focus-visible { border-color: #b87d4e; outline: 2px solid #b87d4e33; }
+.cash-flow-review-item.selected { border-color: #17332f; background: #f0f5f0; box-shadow: inset 3px 0 #17332f; }
+.cash-flow-review-item-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.cash-flow-review-item-heading strong { color: #17332f; overflow-wrap: anywhere; }
+.cash-flow-review-item-heading em { flex: 0 0 auto; color: #985742; font-size: 9px; font-style: normal; font-weight: 800; text-transform: uppercase; }
+.cash-flow-review-item-meta, .cash-flow-review-item small { color: #89948e; font-size: 10px; line-height: 1.4; }
+.cash-flow-review-item-classification { color: #9b6f4a; font-size: 10px; font-weight: 800; }
+.cash-flow-review-editor { display: grid; align-content: start; gap: 14px; padding: 18px; border: 1px solid #dce2dc; border-radius: 11px; background: #fff; }
+.cash-flow-review-editor-heading h3 { overflow-wrap: anywhere; }
+.cash-flow-review-editor-heading p:not(.eyebrow) { color: #89948e; }
+.cash-flow-review-empty { display: grid; align-content: center; min-height: 180px; padding: 20px; color: #68736d; text-align: center; }
+.cash-flow-review-empty strong { color: #17332f; }
+.cash-flow-review-empty p { margin: 6px 0 0; font-size: 12px; }
+@media (max-width: 900px) { .cash-flow-review-panel { width: min(760px, 100vw); } .cash-flow-review-filters { grid-template-columns: 1fr 1fr; } .cash-flow-review-search { grid-column: 1 / -1; } .cash-flow-review-layout { grid-template-columns: 1fr; } .cash-flow-review-list { max-height: 310px; } }
+@media (max-width: 600px) { .cash-flow-review-header, .cash-flow-review-body { padding-right: 18px; padding-left: 18px; } .cash-flow-review-filters { grid-template-columns: 1fr; } .cash-flow-review-search { grid-column: auto; } .cash-flow-review-layout { display: block; } .cash-flow-review-editor { margin-top: 16px; } .cash-flow-section-heading, .cash-flow-review-editor-heading { flex-direction: column; } }

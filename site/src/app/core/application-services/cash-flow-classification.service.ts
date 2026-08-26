@@ -123,12 +123,18 @@ export class CashFlowClassificationService {
     if (!validation.ok) {
       return this.previewFailure(command, this.mapDomainFailure(validation.error.code), validation.error.message, classification.rationale);
     }
+    const query = command.query ?? this.defaultQuery();
+    const summary = this.buildActivitySummary(query);
+    const periodActivityMinor = this.activityFor(command.accountRole, target.account, summary, query);
     return Object.freeze({
       valid: true,
       normalized: Object.freeze(validation.value.classification),
       statementSection: SECTION_FOR[validation.value.classification.treatment],
       statementLabel: LABELS[validation.value.classification.treatment],
       rationale: validation.value.classification.rationale,
+      query: Object.freeze({ ...query }),
+      periodActivityMinor,
+      reportImpactMinor: periodActivityMinor,
       failures: Object.freeze([]),
     });
   }
@@ -178,7 +184,7 @@ export class CashFlowClassificationService {
     // report-cache key. Drop any in-memory import previews as well so a
     // preview cannot be committed against the prior classification state.
     this.pendingImports.clear();
-    const query = this.defaultQuery();
+    const query = command.query ?? this.defaultQuery();
     const summary = this.buildActivitySummary(query);
     const impact: CashFlowClassificationSaveImpact = {
       query,
@@ -301,6 +307,7 @@ export class CashFlowClassificationService {
       status: classification.status,
       source: classification.source,
       rationale: classification.rationale,
+      ...(classification.modifiedAtUtc === undefined ? {} : { modifiedAtUtc: classification.modifiedAtUtc }),
     };
   }
 
@@ -408,7 +415,7 @@ export class CashFlowClassificationService {
     return validateAccountUse({ accountType: target.accountType, requestedRole: target.role }).ok;
   }
 
-  private reviewItem(role: 'FINANCIAL_SOURCE' | 'CHART', account: FinancialAccount | ChartAccount, query: CashFlowQuery, summary: ActivitySummary): CashFlowClassificationReviewItem | undefined {
+  private reviewItem(role: 'FINANCIAL_SOURCE' | 'CHART', account: FinancialAccount | ChartAccount, query: CashFlowQuery, summary: ActivitySummary): CashFlowClassificationReviewItem {
     const target = this.targetFor(role, account);
     const existing = this.repository.getCashFlowClassification(role, account.id);
     const valid = existing ? this.validClassification(target, existing) : false;
@@ -416,8 +423,6 @@ export class CashFlowClassificationService {
     const currentClassification = existing;
     const classification = valid ? existing! : suggestedClassification;
     const reviewReasons = this.reviewReasons(role, account, target, existing, valid, suggestedClassification);
-    const needsReview = reviewReasons.length > 0;
-    if (!needsReview) return undefined;
     const opening = this.balanceFromSummary(role, account, summary, 'BEFORE_START');
     const ending = this.balanceFromSummary(role, account, summary, 'THROUGH_END');
     const periodActivity = this.activityFor(role, account, summary, query);
@@ -586,7 +591,8 @@ export class CashFlowClassificationService {
   }
 
   private previewFailure(command: PreviewCashFlowClassificationCommand, code: CashFlowClassificationFailure['code'], message: string, rationale = ''): CashFlowClassificationPreview {
-    return Object.freeze({ valid: false, statementLabel: 'Review required', rationale, failures: Object.freeze([Object.freeze({ code, message, accountRole: command.accountRole, accountId: command.accountId })]) });
+    const query = command.query ?? this.defaultQuery();
+    return Object.freeze({ valid: false, statementLabel: 'Review required', rationale, query: Object.freeze({ ...query }), failures: Object.freeze([Object.freeze({ code, message, accountRole: command.accountRole, accountId: command.accountId })]) });
   }
 
   private failure(code: 'CASH_FLOW_CLASSIFICATION_INVALID' | 'CLASSIFICATION_STALE', message: string, target: { accountRole: 'FINANCIAL_SOURCE' | 'CHART'; accountId: string }, retryable = false): CashFlowContractError {
