@@ -1,4 +1,5 @@
-/goal Coordinate the implementation and independent review of the remaining TallyStick Statement of Cash Flows slices until every slice itemized here and gate is complete, documented, committed, and pushed, or until a genuine user decision or external approval is required.
+/goal Coordinate the implementation and independent review of the remaining TallyStick Statement of Cash Flows slices until every slice 
+itemized here and gate is complete, documented, and committed locally, or until a genuine user decision or external approval is required.
 
 Slices to process:
 CF-SLICE-09-NET-PROFIT-NONCASH
@@ -11,22 +12,11 @@ REVIEWER_TASK: 01a03a14-2bc1-7e81-9e95-6c0408ce98f0
 Repository: /Volumes/External SSD 1TB/Projects/TallyStick
 Working branch: cash-flow
 
-Both tasks must operate directly in this exact visible saved-project checkout and branch. Resolve and bind to these exact tasks at startup. Do not create replacement tasks, use subagents, or accidentally communicate with similarly named tasks.
-
-Visible-checkout rule — no worktrees
-
-- Do not create, use, fork into, hand off into, or move either task into a Codex worktree, Git worktree, temporary clone, hidden checkout, or alternate repository directory.
-- Do not run `git worktree add` or use any task/thread option whose environment or destination is `worktree`.
-- All implementation, review, tests, documentation, commits, and pushes must happen directly in `/Volumes/External SSD 1TB/Projects/TallyStick` on branch `cash-flow`.
-- The normal Git working directory at that visible path is required. References below to the “working tree” mean only the staged, unstaged, and untracked state in this exact visible checkout; they never authorize a separate Git or Codex worktree.
-- At startup, verify each exact task reports `/Volumes/External SSD 1TB/Projects/TallyStick` as its current directory. Also verify `git rev-parse --show-toplevel` returns that exact path and `git branch --show-current` returns `cash-flow`.
-- Before every implementor or reviewer handoff, include the exact repository path and branch in the directive. Require the recipient to verify and report both before doing any work.
-- In each checkpoint to me, state the visible checkout path, branch, baseline or current HEAD, and a compact `git status --short --branch` summary so repository state is never hidden.
-- If either exact task is attached to a different directory, a Codex worktree, a detached HEAD, or another branch, stop and report the mismatch. Do not create a substitute task or hidden checkout to work around it.
+Both tasks must operate on the same repository checkout and branch. Resolve and bind to these exact tasks at startup. Do not create replacement tasks, use subagents, or accidentally communicate with similarly named tasks.
 
 Your role
 
-You manage the workflow. Do not implement code, edit files, commit, or push yourself. You may inspect task progress and repository state using read-only operations.
+You manage the workflow. Do not implement code, edit files, or commit yourself. You may inspect task progress and repository state using read-only operations.
 
 The implementor owns:
 
@@ -34,7 +24,7 @@ The implementor owns:
 - tests and verification
 - corrections demanded by review
 - progress-document and handoff updates
-- commits and pushes
+- local commits
 
 The reviewer is strictly independent and read-only. It must not edit files, commit, push, or implement its own recommendations.
 
@@ -72,9 +62,9 @@ Send the implementor a clear directive containing:
 - the source documents and tracker items controlling it
 - its required behavior and acceptance criteria
 - the expected focused and regression tests
-- the instruction to verify the exact visible repository path and `cash-flow` branch, inspect git status, and record the baseline HEAD before editing
+- the instruction to inspect git status and record the baseline HEAD before editing
 - the instruction to preserve unrelated changes
-- the instruction not to commit or push yet
+- the instruction not to commit yet
 - the instruction to remain strictly within the named slice
 
 Require the implementor to implement the work completely, add or update tests, run all verification required by the slice, and report:
@@ -83,16 +73,14 @@ Require the implementor to implement the work completely, add or update tests, r
 - files changed
 - tests and commands run, with results
 - any warnings or unresolved issues
-- the verified repository path and branch
 - the baseline HEAD and current diff summary
-- the complete `git status --short --branch` result
 - whether the work is ready for review
 
 Wait for a completed response. Commentary or partial progress is not completion.
 
 3. Send the work to independent review
 
-Once implementation is ready, direct the reviewer to work in the same exact visible checkout and inspect the exact changes from the recorded baseline HEAD through that checkout’s current Git state, including staged, unstaged, and untracked files. Do not create or use a separate review worktree.
+Once implementation is ready, direct the reviewer to inspect the exact changes from the recorded baseline HEAD through the current working tree, including staged, unstaged, and untracked files.
 
 Require the reviewer to read the slice’s controlling documents and check:
 
@@ -135,7 +123,7 @@ Tell the implementor:
 - add or adjust tests where required
 - rerun the appropriate focused and regression verification
 - report each finding as resolved, with evidence
-- do not commit or push
+- do not commit
 - if it disagrees with a finding, provide concrete code, specification, or test evidence instead of silently ignoring it
 
 When the implementor finishes, send the revised work back to the same reviewer. Continue the implementor → reviewer loop until the reviewer returns APPROVED.
@@ -154,12 +142,10 @@ After approval, direct the implementor to:
 - run git diff --check and any final verification required by the slice
 - confirm the final diff contains only the approved slice, tests, and progress documentation
 - create one focused commit following the repository’s existing commit style
-- push the cash-flow branch
-- report the commit SHA, push result, final git status, completed slice, and next eligible work unit
+- do not push any branch or commit to a remote
+- report the commit SHA, final git status, completed slice, and next eligible work unit
 
-Progress documentation and the handoff must be included in the pushed commit. Do not leave documentation updates uncommitted after pushing.
-
-If the push fails, do not mark the slice delivered. Have the implementor diagnose the failure safely and retry only when doing so does not require guessing credentials, rewriting shared history, or taking destructive action.
+Progress documentation and the handoff must be included in the local commit. Do not leave documentation updates uncommitted after committing.
 
 6. Verify and continue
 
@@ -169,7 +155,7 @@ Confirm that:
 - required tests passed
 - the tracker and handoff were updated
 - the commit exists
-- the intended branch was pushed
+- the approved work was committed locally on the intended branch
 - the working tree has no unexplained changes
 
 Then begin the cycle again with the next eligible unfinished work unit. Do not ask me whether to continue between slices.
@@ -177,9 +163,8 @@ Then begin the cycle again with the next eligible unfinished work unit. Do not a
 Communication rules
 
 - Use task/thread coordination tools to message and wait for the two tasks.
-- Never create, fork, hand off, or move a task into a Codex or Git worktree. Keep both exact tasks in the visible saved-project checkout.
 - Prefer bounded waits for task progress rather than repeatedly polling.
-- Keep me informed with compact checkpoint reports naming the visible checkout path, branch, HEAD, Git status summary, current slice, current stage, last verified result, and any blocker.
+- Keep me informed with compact checkpoint reports naming the current slice, current stage, last verified result, and any blocker.
 - Never claim completion based only on an implementor’s assertion; require reviewer approval and delivery evidence.
 - Never answer an approval, credential, or user-input request on my behalf.
 - Never bypass failing tests, weaken tests, rewrite shared history, force-push, or discard unrelated changes.
@@ -192,10 +177,8 @@ Stop the loop and report clearly if:
 
 - a product or architecture decision is genuinely absent from the controlling documents
 - the two tasks cannot access the same intended checkout and branch
-- either task is attached to a worktree, hidden checkout, temporary clone, detached HEAD, alternate repository path, or branch other than `cash-flow`
 - unrelated working-tree changes cannot be safely separated
 - credentials, user approval, or a destructive operation would be required
-- a push would require force-pushing or rewriting shared history
 - the same review dispute cannot be resolved with specifications, code, or tests
 - all implementation slices and phase gates are complete
 
@@ -207,8 +190,8 @@ The orchestration goal is complete only when:
 - the full required regression and release-proof commands pass
 - the final reviewer disposition is APPROVED
 - progress documents and the handoff accurately describe the completed feature
-- all approved work is committed and pushed
+- all approved work is committed locally and no work is pushed to a remote
 - the working tree has no unexplained changes
 - the final handoff states that no implementation slice remains open
 
-At completion, provide a concise final report listing the completed slices, final verification results, final commit SHA, pushed branch, documentation state, and any intentionally deferred work.
+At completion, provide a concise final report listing the completed slices, final verification results, final local commit SHA, working branch, documentation state, and any intentionally deferred work.
