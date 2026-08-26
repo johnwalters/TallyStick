@@ -976,6 +976,44 @@ describe('DefaultAccountingApplication', () => {
     expect(app.listChartAccounts()).toEqual(beforeInvalidImport);
   });
 
+  it('previews and explicitly commits Chart workbooks with Cash Flow classifications without mutating during preview', () => {
+    const before = app.listChartAccounts();
+    const workbook = app.exportChartAccounts();
+    const preview = app.previewChartAccountsImport(workbook);
+    expect(preview.issues).toEqual([]);
+    expect(preview.rows).toHaveSize(before.length);
+    expect(preview.cashFlowClassifications.length).toBeGreaterThan(0);
+    const interest = before.find(account => account.name === 'Interest Paid')!;
+    expect(preview.cashFlowClassifications.find(item => item.accountId === interest.id)?.classification?.treatment).toBe('OPERATING_REVENUE_EXPENSE');
+    expect(app.listChartAccounts()).toEqual(before);
+
+    const committed = app.commitChartAccountsImport(preview.previewToken);
+    expect(committed.map(account => ({ ...account, parentId: account.parentId ?? '' }))).toEqual(before.map(account => ({ ...account, parentId: account.parentId ?? '' })));
+    const roundTrip = XLSX.read(app.exportChartAccounts(), { type: 'array' });
+    const roundTripRows = XLSX.utils.sheet_to_json<Record<string, string>>(roundTrip.Sheets[roundTrip.SheetNames[0]], { defval: '' });
+    expect(roundTripRows.find(row => row['Account ID'] === interest.id)?.['Cash Flow Treatment']).toBe('OPERATING_REVENUE_EXPENSE');
+  });
+
+  it('rejects stale Chart classification values in preview instead of silently replacing them', () => {
+    const before = app.listChartAccounts();
+    const workbook = XLSX.read(app.exportChartAccounts(), { type: 'array' });
+    const sheet = workbook.Sheets[workbook.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json<Record<string, string | number | boolean>>(sheet, { defval: '' });
+    const target = rows.find(row => row['Account Name'] === 'Operating Expenses')!;
+    target['Detail Type'] = 'Custom detail';
+    target['Cash Flow Cash Role'] = '';
+    target['Cash Flow Treatment'] = '';
+    target['Cash Flow Status'] = '';
+    target['Cash Flow Source'] = '';
+    target['Cash Flow Rationale'] = '';
+    const replacement = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(replacement, XLSX.utils.json_to_sheet(rows), 'Chart of Accounts');
+    const preview = app.previewChartAccountsImport(XLSX.write(replacement, { bookType: 'xlsx', type: 'array' }) as ArrayBuffer);
+    expect(preview.issues.map(issue => issue.code)).toContain('CASH_FLOW_CLASSIFICATION_STALE');
+    expect(() => app.commitChartAccountsImport(preview.previewToken)).toThrowError(/Cash Flow classification/);
+    expect(app.listChartAccounts()).toEqual(before);
+  });
+
   it('rejects a chart replacement that would orphan a posted transaction split', () => {
     const protectedAccount = app.createChartAccount({ name: 'Posted reference', accountType: 'EXPENSE', detailType: 'Other business expenses', displayOrder: 800, locked: false });
     const financialAccount = app.listAccounts().find(account => account.name === 'Operating Checking')!;

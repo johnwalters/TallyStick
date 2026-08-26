@@ -2,6 +2,7 @@ import { InjectionToken } from '@angular/core';
 import {
   ChartAccount,
   ChartAccountKind,
+  ChartAccountImportPreview,
   Company,
   FinancialAccount,
   ImportPreview,
@@ -138,6 +139,8 @@ export interface AccountingApplication {
   updateChartAccount(id: string, command: SaveChartAccountCommand): ChartAccount;
   archiveChartAccount(id: string, archived: boolean): ChartAccount;
   importChartAccounts(content: string | ArrayBuffer): ChartAccount[];
+  previewChartAccountsImport(content: string | ArrayBuffer): ChartAccountImportPreview;
+  commitChartAccountsImport(previewToken: string): ChartAccount[];
   exportChartAccounts(): ArrayBuffer;
   exportRules(format: 'XLSX' | 'CSV'): ArrayBuffer | string;
   previewRulesImport(content: string | ArrayBuffer): RuleImportPreview;

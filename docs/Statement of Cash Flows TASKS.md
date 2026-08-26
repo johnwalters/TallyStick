@@ -25,8 +25,8 @@ Execution is divided into token-conscious, independently testable units in the [
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Cash Flow test | Schema-7 migration and repository round-trip, atomic classification update/revision, portable backup data, backup/restore/relocation/future-schema rejection, exact ledger/P&L/Balance Sheet totals, 218 browser/unit tests, boundary and fixture oracles, production build, and 8 desktop-host tests passed |
-| Last tracker update | August 25, 2026 — `CF-SLICE-05-PERSISTENCE-RECOVERY` review findings addressed; completion remains intentionally open |
+| Last verified Cash Flow test | Classification-service review fixes type-check and build; boundary and both fixture oracles passed; desktop-host suite passed 8 tests. Browser suite could not launch ChromeHeadless in this environment and remains to be rerun. |
+| Last tracker update | August 25, 2026 — `CF-SLICE-06-CLASSIFICATION-SERVICE` review findings implemented; Phase 2 recovery gate remains intentionally open |
 | Known blocker | Recovery acceptance gate remains open pending explicit review of pre-migration backup, strict schema-7 restore, classification preservation, portable bundle, and in-memory parity cases |
 
 ## Tracker use
@@ -68,7 +68,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | 0 | Accepted documents, verified baseline, and exact calculation oracle | Complete |
 | 1 | Cash Flow classification domain and public contracts | Complete |
 | 2 | Schema 7 migration, persistence, revision, and recovery compatibility | In progress |
-| 3 | Classification services, chart exchange, and review UI | Not started |
+| 3 | Classification services, chart exchange, and review UI | In progress — service and exchange operations implemented; UI and gate remain |
 | 4 | Cash balances and indirect Operating activities | Not started |
 | 5 | Investing, Financing, transfers, restricted cash, and disclosures | Not started |
 | 6 | Reconciliation, warnings, detail, revision, and cache behavior | Not started |
@@ -143,13 +143,13 @@ Execution is divided into token-conscious, independently testable units in the [
 
 **Trace:** PRD §§10–11; CF-004–CF-006, CF-019, CF-021–CF-022, CF-030; Product Spec §§5–7, 12–13, and 15.
 
-- [ ] **CF3-001** Implement classification catalog and current-state read operations.
-- [ ] **CF3-002** Implement transactional, audited, optimistic-concurrency classification saves.
-- [ ] **CF3-003** Return impacted reports/accounts and invalidate affected cached results after save.
-- [ ] **CF3-004** Implement a review queue for missing, ambiguous, archived, or structurally incompatible classifications.
-- [ ] **CF3-005** Extend Chart of Accounts export with stable IDs, cash roles/treatments, review state, and provenance fields.
-- [ ] **CF3-006** Extend Chart of Accounts import preview with ID-first resolution, unique normalized-path fallback, and row-level issues.
-- [ ] **CF3-007** Commit valid imports atomically only after explicit confirmation; reject ambiguous or missing mappings without mutation.
+- [x] **CF3-001** Implement classification catalog and current-state read operations.
+- [x] **CF3-002** Implement transactional, audited, optimistic-concurrency classification saves.
+- [x] **CF3-003** Return impacted reports/accounts and invalidate affected cached results after save.
+- [x] **CF3-004** Implement a review queue for missing, ambiguous, archived, or structurally incompatible classifications.
+- [x] **CF3-005** Extend Chart of Accounts export with stable IDs, cash roles/treatments, review state, and provenance fields.
+- [x] **CF3-006** Extend Chart of Accounts import preview with ID-first resolution, unique normalized-path fallback, and row-level issues.
+- [x] **CF3-007** Commit valid imports atomically only after explicit confirmation; reject ambiguous or missing mappings without mutation.
 - [ ] **CF3-008** Add cash-role and treatment controls to the appropriate financial/Chart account editors.
 - [ ] **CF3-009** Build the classification review workflow with reason, suggested structural default, current value, save/cancel, and accessible controls.
 - [ ] **CF3-010** Show classification warnings and review entry points without blocking unrelated accounting work.
@@ -263,6 +263,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | 2026-08-25 | `CF-SLICE-03-PUBLIC-CONTRACTS` | Added immutable query/report/detail/classification contracts, permissive raw exchange preview input with strict normalized output, role-valid catalog compatibility/defaults, classification exchange facade methods, Cash Flow feature facade state, dedicated deferred-operation failures, and exhaustive boundary tests; `npm run test:ci` (203 browser/unit tests plus boundaries and fixture oracles) and `npm run build` passed | Complete |
 | 2026-08-25 | `CF-SLICE-04-SCHEMA-7-MIGRATION` | Added atomic schema-6-to-7 migration with one-to-one financial/Chart classification tables, checked enums, provenance/review/rationale/timestamps, classification indexes, structural-only defaults, correlated audit events, FK/integrity/cycle/count/compatibility validation, strict schema-6 table/column/index/version/profile preflight, role/type compatibility checks, canonical ISO-UTC timestamp validation, true legacy-review audit rationale, full taxonomy and malformed-source/constraint-rollback acceptance tests, and exact pre/post ledger/P&L/Balance Sheet totals; `npm run test:ci` (217 browser/unit tests plus boundaries and fixture oracles), `npm run build`, and `npm run test:desktop-host` (8 tests) passed | Complete |
 | 2026-08-25 | `CF-SLICE-05-PERSISTENCE-RECOVERY` | Registered schema 7 for fresh bootstrap and schema-6 reopen, added pre-migration safety backup, strict schema-7 recovery validation, non-destructive/audited structural reclassification, complete portable classification validation, and in-memory/SQLite contract parity; `npm run test:ci` (218 browser/unit tests plus boundaries and fixture oracles) passed. Slice remains in progress until CF2-008/011/012 and the recovery gate are explicitly re-accepted | In progress |
+| 2026-08-25 | `CF-SLICE-06-CLASSIFICATION-SERVICE` | Added validated classification service wiring, stable-ID-authoritative exchange, explicit review reasons/current-vs-suggested state, archived indicators, save impact reporting, one-pass review aggregation, and Chart workbook preview/confirmed atomic commit with Cash Flow classification round-trip; type-check, production build, boundaries, fixture oracles, desktop-host (8 tests), and `git diff --check` passed. ChromeHeadless could not launch in this environment, so browser revalidation remains pending | Review fixes implemented; Phase 3 UI and gate remain |
 | 2026-08-25 | Slice 1 pre-change baseline | `test:ci`: 181 passed; production build passed; `test:desktop-host`: 8 passed including validated restore/safety backup; isolated `desktop:smoke` passed | Complete |
 | 2026-08-25 | `CF-SLICE-01-BASELINE-ORACLE` | Independent validator passed for 2 neutral companies, A1–A20, schema-6 counts, exact integer totals/source Balance Sheets/cash composition/detail/warnings, 2025–2026 fiscal coverage, migration targets, and privacy terms | Complete |
 | 2026-08-25 | Slice 1 post-change verification | `test:ci`: Cash Flow oracle plus 181 browser/unit tests passed; production build passed; `test:desktop-host`: 8 passed; isolated `desktop:smoke` passed | Complete |

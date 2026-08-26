@@ -74,16 +74,19 @@ import { ImportPipelineService } from '../import-services/import-pipeline.servic
 import { BackupBundleService, CURRENT_BACKUP_SCHEMA_VERSION } from '../backup-services/backup-bundle.service';
 import { CompanyProfileService } from './company-profile.service';
 import { AccountClassificationService } from './account-classification.service';
+import { CashFlowClassificationService } from './cash-flow-classification.service';
 import { BalanceSheetReportService } from './balance-sheet-report.service';
 import { calculateUnadjustedNetProfit } from './profit-loss-calculation';
 import { BalanceSheetOutputService } from './balance-sheet-output.service';
-import { ACCOUNTING_REPOSITORY, AccountingRepository } from '../repository-gateways/accounting.repository';
+import { ACCOUNTING_REPOSITORY, AccountingRepository, CashFlowClassificationRecord } from '../repository-gateways/accounting.repository';
 import {
   addMoney,
   AuditEvent,
   CHART_ACCOUNT_TYPES,
   ChartAccount,
   ChartAccountKind,
+  ChartAccountImportIssue,
+  ChartAccountImportPreview,
   FinancialAccount,
   FINANCIAL_ACCOUNT_TYPES,
   formatMoney,
@@ -102,6 +105,13 @@ import {
   TransactionRule,
   TransferMatch,
 } from '../domain-model/accounting.types';
+
+interface PendingChartAccountImport {
+  readonly databaseRevision: string;
+  readonly rows: readonly ChartAccount[];
+  readonly classifications: ReadonlyMap<string, CashFlowClassification>;
+  readonly issues: readonly ChartAccountImportIssue[];
+}
 
 export const DEFAULT_OWNER_DRAW_ACCOUNT_ID = 'chart-owner-draw';
 export const DEFAULT_ADVERTISING_MARKETING_ACCOUNT_ID = 'chart-advertising-marketing';
@@ -194,10 +204,12 @@ export class DefaultAccountingApplication implements AccountingApplication {
   private readonly databaseLifecycle = inject(DATABASE_LIFECYCLE_GATEWAY);
   private readonly companyProfiles = inject(CompanyProfileService);
   private readonly accountClassifications = inject(AccountClassificationService);
+  private readonly cashFlowClassifications = inject(CashFlowClassificationService);
   private readonly balanceSheets = inject(BalanceSheetReportService);
   private readonly balanceSheetOutputs = inject(BalanceSheetOutputService);
   private readonly previews = new Map<string, ImportPreview>();
   private readonly rulePreviews = new Map<string, RuleImportPreview>();
+  private readonly chartAccountPreviews = new Map<string, PendingChartAccountImport>();
 
   constructor() {
     this.seed();
@@ -260,15 +272,15 @@ export class DefaultAccountingApplication implements AccountingApplication {
   }
 
   previewCashFlowClassification(command: PreviewCashFlowClassificationCommand): CashFlowClassificationPreview {
-    return this.cashFlowNotImplemented(`Preview Cash Flow classification for ${command.accountRole}/${command.accountId}`);
+    return this.cashFlowClassifications.preview(command);
   }
 
   saveCashFlowClassification(command: SaveCashFlowClassificationCommand): CashFlowClassificationReview {
-    return this.cashFlowNotImplemented(`Save Cash Flow classification for ${command.accountRole}/${command.accountId}`);
+    return this.cashFlowClassifications.save(command);
   }
 
   getCashFlowClassificationReview(query: CashFlowQuery): CashFlowClassificationReview {
-    return this.cashFlowNotImplemented(`Read Cash Flow classification review for ${query.startDate} through ${query.endDate}`);
+    return this.cashFlowClassifications.review(query);
   }
 
   getCashFlowReport(query: CashFlowQuery): CashFlowReport {
@@ -288,15 +300,15 @@ export class DefaultAccountingApplication implements AccountingApplication {
   }
 
   previewCashFlowClassificationImport(command: PreviewCashFlowClassificationImportCommand): CashFlowClassificationImportPreview {
-    return this.cashFlowNotImplemented(`Preview ${command.rows.length} Cash Flow classification import rows`);
+    return this.cashFlowClassifications.previewImport(command);
   }
 
   commitCashFlowClassificationImport(command: CommitCashFlowClassificationImportCommand): CashFlowClassificationImportCommitResult {
-    return this.cashFlowNotImplemented(`Commit Cash Flow classification import ${command.previewId}`);
+    return this.cashFlowClassifications.commitImport(command);
   }
 
   exportCashFlowClassifications(command: ExportCashFlowClassificationsCommand): CashFlowClassificationExportResult {
-    return this.cashFlowNotImplemented(`Export Cash Flow classifications for revision ${command.databaseRevision}`);
+    return this.cashFlowClassifications.exportClassifications(command);
   }
 
   listAccounts(): FinancialAccount[] {
@@ -410,6 +422,15 @@ export class DefaultAccountingApplication implements AccountingApplication {
   }
 
   importChartAccounts(content: string | ArrayBuffer): ChartAccount[] {
+    const preview = this.previewChartAccountsImport(content);
+    if (preview.issues.length) {
+      this.chartAccountPreviews.delete(preview.previewToken);
+      throw new AccountingError('CHART_INVALID', preview.issues[0].message);
+    }
+    return this.commitChartAccountsImport(preview.previewToken);
+  }
+
+  previewChartAccountsImport(content: string | ArrayBuffer): ChartAccountImportPreview {
     const workbook = XLSX.read(typeof content === 'string' ? content : new Uint8Array(content), { type: typeof content === 'string' ? 'string' : 'array' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
     const rawRows = XLSX.utils.sheet_to_json<Record<string, string | number | boolean>>(sheet, { defval: '' });
@@ -439,26 +460,81 @@ export class DefaultAccountingApplication implements AccountingApplication {
         locked: this.workbookBoolean(row['locked'] ?? row['Locked']),
       };
     });
-    this.validateChartRows(rows);
+    const issues: ChartAccountImportIssue[] = [];
+    try {
+      this.validateChartRows(rows);
+      this.validateChartImportReferences(rows);
+    } catch (error) {
+      issues.push({ rowNumber: 0, code: error instanceof AccountingError && error.code === 'CHART_REFERENCE_ORPHANED' ? 'CHART_REFERENCE_ORPHANED' : 'CHART_INVALID', message: error instanceof Error ? error.message : 'The chart workbook is invalid.' });
+    }
+    const classifications = new Map<string, CashFlowClassification>();
+    rawRows.forEach((sourceRow, index) => {
+      const row = this.normalizeWorkbookRow(sourceRow);
+      const account = rows[index];
+      if (!account || !this.hasCashFlowWorkbookFields(row)) return;
+      const parsed = this.parseChartCashFlowClassification(row, account, index + 2, issues);
+      if (parsed) classifications.set(account.id, parsed);
+      return;
+    });
+    rows.forEach((account, index) => {
+      if (this.hasCashFlowWorkbookFields(this.normalizeWorkbookRow(rawRows[index] ?? {}))) return;
+      const existing = this.repository.getCashFlowClassification('CHART', account.id);
+      if (existing) {
+        if (existing.accountType !== account.accountType || existing.detailType !== account.detailType) {
+          issues.push({ rowNumber: index + 2, code: 'CASH_FLOW_CLASSIFICATION_STALE', message: `Cash Flow classification for ${account.name} no longer matches its account structure; include an explicit Cash Flow classification in the workbook.`, accountId: account.id });
+        } else if (!validateCashFlowClassification({ accountRole: 'CHART', accountType: account.accountType, detailType: account.detailType, classification: existing }).ok) {
+          issues.push({ rowNumber: index + 2, code: 'CASH_FLOW_CLASSIFICATION_INVALID', message: `Cash Flow classification for ${account.name} is invalid; include an explicit corrected classification in the workbook.`, accountId: account.id });
+        }
+      }
+    });
+    const previewToken = newId();
+    const pending: PendingChartAccountImport = { databaseRevision: this.repository.getDatabaseRevision(), rows: Object.freeze(rows.map(row => Object.freeze({ ...row }))), classifications, issues: Object.freeze(issues.map(issue => Object.freeze({ ...issue }))) };
+    this.chartAccountPreviews.set(previewToken, pending);
+    const blockedRows = new Set(issues.filter(issue => issue.rowNumber > 0).map(issue => issue.rowNumber));
+    const hasGlobalIssue = issues.some(issue => issue.rowNumber === 0);
+    return Object.freeze({
+      previewToken,
+      databaseRevision: pending.databaseRevision,
+      rows: pending.rows,
+      cashFlowClassifications: Object.freeze([...classifications.entries()].map(([accountId, classification]) => Object.freeze({ accountId, classification: Object.freeze({ ...classification }) }))),
+      issues: pending.issues,
+      validRowCount: hasGlobalIssue ? 0 : rows.length - blockedRows.size,
+      blockedRowCount: hasGlobalIssue ? rows.length : blockedRows.size,
+    });
+  }
+
+  commitChartAccountsImport(previewToken: string): ChartAccount[] {
+    const pending = this.chartAccountPreviews.get(previewToken);
+    if (!pending) throw new AccountingError('CHART_INVALID', 'The chart workbook preview is missing or expired.');
+    if (pending.databaseRevision !== this.repository.getDatabaseRevision()) {
+      this.chartAccountPreviews.delete(previewToken);
+      throw new AccountingError('CHART_INVALID', 'The chart workbook preview is stale. Preview it again.');
+    }
+    if (pending.issues.length) {
+      this.chartAccountPreviews.delete(previewToken);
+      throw new AccountingError('CHART_INVALID', pending.issues[0].message);
+    }
+    const rows = pending.rows;
     return this.repository.transaction(() => {
       const priorChart = new Map(this.repository.chartAccounts);
-      const referenced = [
-        ...[...this.repository.transactions.values()].flatMap(transaction => transaction.splits.map(split => split.chartAccountId)),
-        ...[...this.repository.rules.values()].filter(rule => rule.enabled).map(rule => rule.chartAccountId).filter((id): id is string => Boolean(id)),
-      ];
+      const priorClassifications = new Map(this.repository.cashFlowClassifications);
       const importedIds = new Set(rows.map(row => row.id));
-      const importedNames = new Set(rows.map(row => row.name.toLowerCase()));
-      const defaultTaxNames = new Set(['federal income tax', 'state and local income tax']);
-      const configuredTaxReferences = [...this.repository.taxSettings.values()]
-        .flatMap(settings => [...settings.federalIncomeTaxAccountIds, ...settings.stateLocalIncomeTaxAccountIds])
-        .filter(id => {
-          const priorName = priorChart.get(id)?.name.toLowerCase();
-          return priorName && !defaultTaxNames.has(priorName) && !importedIds.has(id) && !importedNames.has(priorName);
-        });
-      if (referenced.some(id => !importedIds.has(id)) || configuredTaxReferences.length) {
-        throw new AccountingError('CHART_REFERENCE_ORPHANED', 'The workbook would orphan an existing transaction, rule, or configured tax-setting account reference.');
-      }
       this.repository.chartAccounts = new Map(rows.map(row => [row.id, structuredClone(row)]));
+      this.repository.cashFlowClassifications = new Map([...priorClassifications.entries()].filter(([key]) => !key.startsWith('CHART:') || importedIds.has(key.slice('CHART:'.length))));
+      for (const row of rows) {
+        const imported = pending.classifications.get(row.id);
+        const existing = priorClassifications.get(`CHART:${row.id}`);
+        if (imported) {
+          const record: CashFlowClassificationRecord = { ...imported, accountRole: 'CHART', accountId: row.id, accountType: row.accountType, detailType: row.detailType, modifiedAtUtc: nowUtc() };
+          this.repository.saveCashFlowClassifications([record]);
+        } else if (!existing) {
+          const seeded = seedDefaultCashFlowClassification({ accountRole: 'CHART', accountType: row.accountType, detailType: row.detailType });
+          if (!seeded.ok) throw new AccountingError('CHART_INVALID', `Unable to seed Cash Flow classification for ${row.name}: ${seeded.error.message}`);
+          this.repository.cashFlowClassifications.set(`CHART:${row.id}`, { ...seeded.value, accountRole: 'CHART', accountId: row.id, accountType: row.accountType, detailType: row.detailType });
+        } else if (existing.accountType !== row.accountType || existing.detailType !== row.detailType) {
+          throw new AccountingError('CHART_INVALID', `Cash Flow classification for ${row.name} no longer matches its account structure; include an explicit Cash Flow classification in the workbook.`);
+        }
+      }
       for (const settings of this.repository.taxSettings.values()) {
         const priorFederalNames = settings.federalIncomeTaxAccountIds.map(id => priorChart.get(id)?.name).filter((name): name is string => Boolean(name));
         const priorStateNames = settings.stateLocalIncomeTaxAccountIds.map(id => priorChart.get(id)?.name).filter((name): name is string => Boolean(name));
@@ -466,12 +542,27 @@ export class DefaultAccountingApplication implements AccountingApplication {
         settings.stateLocalIncomeTaxAccountIds = this.findChartByNames([...priorStateNames, 'State and Local Income Tax', 'Taxes paid:Taxes Paid - State and Local']);
       }
       this.record('IMPORT_CHART', 'ChartOfAccounts', this.repository.company.id, undefined, rows);
-      return structuredClone(rows);
+      this.chartAccountPreviews.delete(previewToken);
+      return structuredClone([...rows]);
     });
   }
 
   exportChartAccounts(): ArrayBuffer {
     const rows = this.listChartAccounts().map(account => ({
+      ...(() => {
+        const persisted = this.repository.getCashFlowClassification('CHART', account.id);
+        const seeded = persisted ?? (() => {
+          const result = seedDefaultCashFlowClassification({ accountRole: 'CHART', accountType: account.accountType, detailType: account.detailType });
+          return result.ok ? result.value : undefined;
+        })();
+        return {
+          'Cash Flow Cash Role': seeded?.cashRole ?? '',
+          'Cash Flow Treatment': seeded?.treatment ?? '',
+          'Cash Flow Status': seeded?.status ?? '',
+          'Cash Flow Source': seeded?.source ?? '',
+          'Cash Flow Rationale': seeded?.rationale ?? '',
+        };
+      })(),
       'Account ID': account.id,
       'Account Name': account.name,
       'Parent ID': account.parentId ?? '',
@@ -1982,6 +2073,51 @@ export class DefaultAccountingApplication implements AccountingApplication {
         current = rows.find(candidate => candidate.id === current.parentId)!;
       }
     });
+  }
+
+  private validateChartImportReferences(rows: readonly ChartAccount[]): void {
+    const priorChart = new Map(this.repository.chartAccounts);
+    const referenced = [
+      ...[...this.repository.transactions.values()].flatMap(transaction => transaction.splits.map(split => split.chartAccountId)),
+      ...[...this.repository.rules.values()].filter(rule => rule.enabled).map(rule => rule.chartAccountId).filter((id): id is string => Boolean(id)),
+    ];
+    const importedIds = new Set(rows.map(row => row.id));
+    const importedNames = new Set(rows.map(row => row.name.toLowerCase()));
+    const defaultTaxNames = new Set(['federal income tax', 'state and local income tax']);
+    const configuredTaxReferences = [...this.repository.taxSettings.values()]
+      .flatMap(settings => [...settings.federalIncomeTaxAccountIds, ...settings.stateLocalIncomeTaxAccountIds])
+      .filter(id => {
+        const priorName = priorChart.get(id)?.name.toLowerCase();
+        return priorName && !defaultTaxNames.has(priorName) && !importedIds.has(id) && !importedNames.has(priorName);
+      });
+    if (referenced.some(id => !importedIds.has(id)) || configuredTaxReferences.length) {
+      throw new AccountingError('CHART_REFERENCE_ORPHANED', 'The workbook would orphan an existing transaction, rule, or configured tax-setting account reference.');
+    }
+  }
+
+  private hasCashFlowWorkbookFields(row: Record<string, string | number | boolean>): boolean {
+    return ['Cash Flow Cash Role', 'Cash Flow Treatment', 'Cash Flow Status', 'Cash Flow Source', 'Cash Flow Rationale'].some(key => Object.prototype.hasOwnProperty.call(row, key) && String(row[key] ?? '').trim() !== '');
+  }
+
+  private parseChartCashFlowClassification(row: Record<string, string | number | boolean>, account: ChartAccount, rowNumber: number, issues: ChartAccountImportIssue[]): CashFlowClassification | undefined {
+    const cashRole = String(row['Cash Flow Cash Role'] ?? '').trim();
+    const treatment = String(row['Cash Flow Treatment'] ?? '').trim();
+    const status = String(row['Cash Flow Status'] ?? '').trim();
+    const source = String(row['Cash Flow Source'] ?? '').trim();
+    const rationale = String(row['Cash Flow Rationale'] ?? '').trim();
+    const classification = {
+      ...(cashRole ? { cashRole: cashRole as CashFlowClassification['cashRole'] } : {}),
+      treatment: treatment as CashFlowClassification['treatment'],
+      status: status as CashFlowClassification['status'],
+      source: source as CashFlowClassification['source'],
+      rationale,
+    };
+    const validation = validateCashFlowClassification({ accountRole: 'CHART', accountType: account.accountType, detailType: account.detailType, classification });
+    if (!validation.ok) {
+      issues.push({ rowNumber, code: 'CASH_FLOW_CLASSIFICATION_INVALID', message: `Invalid Cash Flow classification for ${account.name}: ${validation.error.message}`, accountId: account.id });
+      return undefined;
+    }
+    return validation.value.classification;
   }
 
   private hydrate(value: any): any {

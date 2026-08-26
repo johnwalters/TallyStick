@@ -5,6 +5,7 @@ import {
   ImportSourceKind,
   OpeningBalanceSource,
 } from './account-taxonomy';
+import type { CashFlowClassification } from './cash-flow-classification';
 
 export type Id = string;
 export type CurrencyCode = 'USD' | (string & {});
@@ -281,6 +282,37 @@ export interface ImportPreview {
   batch: ImportBatch;
   rows: ImportRowDisposition[];
   previewToken: string;
+}
+
+export const CHART_ACCOUNT_IMPORT_ISSUE_CODES = [
+  'CHART_INVALID',
+  'CHART_REFERENCE_ORPHANED',
+  'CASH_FLOW_CLASSIFICATION_INVALID',
+  'CASH_FLOW_CLASSIFICATION_STALE',
+] as const;
+export type ChartAccountImportIssueCode = typeof CHART_ACCOUNT_IMPORT_ISSUE_CODES[number];
+
+export interface ChartAccountImportIssue {
+  readonly rowNumber: number;
+  readonly code: ChartAccountImportIssueCode;
+  readonly message: string;
+  readonly field?: string;
+  readonly accountId?: string;
+}
+
+export interface ChartAccountImportClassificationPreview {
+  readonly accountId: string;
+  readonly classification?: CashFlowClassification;
+}
+
+export interface ChartAccountImportPreview {
+  readonly previewToken: string;
+  readonly databaseRevision: string;
+  readonly rows: readonly ChartAccount[];
+  readonly cashFlowClassifications: readonly ChartAccountImportClassificationPreview[];
+  readonly issues: readonly ChartAccountImportIssue[];
+  readonly validRowCount: number;
+  readonly blockedRowCount: number;
 }
 
 export function nowUtc(): string {

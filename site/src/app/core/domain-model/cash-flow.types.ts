@@ -286,6 +286,35 @@ export interface CashFlowClassificationReview {
   readonly accounts: readonly CashFlowClassificationReviewItem[];
   readonly blockingCount: number;
   readonly warningCount: number;
+  /** Present when the review was returned by a successful classification save. */
+  readonly saveImpact?: CashFlowClassificationSaveImpact;
+  /** Alias retained for consumers that call this result an impact report. */
+  readonly impact?: CashFlowClassificationSaveImpact;
+}
+
+export const CASH_FLOW_CLASSIFICATION_REVIEW_REASON_CODES = [
+  'MISSING_CLASSIFICATION',
+  'INVALID_CLASSIFICATION',
+  'STRUCTURE_CHANGED',
+  'AMBIGUOUS_STRUCTURE',
+  'CLASSIFICATION_REVIEW_REQUIRED',
+  'ARCHIVED_ACCOUNT',
+] as const;
+export type CashFlowClassificationReviewReasonCode = typeof CASH_FLOW_CLASSIFICATION_REVIEW_REASON_CODES[number];
+
+export interface CashFlowClassificationSaveImpact {
+  readonly query: CashFlowQuery;
+  readonly databaseRevision: DatabaseRevision;
+  readonly accountRole: 'FINANCIAL_SOURCE' | 'CHART';
+  readonly accountId: string;
+  readonly accountPath: string;
+  readonly previousClassification?: CashFlowClassification;
+  readonly classification: CashFlowClassification;
+  readonly affectedReports: readonly ('CASH_FLOW')[];
+  readonly affectedSections: readonly CashFlowSection[];
+  readonly periodActivityMinor: bigint;
+  readonly reportImpactMinor: bigint;
+  readonly cacheInvalidated: boolean;
 }
 
 export interface CashFlowClassificationReviewItem {
@@ -294,6 +323,10 @@ export interface CashFlowClassificationReviewItem {
   readonly accountPath: string;
   readonly accountType: AccountingAccountType | string;
   readonly detailType: string;
+  readonly archived?: boolean;
+  readonly reviewReasons?: readonly CashFlowClassificationReviewReasonCode[];
+  readonly currentClassification?: CashFlowClassification;
+  readonly suggestedClassification?: CashFlowClassification;
   readonly cashRole?: CashFlowCashRole;
   readonly treatment: CashFlowTreatment;
   readonly status: CashFlowClassificationStatus;
@@ -609,10 +642,30 @@ export function freezeCashFlowReport(report: CashFlowReport): CashFlowReport {
 }
 
 export function freezeCashFlowClassificationReview(review: CashFlowClassificationReview): CashFlowClassificationReview {
+  const freezeClassification = (classification: CashFlowClassification | undefined): CashFlowClassification | undefined => {
+    if (!classification) return undefined;
+    return Object.freeze({ ...classification });
+  };
+  const frozenImpact = review.saveImpact ?? review.impact
+    ? Object.freeze({
+      ...(review.saveImpact ?? review.impact)!,
+      query: Object.freeze({ ...(review.saveImpact ?? review.impact)!.query }),
+      previousClassification: freezeClassification((review.saveImpact ?? review.impact)!.previousClassification),
+      classification: freezeClassification((review.saveImpact ?? review.impact)!.classification)!,
+      affectedReports: Object.freeze([...((review.saveImpact ?? review.impact)!.affectedReports)]),
+      affectedSections: Object.freeze([...((review.saveImpact ?? review.impact)!.affectedSections)]),
+    })
+    : undefined;
   return Object.freeze({
     ...review,
     query: Object.freeze({ ...review.query }),
-    accounts: Object.freeze(review.accounts.map(account => Object.freeze({ ...account }))),
+    ...(frozenImpact ? { saveImpact: frozenImpact, impact: frozenImpact } : {}),
+    accounts: Object.freeze(review.accounts.map(account => Object.freeze({
+      ...account,
+      reviewReasons: Object.freeze([...(account.reviewReasons ?? [])]),
+      currentClassification: freezeClassification(account.currentClassification),
+      suggestedClassification: freezeClassification(account.suggestedClassification),
+    }))),
   });
 }
 

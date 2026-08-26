@@ -1139,7 +1139,29 @@ export class AppComponent {
     const file = input.files?.[0];
     if (!file) return;
     const content = file.name.toLowerCase().endsWith('.csv') ? await file.text() : await file.arrayBuffer();
-    const accounts = this.chartAccountFacade.import(content);
+    const preview = this.chartAccountFacade.preview(content);
+    if (this.chartAccountFacade.error()) {
+      this.statusMessage = this.chartAccountFacade.error()!;
+      input.value = '';
+      return;
+    }
+    if (!preview) {
+      this.statusMessage = 'Unable to preview the Chart of Accounts workbook.';
+      input.value = '';
+      return;
+    }
+    if (preview.issues.length) {
+      this.statusMessage = `Chart import blocked: ${preview.issues[0].message}`;
+      input.value = '';
+      return;
+    }
+    const confirmed = globalThis.confirm(`Replace the current Chart of Accounts with ${preview.rows.length} rows? Cash Flow classifications will be imported atomically.`);
+    if (!confirmed) {
+      this.statusMessage = 'Chart of Accounts import canceled.';
+      input.value = '';
+      return;
+    }
+    const accounts = this.chartAccountFacade.commitImport();
     if (this.chartAccountFacade.error()) this.statusMessage = this.chartAccountFacade.error()!;
     else this.statusMessage = `Loaded ${accounts?.length ?? 0} accounting categories from ${file.name}.`;
     input.value = '';
