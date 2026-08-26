@@ -1,14 +1,28 @@
-/goal Coordinate the implementation and independent review of the remaining TallyStick Statement of Cash Flows slices until every slice and gate is complete, documented, committed, and pushed, or until a genuine user decision or external approval is required.
+/goal Coordinate the implementation and independent review of the remaining TallyStick Statement of Cash Flows slices until every slice itemized here and gate is complete, documented, committed, and pushed, or until a genuine user decision or external approval is required.
+
+Slices to process:
+CF-SLICE-09-NET-PROFIT-NONCASH
 
 You are the orchestration task. You coordinate two existing Codex tasks:
 
-IMPLEMENTOR_TASK: <exact implementation task ID, link, or unique title>
-REVIEWER_TASK: <exact reviewer task ID, link, or unique title>
+IMPLEMENTOR_TASK: 01a02631-ae75-73d0-be6b-4c239188a2dc
+REVIEWER_TASK: 01a03a14-2bc1-7e81-9e95-6c0408ce98f0
 
 Repository: /Volumes/External SSD 1TB/Projects/TallyStick
 Working branch: cash-flow
 
-Both tasks must operate on the same repository checkout and branch. Resolve and bind to these exact tasks at startup. Do not create replacement tasks, use subagents, or accidentally communicate with similarly named tasks.
+Both tasks must operate directly in this exact visible saved-project checkout and branch. Resolve and bind to these exact tasks at startup. Do not create replacement tasks, use subagents, or accidentally communicate with similarly named tasks.
+
+Visible-checkout rule — no worktrees
+
+- Do not create, use, fork into, hand off into, or move either task into a Codex worktree, Git worktree, temporary clone, hidden checkout, or alternate repository directory.
+- Do not run `git worktree add` or use any task/thread option whose environment or destination is `worktree`.
+- All implementation, review, tests, documentation, commits, and pushes must happen directly in `/Volumes/External SSD 1TB/Projects/TallyStick` on branch `cash-flow`.
+- The normal Git working directory at that visible path is required. References below to the “working tree” mean only the staged, unstaged, and untracked state in this exact visible checkout; they never authorize a separate Git or Codex worktree.
+- At startup, verify each exact task reports `/Volumes/External SSD 1TB/Projects/TallyStick` as its current directory. Also verify `git rev-parse --show-toplevel` returns that exact path and `git branch --show-current` returns `cash-flow`.
+- Before every implementor or reviewer handoff, include the exact repository path and branch in the directive. Require the recipient to verify and report both before doing any work.
+- In each checkpoint to me, state the visible checkout path, branch, baseline or current HEAD, and a compact `git status --short --branch` summary so repository state is never hidden.
+- If either exact task is attached to a different directory, a Codex worktree, a detached HEAD, or another branch, stop and report the mismatch. Do not create a substitute task or hidden checkout to work around it.
 
 Your role
 
@@ -58,7 +72,7 @@ Send the implementor a clear directive containing:
 - the source documents and tracker items controlling it
 - its required behavior and acceptance criteria
 - the expected focused and regression tests
-- the instruction to inspect git status and record the baseline HEAD before editing
+- the instruction to verify the exact visible repository path and `cash-flow` branch, inspect git status, and record the baseline HEAD before editing
 - the instruction to preserve unrelated changes
 - the instruction not to commit or push yet
 - the instruction to remain strictly within the named slice
@@ -69,14 +83,16 @@ Require the implementor to implement the work completely, add or update tests, r
 - files changed
 - tests and commands run, with results
 - any warnings or unresolved issues
+- the verified repository path and branch
 - the baseline HEAD and current diff summary
+- the complete `git status --short --branch` result
 - whether the work is ready for review
 
 Wait for a completed response. Commentary or partial progress is not completion.
 
 3. Send the work to independent review
 
-Once implementation is ready, direct the reviewer to inspect the exact changes from the recorded baseline HEAD through the current working tree, including staged, unstaged, and untracked files.
+Once implementation is ready, direct the reviewer to work in the same exact visible checkout and inspect the exact changes from the recorded baseline HEAD through that checkout’s current Git state, including staged, unstaged, and untracked files. Do not create or use a separate review worktree.
 
 Require the reviewer to read the slice’s controlling documents and check:
 
@@ -161,8 +177,9 @@ Then begin the cycle again with the next eligible unfinished work unit. Do not a
 Communication rules
 
 - Use task/thread coordination tools to message and wait for the two tasks.
+- Never create, fork, hand off, or move a task into a Codex or Git worktree. Keep both exact tasks in the visible saved-project checkout.
 - Prefer bounded waits for task progress rather than repeatedly polling.
-- Keep me informed with compact checkpoint reports naming the current slice, current stage, last verified result, and any blocker.
+- Keep me informed with compact checkpoint reports naming the visible checkout path, branch, HEAD, Git status summary, current slice, current stage, last verified result, and any blocker.
 - Never claim completion based only on an implementor’s assertion; require reviewer approval and delivery evidence.
 - Never answer an approval, credential, or user-input request on my behalf.
 - Never bypass failing tests, weaken tests, rewrite shared history, force-push, or discard unrelated changes.
@@ -175,6 +192,7 @@ Stop the loop and report clearly if:
 
 - a product or architecture decision is genuinely absent from the controlling documents
 - the two tasks cannot access the same intended checkout and branch
+- either task is attached to a worktree, hidden checkout, temporary clone, detached HEAD, alternate repository path, or branch other than `cash-flow`
 - unrelated working-tree changes cannot be safely separated
 - credentials, user approval, or a destructive operation would be required
 - a push would require force-pushing or rewriting shared history
