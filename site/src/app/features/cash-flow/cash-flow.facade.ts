@@ -10,6 +10,7 @@ import {
   CashFlowDetail,
   CashFlowExportResult,
   CashFlowQuery,
+  CashFlowQueryInput,
   CashFlowReport,
   CommitCashFlowClassificationImportCommand,
   ExportCashFlowClassificationsCommand,
@@ -81,7 +82,7 @@ export class CashFlowFacade {
     });
   }
 
-  loadReport(query: CashFlowQuery): void {
+  loadReport(query: CashFlowQueryInput): void {
     this.report.set(undefined);
     this.detail.set(undefined);
     this.run(() => this.report.set(this.application.getCashFlowReport(query)));

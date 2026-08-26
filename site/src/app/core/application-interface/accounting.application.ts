@@ -43,6 +43,7 @@ import {
   CashFlowDetail,
   CashFlowExportResult,
   CashFlowQuery,
+  CashFlowQueryInput,
   CashFlowReport,
   CommitCashFlowClassificationImportCommand,
   CashFlowPrintPreviewResult,
@@ -122,7 +123,7 @@ export interface AccountingApplication {
   previewCashFlowClassification(command: PreviewCashFlowClassificationCommand): CashFlowClassificationPreview;
   saveCashFlowClassification(command: SaveCashFlowClassificationCommand): CashFlowClassificationReview;
   getCashFlowClassificationReview(query: CashFlowQuery): CashFlowClassificationReview;
-  getCashFlowReport(query: CashFlowQuery): CashFlowReport;
+  getCashFlowReport(query: CashFlowQueryInput): CashFlowReport;
   getCashFlowDetail(command: GetCashFlowDetailCommand): CashFlowDetail;
   exportCashFlow(command: ExportCashFlowCommand): Promise<CashFlowExportResult>;
   openCashFlowPrintPreview(command: OpenCashFlowPrintPreviewCommand): Promise<CashFlowPrintPreviewResult>;

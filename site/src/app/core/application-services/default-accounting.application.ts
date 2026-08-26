@@ -58,6 +58,7 @@ import {
   CashFlowExportResult,
   CashFlowPrintPreviewResult,
   CashFlowQuery,
+  CashFlowQueryInput,
   CashFlowReport,
   CommitCashFlowClassificationImportCommand,
   ExportCashFlowClassificationsCommand,
@@ -76,6 +77,7 @@ import { CompanyProfileService } from './company-profile.service';
 import { AccountClassificationService } from './account-classification.service';
 import { CashFlowClassificationService } from './cash-flow-classification.service';
 import { BalanceSheetReportService } from './balance-sheet-report.service';
+import { CashFlowReportService } from './cash-flow-report.service';
 import { calculateUnadjustedNetProfit } from './profit-loss-calculation';
 import { BalanceSheetOutputService } from './balance-sheet-output.service';
 import { ACCOUNTING_REPOSITORY, AccountingRepository, CashFlowClassificationRecord } from '../repository-gateways/accounting.repository';
@@ -206,6 +208,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
   private readonly accountClassifications = inject(AccountClassificationService);
   private readonly cashFlowClassifications = inject(CashFlowClassificationService);
   private readonly balanceSheets = inject(BalanceSheetReportService);
+  private readonly cashFlowReports = inject(CashFlowReportService);
   private readonly balanceSheetOutputs = inject(BalanceSheetOutputService);
   private readonly previews = new Map<string, ImportPreview>();
   private readonly rulePreviews = new Map<string, RuleImportPreview>();
@@ -283,8 +286,8 @@ export class DefaultAccountingApplication implements AccountingApplication {
     return this.cashFlowClassifications.review(query);
   }
 
-  getCashFlowReport(query: CashFlowQuery): CashFlowReport {
-    return this.cashFlowNotImplemented(`Generate Cash Flow report for ${query.startDate} through ${query.endDate}`);
+  getCashFlowReport(query: CashFlowQueryInput): CashFlowReport {
+    return this.cashFlowReports.getCashFlowReport(query);
   }
 
   getCashFlowDetail(command: GetCashFlowDetailCommand): CashFlowDetail {

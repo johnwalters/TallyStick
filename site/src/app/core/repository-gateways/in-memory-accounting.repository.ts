@@ -69,7 +69,7 @@ export class InMemoryAccountingRepository implements AccountingRepository {
     };
     return structuredClone({
       asOfDate,
-      databaseRevision: databaseRevision(this.revision(payload)),
+      databaseRevision: this.getDatabaseRevision(),
       company: this.company,
       companyProfile: this.profile,
       accounts: payload.accounts,

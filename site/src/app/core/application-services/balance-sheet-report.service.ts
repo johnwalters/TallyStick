@@ -44,6 +44,20 @@ export interface ChartBalance {
   readonly amountMinor: bigint;
 }
 
+export interface BalanceSheetProjection {
+  readonly sourceBalances: readonly FinancialSourceBalance[];
+  readonly chartBalances: readonly ChartBalance[];
+  readonly fiscalPeriod: { readonly startDate: string; readonly endDate: string };
+  readonly currentEarningsMinor: bigint;
+  readonly retainedEarningsMinor: bigint;
+  readonly openingBalanceEquityMinor: bigint;
+  readonly totalAssetsMinor: bigint;
+  readonly totalLiabilitiesMinor: bigint;
+  readonly totalEquityMinor: bigint;
+  readonly totalLiabilitiesAndEquityMinor: bigint;
+  readonly differenceMinor: bigint;
+}
+
 @Injectable({ providedIn: 'root' })
 export class BalanceSheetReportService {
   private readonly repository = inject(ACCOUNTING_REPOSITORY) as AccountingRepository;
@@ -70,36 +84,25 @@ export class BalanceSheetReportService {
     const snapshot = this.repository.readBalanceSheetSnapshot(normalized.value.asOfDate);
     const conflicts = snapshot.accounts.filter(account => account.openingBalanceSource === 'LEDGER_ACTIVITY' && account.openingBalance.minorUnits !== 0n);
     if (conflicts.length) throw new BalanceSheetContractError({ code: 'REPORT_GENERATION_FAILED', message: `Stored opening balance conflicts with ledger activity for ${conflicts[0].name}.`, accountId: conflicts[0].id, retryable: false });
-    const sourceBalances = this.sourceBalances(snapshot, normalized.value);
-    const chartBalances = this.chartBalances(snapshot, normalized.value);
-    const period = fiscalPeriod(normalized.value.asOfDate, snapshot.company.fiscalYearStartMonth);
-    const currentEarnings = calculateUnadjustedNetProfit(snapshot.transactions, snapshot.chartAccounts, period.startDate, normalized.value.asOfDate);
-    const retainedEarnings = calculateRetainedEarnings(snapshot, period.startDate);
-    const openingBalanceEquity = sourceBalances.reduce((total, balance) => {
-      if (balance.section === 'ASSETS') return total + balance.openingAmountMinor;
-      if (balance.section === 'LIABILITIES') return total - balance.openingAmountMinor;
-      return total;
-    }, 0n);
+    const projection = calculateBalanceSheetProjection(snapshot, normalized.value);
+    const { sourceBalances, chartBalances, fiscalPeriod: period } = projection;
     const presented = presentBalanceSheetRows([
       ...sourceBalances.map(balance => ({ row: this.sourceRow(balance), parentAccountId: balance.account.parentAccountId, displayOrder: Number.MAX_SAFE_INTEGER })),
       ...chartBalances.map(balance => ({ row: this.chartRow(balance), parentAccountId: balance.account.parentId, displayOrder: balance.account.displayOrder })),
     ], normalized.value.asOfDate, normalized.value.includeZeroBalanceAccounts);
     const rows: BalanceSheetRow[] = [
       ...presented.rows,
-      derivedEquityRow('CURRENT_EARNINGS', 'Current Earnings', normalized.value.asOfDate, currentEarnings),
-      derivedEquityRow('RETAINED_EARNINGS', 'Retained Earnings', normalized.value.asOfDate, retainedEarnings),
-      derivedEquityRow('OPENING_BALANCE_EQUITY', 'Opening Balance Equity', normalized.value.asOfDate, openingBalanceEquity),
+      derivedEquityRow('CURRENT_EARNINGS', 'Current Earnings', normalized.value.asOfDate, projection.currentEarningsMinor),
+      derivedEquityRow('RETAINED_EARNINGS', 'Retained Earnings', normalized.value.asOfDate, projection.retainedEarningsMinor),
+      derivedEquityRow('OPENING_BALANCE_EQUITY', 'Opening Balance Equity', normalized.value.asOfDate, projection.openingBalanceEquityMinor),
     ];
-    const totalAssetsMinor = sumBalances(sourceBalances, chartBalances, 'ASSETS');
-    const totalLiabilitiesMinor = sumBalances(sourceBalances, chartBalances, 'LIABILITIES');
-    const totalEquityMinor = sumBalances(sourceBalances, chartBalances, 'EQUITY') + currentEarnings + retainedEarnings + openingBalanceEquity;
-    const totalLiabilitiesAndEquityMinor = totalLiabilitiesMinor + totalEquityMinor;
+    const { totalAssetsMinor, totalLiabilitiesMinor, totalEquityMinor, totalLiabilitiesAndEquityMinor, differenceMinor } = projection;
     rows.push(
       totalRow('TOTAL_ASSETS', 'ASSETS', 'Total Assets', normalized.value.asOfDate, totalAssetsMinor),
       totalRow('TOTAL_LIABILITIES', 'LIABILITIES', 'Total Liabilities', normalized.value.asOfDate, totalLiabilitiesMinor),
       totalRow('TOTAL_EQUITY', 'EQUITY', 'Total Equity', normalized.value.asOfDate, totalEquityMinor),
       totalRow('TOTAL_LIABILITIES_AND_EQUITY', 'RECONCILIATION', 'Total Liabilities and Equity', normalized.value.asOfDate, totalLiabilitiesAndEquityMinor),
-      totalRow('DIFFERENCE', 'RECONCILIATION', 'Difference', normalized.value.asOfDate, totalAssetsMinor - totalLiabilitiesAndEquityMinor, 'DIFFERENCE'),
+      totalRow('DIFFERENCE', 'RECONCILIATION', 'Difference', normalized.value.asOfDate, differenceMinor, 'DIFFERENCE'),
     );
     const profile = snapshot.companyProfile ?? {
       companyId: snapshot.company.id, legalName: snapshot.company.name, displayName: snapshot.company.name,
@@ -121,8 +124,8 @@ export class BalanceSheetReportService {
       totalLiabilitiesMinor,
       totalEquityMinor,
       totalLiabilitiesAndEquityMinor,
-      differenceMinor: totalAssetsMinor - totalLiabilitiesAndEquityMinor,
-      warnings: buildWarnings(snapshot, normalized.value.asOfDate, rows, presented.invalidAccountIds, totalAssetsMinor - totalLiabilitiesAndEquityMinor),
+      differenceMinor,
+      warnings: buildWarnings(snapshot, normalized.value.asOfDate, rows, presented.invalidAccountIds, differenceMinor),
       detailIndex: buildDetailIndex(snapshot, normalized.value, period, sourceBalances, chartBalances, rows),
     });
     this.reports.set(report.reportId, report);
@@ -143,6 +146,29 @@ export class BalanceSheetReportService {
   }
 
   private sourceBalances(snapshot: BalanceSheetRepositorySnapshot, query: BalanceSheetQuery): readonly FinancialSourceBalance[] {
+    return calculateFinancialSourceBalances(snapshot, query);
+  }
+
+  private sourceRow(balance: FinancialSourceBalance): BalanceSheetRow {
+    const rowId = accountBalanceSheetRowId('FINANCIAL_SOURCE', balance.account.id);
+    return { rowId, rowType: 'ACCOUNT', section: balance.section, accountType: balance.account.accountType, accountRole: 'FINANCIAL_SOURCE', accountId: balance.account.id, label: balance.account.name, depth: 0, amountMinor: balance.amountMinor, detailKey: balanceSheetDetailKey(rowId), bold: false, derived: false, archived: balance.account.archived, unclassified: balance.account.classificationStatus === 'REVIEW_REQUIRED' };
+  }
+
+  private chartRow(balance: ChartBalance): BalanceSheetRow {
+    const rowId = accountBalanceSheetRowId('CHART', balance.account.id);
+    return { rowId, rowType: 'ACCOUNT', section: balance.section, accountType: balance.account.accountType, accountRole: 'CHART', accountId: balance.account.id, label: balance.account.name, depth: 0, amountMinor: balance.amountMinor, detailKey: balanceSheetDetailKey(rowId), bold: false, derived: false, archived: balance.account.archived, unclassified: false };
+  }
+}
+
+/**
+ * Pure financial-source projection shared by Balance Sheet and Cash Flow.
+ * Callers supply one immutable repository snapshot so multiple as-of projections
+ * cannot observe different database revisions.
+ */
+export function calculateFinancialSourceBalances(
+  snapshot: BalanceSheetRepositorySnapshot,
+  query: BalanceSheetQuery,
+): readonly FinancialSourceBalance[] {
     const confirmedTransfers = new Map(snapshot.transfers.map(transfer => [transfer.id, transfer]));
     const transactionsByAccount = new Map<string, Transaction[]>();
     for (const transaction of snapshot.transactions) {
@@ -178,31 +204,59 @@ export class BalanceSheetReportService {
     });
 
     return Object.freeze(balances.map(balance => Object.freeze(balance)));
-  }
+}
 
-  private chartBalances(snapshot: BalanceSheetRepositorySnapshot, query: BalanceSheetQuery): readonly ChartBalance[] {
-    const amounts = new Map<string, bigint>();
-    for (const transaction of snapshot.transactions) {
-      if (transaction.state !== 'POSTED' || transaction.postingDate > query.asOfDate) continue;
-      for (const split of transaction.splits) amounts.set(split.chartAccountId, (amounts.get(split.chartAccountId) ?? 0n) + split.amount.minorUnits);
-    }
-    return Object.freeze(snapshot.chartAccounts.flatMap(account => {
-      const definition = getAccountTypeDefinition(account.accountType);
-      if (!definition.ok || !definition.value.balanceSheetSection) return [];
-      const stored = amounts.get(account.id) ?? 0n;
-      return [Object.freeze({ account: structuredClone(account), section: definition.value.balanceSheetSection, amountMinor: definition.value.naturalBalance === 'DEBIT' ? -stored : stored })];
-    }));
-  }
+/** Pure Balance Sheet totals projection for cross-report reconciliation. */
+export function calculateBalanceSheetProjection(
+  snapshot: BalanceSheetRepositorySnapshot,
+  query: BalanceSheetQuery,
+): BalanceSheetProjection {
+  const sourceBalances = calculateFinancialSourceBalances(snapshot, query);
+  const chartBalances = calculateChartBalances(snapshot, query);
+  const period = fiscalPeriod(query.asOfDate, snapshot.company.fiscalYearStartMonth);
+  const currentEarningsMinor = calculateUnadjustedNetProfit(snapshot.transactions, snapshot.chartAccounts, period.startDate, query.asOfDate);
+  const retainedEarningsMinor = calculateRetainedEarnings(snapshot, period.startDate);
+  const openingBalanceEquityMinor = sourceBalances.reduce((total, balance) => {
+    if (balance.section === 'ASSETS') return total + balance.openingAmountMinor;
+    if (balance.section === 'LIABILITIES') return total - balance.openingAmountMinor;
+    return total;
+  }, 0n);
+  const totalAssetsMinor = sumBalances(sourceBalances, chartBalances, 'ASSETS');
+  const totalLiabilitiesMinor = sumBalances(sourceBalances, chartBalances, 'LIABILITIES');
+  const totalEquityMinor = sumBalances(sourceBalances, chartBalances, 'EQUITY')
+    + currentEarningsMinor + retainedEarningsMinor + openingBalanceEquityMinor;
+  const totalLiabilitiesAndEquityMinor = totalLiabilitiesMinor + totalEquityMinor;
+  return Object.freeze({
+    sourceBalances,
+    chartBalances,
+    fiscalPeriod: Object.freeze(period),
+    currentEarningsMinor,
+    retainedEarningsMinor,
+    openingBalanceEquityMinor,
+    totalAssetsMinor,
+    totalLiabilitiesMinor,
+    totalEquityMinor,
+    totalLiabilitiesAndEquityMinor,
+    differenceMinor: totalAssetsMinor - totalLiabilitiesAndEquityMinor,
+  });
+}
 
-  private sourceRow(balance: FinancialSourceBalance): BalanceSheetRow {
-    const rowId = accountBalanceSheetRowId('FINANCIAL_SOURCE', balance.account.id);
-    return { rowId, rowType: 'ACCOUNT', section: balance.section, accountType: balance.account.accountType, accountRole: 'FINANCIAL_SOURCE', accountId: balance.account.id, label: balance.account.name, depth: 0, amountMinor: balance.amountMinor, detailKey: balanceSheetDetailKey(rowId), bold: false, derived: false, archived: balance.account.archived, unclassified: balance.account.classificationStatus === 'REVIEW_REQUIRED' };
+function calculateChartBalances(snapshot: BalanceSheetRepositorySnapshot, query: BalanceSheetQuery): readonly ChartBalance[] {
+  const amounts = new Map<string, bigint>();
+  for (const transaction of snapshot.transactions) {
+    if (transaction.state !== 'POSTED' || transaction.postingDate > query.asOfDate) continue;
+    for (const split of transaction.splits) amounts.set(split.chartAccountId, (amounts.get(split.chartAccountId) ?? 0n) + split.amount.minorUnits);
   }
-
-  private chartRow(balance: ChartBalance): BalanceSheetRow {
-    const rowId = accountBalanceSheetRowId('CHART', balance.account.id);
-    return { rowId, rowType: 'ACCOUNT', section: balance.section, accountType: balance.account.accountType, accountRole: 'CHART', accountId: balance.account.id, label: balance.account.name, depth: 0, amountMinor: balance.amountMinor, detailKey: balanceSheetDetailKey(rowId), bold: false, derived: false, archived: balance.account.archived, unclassified: false };
-  }
+  return Object.freeze(snapshot.chartAccounts.flatMap(account => {
+    const definition = getAccountTypeDefinition(account.accountType);
+    if (!definition.ok || !definition.value.balanceSheetSection) return [];
+    const stored = amounts.get(account.id) ?? 0n;
+    return [Object.freeze({
+      account: structuredClone(account),
+      section: definition.value.balanceSheetSection,
+      amountMinor: definition.value.naturalBalance === 'DEBIT' ? -stored : stored,
+    })];
+  }));
 }
 
 function transferContainsTransaction(transfer: { leftTransactionId: string; rightTransactionId: string }, transactionId: string): boolean {

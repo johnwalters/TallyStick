@@ -16,18 +16,18 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Phase 2 recovery and Phase 3 classification services/review UI complete |
+| Overall status | Phase 4 query normalization and cash-balance projections are in progress; CF4-004 correction is ready for review and indirect Operating calculations remain |
 | Current phase | Phase 4 — Cash balances and indirect Operating activities |
-| Next task | Begin `CF4-001` — normalize inclusive period queries and fiscal presets |
+| Next task | Re-review `CF4-004` — preserve explicit review-required cash roles and gate warnings by participating balances/activity |
 | Current branch | `cash-flow` |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Cash Flow test | `npm run test:ci`: 238 browser/unit tests passed plus boundary and both fixture oracles; `npm run build` (1.35 MB, no warnings), `npm run test:desktop-host` (13 tests), isolated `npm run desktop:smoke`, app/spec/desktop type checks, and `git diff --check` passed. |
-| Last tracker update | August 26, 2026 — `CF-SLICE-05-PERSISTENCE-RECOVERY` correction gate completed |
-| Known blocker | None for the completed Phase 2 recovery and Phase 3 classification work; Phase 4 is the next implementation phase |
+| Last verified Cash Flow test | `npm run test:ci`: 245 browser/unit tests passed plus boundary and both fixture oracles; `npm run build` (1.35 MB, no warnings), app/spec type checks, and `git diff --check` passed. |
+| Last tracker update | August 26, 2026 — CF4-004 review-required cash correction implemented |
+| Known blocker | CF4-004 and the CF4-GATE remain open pending independent review of the correction |
 
 ## Tracker use
 
@@ -70,7 +70,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | 1 | Cash Flow classification domain and public contracts | Complete |
 | 2 | Schema 7 migration, persistence, revision, and recovery compatibility | Complete |
 | 3 | Classification services, chart exchange, and review UI | Complete |
-| 4 | Cash balances and indirect Operating activities | Not started |
+| 4 | Cash balances and indirect Operating activities | In progress — query and cash balances complete |
 | 5 | Investing, Financing, transfers, restricted cash, and disclosures | Not started |
 | 6 | Reconciliation, warnings, detail, revision, and cache behavior | Not started |
 | 7 | Statement of Cash Flows workspace | Not started |
@@ -161,10 +161,10 @@ Execution is divided into token-conscious, independently testable units in the [
 
 **Trace:** PRD §§6–7; CF-001–CF-003, CF-007, CF-009–CF-011, CF-016–CF-018, CF-033–CF-034; A1–A5, A7, A13, A15–A17; Product Spec §§8–10.6.
 
-- [ ] **CF4-001** Normalize inclusive period queries and fiscal presets independently from other workspaces.
-- [ ] **CF4-002** Build one immutable report snapshot and exclude Pending and Excluded activity everywhere.
-- [ ] **CF4-003** Calculate Beginning Cash as of the day before `startDate` and Ending Cash as of `endDate`.
-- [ ] **CF4-004** Separate unrestricted cash/cash equivalents from restricted cash according to explicit roles.
+- [x] **CF4-001** Normalize inclusive period queries and fiscal presets independently from other workspaces.
+- [x] **CF4-002** Build one immutable report snapshot and exclude Pending and Excluded activity everywhere.
+- [x] **CF4-003** Calculate Beginning Cash as of the day before `startDate` and Ending Cash as of `endDate`.
+- [ ] **CF4-004** Separate unrestricted cash/cash equivalents from restricted cash according to explicit roles, including Review-required classifications and participation-gated warnings.
 - [ ] **CF4-005** Reuse unadjusted P/L Net Profit for the exact period and same database revision.
 - [ ] **CF4-006** Reverse classified noncash and reclassification P/L contributions once in Operating activities.
 - [ ] **CF4-007** Calculate operating-asset changes as Opening minus Ending balance.
@@ -266,6 +266,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | 2026-08-26 | `CF-SLICE-05-PERSISTENCE-RECOVERY` | Correction pass completed: full schema-7 object/relationship/constraint validation, safe configured and unconfigured pre-migration backups with post-write revalidation, reentrant SQLite/in-memory atomic Chart replacement, strict current/future/mismatched portable-schema validation, and complete malformed-classification plus preservation coverage. `npm run test:ci` (238 browser/unit tests plus boundaries and fixture oracles), `npm run build` (1.35 MB, no budget warnings), `npm run test:desktop-host` (13 tests), isolated `npm run desktop:smoke`, app/spec/desktop type checks, and `git diff --check` passed. CF2-008, CF2-011, CF2-012, and CF2-GATE are complete. | Complete |
 | 2026-08-25 | `CF-SLICE-06-CLASSIFICATION-SERVICE` | Added validated classification service wiring, stable-ID-authoritative exchange, explicit review reasons/current-vs-suggested state, archived indicators, save impact reporting, one-pass review aggregation, and Chart workbook preview/confirmed atomic commit with Cash Flow classification round-trip; type-check, production build, boundaries, fixture oracles, desktop-host (8 tests), and `git diff --check` passed. ChromeHeadless could not launch in this environment, so browser revalidation remains pending | Review fixes implemented; Phase 3 UI and gate remain |
 | 2026-08-25 | `CF-SLICE-07-CLASSIFICATION-UI` | Review corrections isolate the panel component, include complete period-aware classifications, preserve optimistic concurrency tokens, use the selected query for impact, trap keyboard focus, distinguish role/ID namespaces, and keep archived editors read-only. `npm run test:ci` passed 232 browser/unit tests plus boundaries and fixture oracles; production build, app/spec type checks, desktop-host (8 tests), and `git diff --check` passed | Complete |
+| 2026-08-26 | `CF-SLICE-08-QUERY-CASH-BALANCES` | Initial query/cash-balance implementation was followed by a CF4-004 correction: explicit CASH/CASH_EQUIVALENT/RESTRICTED_CASH roles now contribute even when Review required, and cash-role/archived-participation warnings require nonzero projected balances or applicable activity. Added regression coverage for review-required unrestricted/restricted cash and zero-balance unresolved/archived accounts. `npm run test:ci` passed 245 browser/unit tests plus boundaries and both fixture oracles; `npm run build` produced a 1.35 MB initial bundle with no warnings; app/spec type checks and `git diff --check` passed. | In progress — ready for re-review |
 | 2026-08-25 | Slice 1 pre-change baseline | `test:ci`: 181 passed; production build passed; `test:desktop-host`: 8 passed including validated restore/safety backup; isolated `desktop:smoke` passed | Complete |
 | 2026-08-25 | `CF-SLICE-01-BASELINE-ORACLE` | Independent validator passed for 2 neutral companies, A1–A20, schema-6 counts, exact integer totals/source Balance Sheets/cash composition/detail/warnings, 2025–2026 fiscal coverage, migration targets, and privacy terms | Complete |
 | 2026-08-25 | Slice 1 post-change verification | `test:ci`: Cash Flow oracle plus 181 browser/unit tests passed; production build passed; `test:desktop-host`: 8 passed; isolated `desktop:smoke` passed | Complete |

@@ -555,7 +555,7 @@ export function normalizeCashFlowQuery(
 }
 
 export function cashFlowReportId(revision: DatabaseRevision, query: CashFlowQuery): CashFlowReportId {
-  return `CASH_FLOW:${revision}:${query.startDate}:${query.endDate}:INDIRECT:v${CASH_FLOW_CONTRACT_VERSION}` as CashFlowReportId;
+  return `CASH_FLOW:${revision}:${query.startDate}:${query.endDate}:${query.includeZeroRows ? 'WITH_ZERO' : 'NONZERO'}:INDIRECT:v${CASH_FLOW_CONTRACT_VERSION}` as CashFlowReportId;
 }
 
 export function cashFlowAccountRowId(section: CashFlowSection, role: AccountRole, accountId: string): CashFlowRowId {

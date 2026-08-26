@@ -56,7 +56,7 @@ describe('Cash Flow public application contract', () => {
     expect(Object.isFrozen(catalog.defaults)).toBeTrue();
   });
 
-  it('implements classification operations and keeps report/output operations explicitly deferred', async () => {
+  it('implements classification and cash-balance report operations while keeping later detail/output operations deferred', async () => {
     const query = { startDate: '2026-01-01', endDate: '2026-12-31', includeZeroRows: false };
     const chart = application.listChartAccounts().find(account => account.detailType === 'Owner draw')!;
     const preview = application.previewCashFlowClassification({ accountRole: 'CHART', accountId: chart.id, treatment: 'FINANCING' });
@@ -75,9 +75,15 @@ describe('Cash Flow public application contract', () => {
     expect(committed.appliedRowCount).toBe(exported.rows.length);
 
     const revision = committed.databaseRevision;
+    const report = application.getCashFlowReport(query);
+    expect(report.databaseRevision).toBe(revision);
+    expect(report.query).toEqual(query);
+    expect(typeof report.beginningCashMinor).toBe('bigint');
+    expect(typeof report.endingCashMinor).toBe('bigint');
+    expect(Object.isFrozen(report)).toBeTrue();
+
     const deferredOperations: Array<() => unknown> = [
-      () => application.getCashFlowReport(query),
-      () => application.getCashFlowDetail({ reportId: 'report-1' as never, databaseRevision: revision, detailKey: 'detail-1' as never }),
+      () => application.getCashFlowDetail({ reportId: report.reportId, databaseRevision: revision, detailKey: 'detail-1' as never }),
     ];
     for (const operation of deferredOperations) {
       expect(() => operation()).toThrowError(CashFlowContractError);
