@@ -105,6 +105,40 @@ describe('SqliteAccountingRepository', () => {
     expect(reopenedRepository.getCashFlowClassification('FINANCIAL_SOURCE', 'bank-classification')).toEqual(jasmine.objectContaining({ cashRole: 'RESTRICTED_CASH', source: 'USER', rationale: 'Restricted operating reserve.' }));
   });
 
+  it('preserves user and migrated classifications plus audit history across ordinary SQLite writes', async () => {
+    const database = new SqliteDatabaseGateway();
+    const repository = new SqliteAccountingRepository(database);
+    await repository.initialize();
+    repository.transaction(() => {
+      repository.chartAccounts.set('preserved-chart', {
+        id: 'preserved-chart', name: 'Preserved expense', type: 'EXPENSE', accountType: 'EXPENSE',
+        detailType: 'Advertising', displayOrder: 1, archived: false, locked: false,
+      });
+    });
+    const seeded = repository.getCashFlowClassification('CHART', 'preserved-chart')!;
+    const userTimestamp = '2026-08-25T20:00:00.000Z';
+    repository.saveCashFlowClassifications([{
+      ...seeded, source: 'USER', rationale: 'Keep this expense classification.', modifiedAtUtc: userTimestamp,
+    }]);
+    const migratedTimestamp = '2026-08-25T20:01:00.000Z';
+    repository.saveCashFlowClassifications([{
+      ...repository.getCashFlowClassification('CHART', 'preserved-chart')!, source: 'MIGRATED',
+      rationale: 'Migrated from schema 6.', modifiedAtUtc: migratedTimestamp,
+    }]);
+    const auditBeforeOrdinaryWrite = repository.audit.length;
+
+    repository.transaction(() => { repository.company.name = 'Ordinary SQLite write'; });
+
+    const reopenedDatabase = new SqliteDatabaseGateway();
+    const reopenedRepository = new SqliteAccountingRepository(reopenedDatabase);
+    await reopenedRepository.initialize(database.exportBytes());
+    expect(reopenedRepository.getCashFlowClassification('CHART', 'preserved-chart')).toEqual(jasmine.objectContaining({
+      source: 'MIGRATED', rationale: 'Migrated from schema 6.', modifiedAtUtc: migratedTimestamp,
+    }));
+    expect(reopenedRepository.audit.length).toBe(auditBeforeOrdinaryWrite);
+    expect(reopenedRepository.audit.some(event => event.operation === 'SAVE_CASH_FLOW_CLASSIFICATION' && event.entityId === 'preserved-chart')).toBeTrue();
+  });
+
   it('returns a deterministic isolated report snapshot and changes revision after a committed mutation', async () => {
     const database = new SqliteDatabaseGateway();
     const repository = new SqliteAccountingRepository(database);
@@ -174,6 +208,38 @@ describe('SqliteAccountingRepository', () => {
     const backup = JSON.parse(application.createBackupBundle()) as { databaseBase64?: string; databaseHash?: string };
     expect(backup.databaseBase64).toBeTruthy();
     expect(backup.databaseHash).toBeTruthy();
+  });
+
+  it('commits an explicit-classification Chart import atomically in SQLite', async () => {
+    await TestBed.configureTestingModule({
+      providers: [
+        SqliteDatabaseGateway,
+        SqliteAccountingRepository,
+        { provide: ACCOUNTING_REPOSITORY, useExisting: SqliteAccountingRepository },
+        ImportPipelineService,
+        BackupBundleService,
+        { provide: ACCOUNTING_APPLICATION, useClass: DefaultAccountingApplication },
+      ],
+    }).compileComponents();
+    const database = TestBed.inject(SqliteDatabaseGateway);
+    const repository = TestBed.inject(SqliteAccountingRepository);
+    await repository.initialize();
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    repository.rules.clear();
+    const imported = application.importChartAccounts([
+      'Account ID,Account Name,Account Type,Detail Type,Cash Flow Treatment,Cash Flow Status,Cash Flow Source,Cash Flow Rationale',
+      'explicit-chart-sqlite,Explicit SQLite expense,Expenses,Other business expenses,OPERATING_REVENUE_EXPENSE,CONFIRMED,USER,Explicit SQLite classification.',
+    ].join('\n'));
+    expect(imported).toEqual([jasmine.objectContaining({ id: 'explicit-chart-sqlite', name: 'Explicit SQLite expense' })]);
+    expect(repository.getCashFlowClassification('CHART', 'explicit-chart-sqlite')).toEqual(jasmine.objectContaining({
+      treatment: 'OPERATING_REVENUE_EXPENSE', status: 'CONFIRMED', source: 'USER', rationale: 'Explicit SQLite classification.',
+    }));
+    expect(database.foreignKeyCheck().valid).toBeTrue();
+    const reopenedDatabase = new SqliteDatabaseGateway();
+    const reopenedRepository = new SqliteAccountingRepository(reopenedDatabase);
+    await reopenedRepository.initialize(database.exportBytes());
+    expect(reopenedRepository.getCashFlowClassification('CHART', 'explicit-chart-sqlite')).toEqual(jasmine.objectContaining({ source: 'USER', rationale: 'Explicit SQLite classification.' }));
+    expect(reopenedRepository.audit.some(event => event.operation === 'IMPORT_CHART')).toBeTrue();
   });
 
   it('persists audited rule editor mutations and deletion in SQLite', async () => {

@@ -82,6 +82,7 @@ export class SqliteAccountingRepository implements AccountingRepository {
   private persistedChartAccountIds = new Set<string>();
 
   private initialized = false;
+  private transactionDepth = 0;
   private companyProfile?: CompanyProfile;
   private taxIdentifier?: string;
 
@@ -99,8 +100,14 @@ export class SqliteAccountingRepository implements AccountingRepository {
 
   transaction<T>(work: () => T): T {
     this.requireInitialized();
+    // Application workflows may compose repository operations (for example,
+    // Chart replacement plus Cash Flow classification writes). SQLite does
+    // not permit a nested BEGIN, so inner calls participate in the outer
+    // transaction and defer persistence/rollback to that boundary.
+    if (this.transactionDepth > 0) return work();
     const snapshot = this.snapshot();
     let result!: T;
+    this.transactionDepth += 1;
     try {
       this.database.transaction(() => {
         result = work();
@@ -113,6 +120,8 @@ export class SqliteAccountingRepository implements AccountingRepository {
       // leaving the in-memory maps out of sync with SQLite.
       try { this.loadState(); } catch { this.restore(snapshot); }
       throw error;
+    } finally {
+      this.transactionDepth -= 1;
     }
   }
 
@@ -176,6 +185,7 @@ export class SqliteAccountingRepository implements AccountingRepository {
     if (expectedRevision !== undefined && expectedRevision !== this.getDatabaseRevision()) {
       throw new Error('Cash Flow classification update is stale; reload the current database revision.');
     }
+    const nestedTransaction = this.transactionDepth > 0;
     this.transaction(() => {
       for (const update of updates) {
         const structure = update.accountRole === 'FINANCIAL_SOURCE'
@@ -217,7 +227,11 @@ export class SqliteAccountingRepository implements AccountingRepository {
         });
       }
     });
-    return this.getDatabaseRevision();
+    // Exporting sql.js bytes while an outer transaction is active can end the
+    // native transaction. Nested callers only need the write to participate in
+    // the outer commit; defer the authoritative revision calculation until
+    // that boundary has committed.
+    return nestedTransaction ? databaseRevision(`sqlite:${this.database.schemaVersion()}:pending`) : this.getDatabaseRevision();
   }
 
   private loadState(): void {
@@ -616,6 +630,21 @@ export class SqliteAccountingRepository implements AccountingRepository {
    * provenance with a new default.
    */
   private prepareCashFlowClassifications(): void {
+    const accountKeys = new Set<string>();
+    for (const account of this.accounts.values()) accountKeys.add(this.classificationKey('FINANCIAL_SOURCE', account.id));
+    for (const account of this.chartAccounts.values()) accountKeys.add(this.classificationKey('CHART', account.id));
+    for (const key of this.cashFlowClassifications.keys()) {
+      if (accountKeys.has(key)) continue;
+      const orphan = this.cashFlowClassifications.get(key);
+      this.cashFlowClassifications.delete(key);
+      this.audit.push({
+        id: `cash-flow-classification-orphan:${key}:${Date.now()}-${this.audit.length}`,
+        timestampUtc: nowUtc(), operation: 'DELETE_ORPHANED_CASH_FLOW_CLASSIFICATION',
+        entityType: key.startsWith('FINANCIAL_SOURCE:') ? 'FinancialAccountCashFlowClassification' : 'ChartAccountCashFlowClassification',
+        entityId: key.slice(key.indexOf(':') + 1), before: orphan ? structuredClone(orphan) : undefined,
+        reason: 'The parent account was permanently deleted; remove its classification with an audit trail.',
+      });
+    }
     const next = new Map<string, CashFlowClassificationRecord>();
     for (const account of this.accounts.values()) {
       next.set(this.classificationKey('FINANCIAL_SOURCE', account.id), this.classificationFor('FINANCIAL_SOURCE', account.id, account.accountType, account.detailType, this.persistedFinancialAccountIds.has(account.id)));

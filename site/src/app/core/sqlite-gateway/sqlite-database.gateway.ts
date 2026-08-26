@@ -8,6 +8,7 @@ import { applySchema7Bootstrap, applySchema7Migration, SCHEMA_7_VERSION, validat
 export class SqliteDatabaseGateway {
   private database?: Database;
   private sql?: SqlJsStatic;
+  private transactionDepth = 0;
 
   async open(bytes?: Uint8Array): Promise<void> {
     this.sql ??= await initSqlJs({ locateFile: file => `assets/${file}` });
@@ -38,10 +39,18 @@ export class SqliteDatabaseGateway {
 
   transaction(work: () => void): void {
     if (!this.database) throw new Error('SQLite database is not open.');
+    // Keep the bridge reentrant as well as the repository. Application
+    // services can be composed through separate repository references that
+    // share this gateway, and SQLite must still see one BEGIN/COMMIT pair.
+    if (this.transactionDepth > 0) {
+      work();
+      return;
+    }
     const before = this.database.export();
     this.enableForeignKeys();
-    this.database.run('BEGIN');
+    this.transactionDepth += 1;
     try {
+      this.database.run('BEGIN');
       work();
       const foreignKeys = this.foreignKeyCheck();
       if (!foreignKeys.valid) {
@@ -53,6 +62,8 @@ export class SqliteDatabaseGateway {
       try { this.database.run('ROLLBACK'); } catch { /* preserve the original native/bridge failure */ }
       this.restoreBytes(before);
       throw error;
+    } finally {
+      this.transactionDepth -= 1;
     }
   }
 

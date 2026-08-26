@@ -32,6 +32,7 @@ export class InMemoryAccountingRepository implements AccountingRepository {
   cashFlowClassifications = new Map<string, CashFlowClassificationRecord>();
   private persistedFinancialAccountIds = new Set<string>();
   private persistedChartAccountIds = new Set<string>();
+  private transactionDepth = 0;
   private profile?: CompanyProfile;
   private taxIdentifier?: string;
 
@@ -142,6 +143,7 @@ export class InMemoryAccountingRepository implements AccountingRepository {
   }
 
   transaction<T>(work: () => T): T {
+    if (this.transactionDepth > 0) return work();
     const snapshot = {
       company: structuredClone(this.company),
       profile: structuredClone(this.profile),
@@ -158,6 +160,7 @@ export class InMemoryAccountingRepository implements AccountingRepository {
       persistedFinancialAccountIds: structuredClone(this.persistedFinancialAccountIds),
       persistedChartAccountIds: structuredClone(this.persistedChartAccountIds),
     };
+    this.transactionDepth += 1;
     try {
       const result = work();
       this.prepareCashFlowClassifications();
@@ -180,10 +183,26 @@ export class InMemoryAccountingRepository implements AccountingRepository {
       this.persistedFinancialAccountIds = snapshot.persistedFinancialAccountIds;
       this.persistedChartAccountIds = snapshot.persistedChartAccountIds;
       throw error;
+    } finally {
+      this.transactionDepth -= 1;
     }
   }
 
   private prepareCashFlowClassifications(): void {
+    const accountKeys = new Set<string>();
+    for (const account of this.accounts.values()) accountKeys.add(`FINANCIAL_SOURCE:${account.id}`);
+    for (const account of this.chartAccounts.values()) accountKeys.add(`CHART:${account.id}`);
+    for (const key of this.cashFlowClassifications.keys()) {
+      if (accountKeys.has(key)) continue;
+      const orphan = this.cashFlowClassifications.get(key);
+      this.cashFlowClassifications.delete(key);
+      this.audit.push({
+        id: newId(), timestampUtc: nowUtc(), operation: 'DELETE_ORPHANED_CASH_FLOW_CLASSIFICATION',
+        entityType: key.startsWith('FINANCIAL_SOURCE:') ? 'FinancialAccountCashFlowClassification' : 'ChartAccountCashFlowClassification',
+        entityId: key.slice(key.indexOf(':') + 1), before: orphan ? structuredClone(orphan) : undefined,
+        reason: 'The parent account was permanently deleted; remove its classification with an audit trail.',
+      });
+    }
     const next = new Map<string, CashFlowClassificationRecord>();
     for (const account of this.accounts.values()) next.set(`FINANCIAL_SOURCE:${account.id}`, this.classificationFor('FINANCIAL_SOURCE', account.id, account.accountType, account.detailType, this.persistedFinancialAccountIds.has(account.id)));
     for (const account of this.chartAccounts.values()) next.set(`CHART:${account.id}`, this.classificationFor('CHART', account.id, account.accountType, account.detailType, this.persistedChartAccountIds.has(account.id)));

@@ -6,6 +6,9 @@ import { test } from 'node:test';
 import initSqlJs, { SqlJsStatic } from 'sql.js';
 import { CURRENT_SQLITE_SCHEMA_VERSION } from '../shared/schema-version';
 import { DatabaseLifecycleManager } from './database-lifecycle';
+import { SQLITE_MIGRATIONS, SQLITE_V3_MIGRATIONS, SQLITE_V4_MIGRATIONS, SQLITE_V5_MIGRATIONS } from '../app/core/sqlite-gateway/schema';
+import { applySchema6Bootstrap } from '../app/core/sqlite-gateway/schema-v6-migration';
+import { applySchema7Bootstrap } from '../app/core/sqlite-gateway/schema-v7-migration';
 
 let sqlPromise: Promise<SqlJsStatic> | undefined;
 
@@ -16,34 +19,28 @@ function sql(): Promise<SqlJsStatic> {
 
 async function databaseBytes(companyId: string, schemaVersion = CURRENT_SQLITE_SCHEMA_VERSION): Promise<Uint8Array> {
   const database = new (await sql()).Database();
-  database.run(`PRAGMA foreign_keys = ON; CREATE TABLE schema_version(version INTEGER NOT NULL); INSERT INTO schema_version VALUES (${schemaVersion}); CREATE TABLE company(id TEXT PRIMARY KEY, name TEXT NOT NULL);`);
-  database.run('INSERT INTO company(id, name) VALUES (?, ?)', [companyId, `Company ${companyId}`]);
-  if (schemaVersion === CURRENT_SQLITE_SCHEMA_VERSION && schemaVersion >= 6) {
-    database.run(`CREATE TABLE company_profile (
-      company_id TEXT PRIMARY KEY REFERENCES company(id), legal_name TEXT NOT NULL, display_name TEXT NOT NULL,
-      tax_identifier TEXT, created_at TEXT NOT NULL, modified_at TEXT NOT NULL
-    )`);
-    database.run(`INSERT INTO company_profile(company_id, legal_name, display_name, tax_identifier, created_at, modified_at)
-      VALUES (?, ?, ?, ?, ?, ?)`, [companyId, `Company ${companyId}`, `Display ${companyId}`, '99-9999999', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z']);
-    if (schemaVersion >= 7) {
-      database.run(`CREATE TABLE financial_account (id TEXT PRIMARY KEY, account_type TEXT NOT NULL, detail_type TEXT NOT NULL);
-        CREATE TABLE chart_account (id TEXT PRIMARY KEY, account_type TEXT NOT NULL, detail_type TEXT NOT NULL);`);
-      database.run(`CREATE TABLE financial_account_cash_flow_classification (
-        financial_account_id TEXT PRIMARY KEY REFERENCES financial_account(id) ON DELETE CASCADE,
-        cash_flow_cash_role TEXT NOT NULL CHECK (cash_flow_cash_role IN ('CASH', 'CASH_EQUIVALENT', 'RESTRICTED_CASH', 'NOT_CASH', 'REVIEW_REQUIRED')),
-        cash_flow_treatment TEXT NOT NULL CHECK (cash_flow_treatment IN ('CASH_BALANCE', 'OPERATING_REVENUE_EXPENSE', 'OPERATING_ASSET', 'OPERATING_LIABILITY', 'NONCASH_PNL_ADJUSTMENT', 'INVESTING', 'FINANCING', 'NONCASH_DISCLOSURE', 'EXCLUDED', 'REVIEW_REQUIRED')),
-        cash_flow_status TEXT NOT NULL CHECK (cash_flow_status IN ('CONFIRMED', 'REVIEW_REQUIRED')),
-        cash_flow_source TEXT NOT NULL CHECK (cash_flow_source IN ('DEFAULT', 'MIGRATED', 'USER')),
-        cash_flow_rationale TEXT NOT NULL CHECK (length(trim(cash_flow_rationale)) > 0), cash_flow_modified_at_utc TEXT
-      ); CREATE TABLE chart_account_cash_flow_classification (
-        chart_account_id TEXT PRIMARY KEY REFERENCES chart_account(id) ON DELETE CASCADE,
-        cash_flow_treatment TEXT NOT NULL CHECK (cash_flow_treatment IN ('CASH_BALANCE', 'OPERATING_REVENUE_EXPENSE', 'OPERATING_ASSET', 'OPERATING_LIABILITY', 'NONCASH_PNL_ADJUSTMENT', 'INVESTING', 'FINANCING', 'NONCASH_DISCLOSURE', 'EXCLUDED', 'REVIEW_REQUIRED')),
-        cash_flow_status TEXT NOT NULL CHECK (cash_flow_status IN ('CONFIRMED', 'REVIEW_REQUIRED')),
-        cash_flow_source TEXT NOT NULL CHECK (cash_flow_source IN ('DEFAULT', 'MIGRATED', 'USER')),
-        cash_flow_rationale TEXT NOT NULL CHECK (length(trim(cash_flow_rationale)) > 0), cash_flow_modified_at_utc TEXT
-      ); CREATE INDEX idx_financial_account_cash_flow_classification ON financial_account_cash_flow_classification(cash_flow_cash_role, cash_flow_treatment, cash_flow_status);
-      CREATE INDEX idx_chart_account_cash_flow_classification ON chart_account_cash_flow_classification(cash_flow_treatment, cash_flow_status);`);
+  database.run('PRAGMA foreign_keys = ON;');
+  if (schemaVersion >= 6 && schemaVersion <= CURRENT_SQLITE_SCHEMA_VERSION) {
+    database.run(SQLITE_MIGRATIONS[0]);
+    database.run('INSERT INTO schema_version(version) VALUES (0)');
+    database.run(SQLITE_MIGRATIONS[1]);
+    SQLITE_MIGRATIONS.slice(2).forEach(statement => database.run(statement));
+    SQLITE_V3_MIGRATIONS.forEach(statement => database.run(statement));
+    SQLITE_V4_MIGRATIONS.forEach(statement => database.run(statement));
+    SQLITE_V5_MIGRATIONS.forEach(statement => database.run(statement));
+    applySchema6Bootstrap(database);
+    database.run('UPDATE schema_version SET version = ?', [6]);
+    if (schemaVersion === CURRENT_SQLITE_SCHEMA_VERSION) {
+      applySchema7Bootstrap(database);
+      database.run('UPDATE schema_version SET version = ?', [CURRENT_SQLITE_SCHEMA_VERSION]);
     }
+    database.run(`INSERT INTO company(id, name, currency, fiscal_year_start_month, accounting_basis, active_tax_year)
+      VALUES (?, ?, 'USD', 1, 'CASH', 2026)`, [companyId, `Company ${companyId}`]);
+    database.run(`INSERT INTO company_profile(company_id, legal_name, display_name, created_at, modified_at)
+      VALUES (?, ?, ?, ?, ?)`, [companyId, `Company ${companyId}`, `Display ${companyId}`, '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z']);
+  } else {
+    database.run(`CREATE TABLE schema_version(version INTEGER NOT NULL); INSERT INTO schema_version VALUES (${schemaVersion}); CREATE TABLE company(id TEXT PRIMARY KEY, name TEXT NOT NULL);`);
+    database.run('INSERT INTO company(id, name) VALUES (?, ?)', [companyId, `Company ${companyId}`]);
   }
   const bytes = database.export();
   database.close();
@@ -94,6 +91,41 @@ test('uses the configured UTC default for backup filenames and audit timestamps'
   } finally { await rm(setup.root, { recursive: true, force: true }); }
 });
 
+test('creates a host-controlled pre-migration backup when no backup folder is configured', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'accounting-unconfigured-migration-'));
+  try {
+    const settingsPath = path.join(root, 'profile', 'database-locations.json');
+    const activePath = path.join(root, 'active', 'tallystick.sqlite');
+    const manager = new DatabaseLifecycleManager(await sql(), settingsPath, activePath, () => new Date('2026-08-11T17:04:05.000Z'));
+    const source = await databaseBytes('schema-six-unconfigured', 6);
+    const result = await manager.backup(source, 'PRE_MIGRATION');
+    assert.match(result.path, /profile\/migration-backups\/tallystick-2026-08-11-170405-pre-migration\.sqlite$/);
+    assert.equal(await companyId(new Uint8Array(await readFile(result.path))), 'schema-six-unconfigured');
+    assert.equal((await manager.locations()).backupDirectory, undefined);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('does not allow a failed pre-migration backup to proceed with the live schema-6 bytes', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'accounting-failed-migration-backup-'));
+  try {
+    const settingsPath = path.join(root, 'profile', 'database-locations.json');
+    const activePath = path.join(root, 'active', 'tallystick.sqlite');
+    const migrationBackupDirectory = path.join(root, 'profile', 'migration-backups');
+    await mkdir(path.dirname(activePath), { recursive: true });
+    await mkdir(path.dirname(migrationBackupDirectory), { recursive: true });
+    const source = await databaseBytes('schema-six-backup-failure', 6);
+    await writeFile(activePath, source);
+    // A file at the host-controlled backup path makes mkdir fail before any
+    // migration can be activated. This simulates an injected disk/path error.
+    await writeFile(migrationBackupDirectory, 'not a directory');
+    const manager = new DatabaseLifecycleManager(await sql(), settingsPath, activePath, () => new Date('2026-08-11T17:04:05.000Z'));
+
+    await assert.rejects(() => manager.backup(source, 'PRE_MIGRATION'), /EEXIST|ENOTDIR|not a directory/i);
+    assert.deepEqual([...await readFile(activePath)], [...source]);
+    assert.equal(await companyId(new Uint8Array(await readFile(activePath))), 'schema-six-backup-failure');
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
+
 test('accepts the current schema and rejects a future unsupported schema', async () => {
   const setup = await fixture();
   try {
@@ -109,11 +141,11 @@ test('accepts the current schema and rejects a future unsupported schema', async
 test('rejects an incomplete schema-6 profile before writing a backup', async () => {
   const setup = await fixture();
   try {
-    const database = new (await sql()).Database();
-    database.run(`CREATE TABLE schema_version(version INTEGER NOT NULL); INSERT INTO schema_version VALUES (${CURRENT_SQLITE_SCHEMA_VERSION}); CREATE TABLE company(id TEXT PRIMARY KEY, name TEXT NOT NULL); INSERT INTO company VALUES ('incomplete', 'Incomplete');`);
+    const database = new (await sql()).Database(await databaseBytes('incomplete'));
+    database.run('DELETE FROM company_profile');
     const bytes = database.export();
     database.close();
-    await assert.rejects(() => setup.manager.backup(bytes), /valid company profile/);
+    await assert.rejects(() => setup.manager.backup(bytes), /company_profile|valid company profile/);
     assert.deepEqual(await readdir(setup.backupDirectory), []);
   } finally { await rm(setup.root, { recursive: true, force: true }); }
 });
@@ -171,6 +203,121 @@ test('rejects a corrupt restore before backup or activation and preserves active
     const files = await readdir(setup.backupDirectory);
     assert.deepEqual(files, ['corrupt.sqlite']);
   } finally { await rm(setup.root, { recursive: true, force: true }); }
+});
+
+test('rejects every missing schema-7 table before restore backup or activation', async () => {
+  const requiredTables = [
+    'company_profile', 'financial_account', 'chart_account', 'import_batch',
+    'transaction_record', 'posting_split', 'audit_event', 'transfer_match',
+    'transaction_rule', 'tax_year_settings',
+    'financial_account_cash_flow_classification', 'chart_account_cash_flow_classification',
+  ];
+  for (const table of requiredTables) {
+    const setup = await fixture();
+    try {
+      const current = await databaseBytes(`safe-${table}`);
+      await mkdir(path.dirname(setup.activePath), { recursive: true });
+      await writeFile(setup.activePath, current);
+      const broken = new (await sql()).Database(current);
+      broken.run(`DROP TABLE ${table}`);
+      const selected = path.join(setup.backupDirectory, `${table}.sqlite`);
+      await writeFile(selected, broken.export());
+      broken.close();
+
+      await assert.rejects(() => setup.manager.restore(current, selected), /Schema 7 database is missing required table/);
+      assert.equal(await companyId(new Uint8Array(await readFile(setup.activePath))), `safe-${table}`);
+      assert.deepEqual(await readdir(setup.backupDirectory), [`${table}.sqlite`]);
+    } finally { await rm(setup.root, { recursive: true, force: true }); }
+  }
+});
+
+test('rejects damaged schema-7 columns, indexes, constraints, and foreign keys before activation', async () => {
+  const cases: Array<{ name: string; damage: (database: import('sql.js').Database) => void; message: RegExp }> = [
+    {
+      name: 'duplicate-version',
+      damage: database => database.run('INSERT INTO schema_version(version) VALUES (7)'),
+      message: /schema_version must contain exactly one row/,
+    },
+    {
+      name: 'column',
+      damage: database => {
+        database.run('ALTER TABLE tax_year_settings RENAME TO tax_year_settings_damaged');
+        database.run(`CREATE TABLE tax_year_settings (
+          tax_year INTEGER PRIMARY KEY, federal_income_tax_account_ids_json TEXT NOT NULL,
+          state_local_income_tax_account_ids_json TEXT NOT NULL, include_federal_income_tax INTEGER NOT NULL,
+          include_state_local_income_tax INTEGER NOT NULL, confirmed_at_utc TEXT
+        )`);
+        database.run('DROP TABLE tax_year_settings_damaged');
+      },
+      message: /missing required column tax_year_settings\.accountant_note/,
+    },
+    {
+      name: 'index',
+      damage: database => database.run('DROP INDEX idx_transaction_state_date_account'),
+      message: /missing required index idx_transaction_state_date_account/,
+    },
+    {
+      name: 'constraint',
+      damage: database => {
+        database.run('DROP INDEX idx_financial_account_cash_flow_classification');
+        database.run('ALTER TABLE financial_account_cash_flow_classification RENAME TO damaged_classification');
+        database.run(`CREATE TABLE financial_account_cash_flow_classification (
+          financial_account_id TEXT PRIMARY KEY REFERENCES financial_account(id) ON DELETE CASCADE,
+          cash_flow_cash_role TEXT, cash_flow_treatment TEXT NOT NULL,
+          cash_flow_status TEXT NOT NULL, cash_flow_source TEXT NOT NULL,
+          cash_flow_rationale TEXT NOT NULL, cash_flow_modified_at_utc TEXT
+        )`);
+        database.run('DROP TABLE damaged_classification');
+        database.run('CREATE INDEX idx_financial_account_cash_flow_classification ON financial_account_cash_flow_classification(cash_flow_cash_role, cash_flow_treatment, cash_flow_status)');
+      },
+      message: /requires financial_account_cash_flow_classification\.cash_flow_cash_role to be NOT NULL/,
+    },
+    {
+      name: 'foreign key',
+      damage: database => {
+        database.run('ALTER TABLE company_profile RENAME TO damaged_profile');
+        database.run(`CREATE TABLE company_profile (
+          company_id TEXT PRIMARY KEY, legal_name TEXT NOT NULL, display_name TEXT NOT NULL,
+          doing_business_as TEXT, entity_type TEXT, address_line_1 TEXT, address_line_2 TEXT,
+          locality TEXT, region TEXT, postal_code TEXT, country_code TEXT, phone TEXT, email TEXT,
+          website TEXT, tax_identifier TEXT, created_at TEXT NOT NULL, modified_at TEXT NOT NULL
+        )`);
+        database.run('INSERT INTO company_profile SELECT * FROM damaged_profile');
+        database.run('DROP TABLE damaged_profile');
+      },
+      message: /missing foreign key company_profile\.company_id/,
+    },
+  ];
+  for (const item of cases) {
+    const setup = await fixture();
+    try {
+      const current = await databaseBytes(`safe-damaged-${item.name}`);
+      await mkdir(path.dirname(setup.activePath), { recursive: true });
+      await writeFile(setup.activePath, current);
+      const broken = new (await sql()).Database(current);
+      item.damage(broken);
+      const selected = path.join(setup.backupDirectory, `${item.name}.sqlite`);
+      await writeFile(selected, broken.export());
+      broken.close();
+      await assert.rejects(() => setup.manager.restore(current, selected), item.message);
+      assert.equal(await companyId(new Uint8Array(await readFile(setup.activePath))), `safe-damaged-${item.name}`);
+      assert.deepEqual(await readdir(setup.backupDirectory), [`${item.name}.sqlite`]);
+    } finally { await rm(setup.root, { recursive: true, force: true }); }
+  }
+});
+
+test('does not create a migration backup or activate malformed schema-6 input', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'accounting-migration-failure-'));
+  try {
+    const settingsPath = path.join(root, 'profile', 'database-locations.json');
+    const activePath = path.join(root, 'active', 'tallystick.sqlite');
+    const manager = new DatabaseLifecycleManager(await sql(), settingsPath, activePath, () => new Date('2026-08-11T17:04:05.000Z'));
+    const malformed = new (await sql()).Database(await databaseBytes('migration-failure', 6));
+    malformed.run('DELETE FROM company_profile');
+    await assert.rejects(() => manager.backup(malformed.export(), 'PRE_MIGRATION'), /valid company profile/);
+    await assert.rejects(() => readFile(path.join(root, 'profile', 'migration-backups')), /ENOENT/);
+    malformed.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
 });
 
 test('refuses to place the live database inside the backup folder', async () => {

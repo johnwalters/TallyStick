@@ -685,6 +685,86 @@ describe('DefaultAccountingApplication', () => {
     expect(app.listTransactions({ accountId: account.id }).total).toBe(1);
   });
 
+  it('rejects malformed current-schema classification imports before mutating repository state', () => {
+    const snapshot = () => { const value = JSON.parse(app.exportAllData()) as any; delete value.exportedAtUtc; return JSON.stringify(value); };
+    const baseline = snapshot();
+    const payload = JSON.parse(app.exportAllData()) as any;
+    const classifications = payload.cashFlowClassifications as any[];
+    expect(classifications.length).toBe(payload.accounts.length + payload.chartAccounts.length);
+
+    const malformed: Array<[string, (copy: any) => void]> = [
+      ['missing classifications', copy => { copy.cashFlowClassifications = classifications.slice(0, -1); }],
+      ['duplicate classification', copy => { copy.cashFlowClassifications = [...classifications, structuredClone(classifications[0])]; }],
+      ['orphan classification', copy => { copy.cashFlowClassifications = [...classifications, { ...classifications[0], accountId: 'missing-account' }]; }],
+      ['incompatible financial structure', copy => { copy.accounts[0].accountType = 'EXPENSE'; copy.accounts[0].detailType = 'Advertising'; }],
+      ['stale account type', copy => { copy.cashFlowClassifications[0].accountType = 'EXPENSE'; }],
+      ['invalid timestamp', copy => { copy.cashFlowClassifications[0].modifiedAtUtc = 'not-a-date'; }],
+      ['invalid treatment', copy => { copy.cashFlowClassifications[0].treatment = 'NOT_A_TREATMENT'; }],
+    ];
+    malformed.forEach(([label, mutate]) => {
+      const copy = structuredClone(payload);
+      mutate(copy);
+      expect(() => app.importAllData(JSON.stringify(copy))).withContext(label).toThrow();
+      expect(snapshot()).withContext(`${label} changed state`).toBe(baseline);
+    });
+  });
+
+  it('rejects future portable schemas and mismatched bundled schemas without mutation', () => {
+    const snapshot = () => { const value = JSON.parse(app.exportAllData()) as any; delete value.exportedAtUtc; return JSON.stringify(value); };
+    const baseline = snapshot();
+    const payload = JSON.parse(app.exportAllData()) as any;
+    payload.schemaVersion = CURRENT_SQLITE_SCHEMA_VERSION + 1;
+    expect(() => app.importAllData(JSON.stringify(payload))).toThrowError(/Unsupported portable schema version/);
+    expect(snapshot()).toBe(baseline);
+
+    const bundles = TestBed.inject(BackupBundleService);
+    const mismatched = bundles.create(JSON.stringify({ ...JSON.parse(baseline), schemaVersion: CURRENT_SQLITE_SCHEMA_VERSION - 1 }), CURRENT_SQLITE_SCHEMA_VERSION, { companyId: app.getCompany().id });
+    expect(app.verifyBackupBundle(mismatched)).toEqual(jasmine.objectContaining({ valid: false }));
+    expect(() => app.restoreBackupBundle(mismatched)).toThrowError(/schema versions do not match/);
+    expect(snapshot()).toBe(baseline);
+
+    const futureBundle = bundles.create(baseline, CURRENT_SQLITE_SCHEMA_VERSION + 1, { companyId: app.getCompany().id });
+    expect(app.verifyBackupBundle(futureBundle)).toEqual(jasmine.objectContaining({ valid: false }));
+    expect(() => app.restoreBackupBundle(futureBundle)).toThrow();
+    expect(snapshot()).toBe(baseline);
+  });
+
+  it('preserves user and migrated Cash Flow classifications and audit history across ordinary writes', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    const chart = app.listChartAccounts().find(item => item.name === 'Advertising and Marketing')!;
+    const userReview = app.saveCashFlowClassification({
+      accountRole: 'CHART', accountId: chart.id, treatment: 'EXCLUDED', userRationale: 'Keep this advertising activity outside the statement.',
+    });
+    const userBefore = repository.getCashFlowClassification('CHART', chart.id)!;
+    const migratedChart = app.listChartAccounts().find(item => item.name === 'Other Expense')!;
+    const migratedBefore = repository.getCashFlowClassification('CHART', migratedChart.id)!;
+    repository.saveCashFlowClassifications([{ ...migratedBefore, source: 'MIGRATED', rationale: 'Migrated from the prior schema.', modifiedAtUtc: '2026-01-02T00:00:00.000Z' }]);
+    const auditBefore = repository.audit.length;
+
+    app.saveTaxYearSettings(app.getTaxYearSettings(2026));
+
+    expect(repository.getCashFlowClassification('CHART', chart.id)).toEqual(userBefore);
+    expect(repository.getCashFlowClassification('CHART', migratedChart.id)).toEqual(jasmine.objectContaining({ source: 'MIGRATED', rationale: 'Migrated from the prior schema.', modifiedAtUtc: '2026-01-02T00:00:00.000Z' }));
+    expect(repository.audit.length).toBeGreaterThan(auditBefore);
+    expect(userReview.saveImpact?.classification).toEqual(userBefore);
+  });
+
+  it('commits a Chart replacement with explicit Cash Flow classifications in one transaction', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    repository.rules.clear();
+    const imported = app.importChartAccounts([
+      'Account ID,Account Name,Account Type,Detail Type,Cash Flow Treatment,Cash Flow Status,Cash Flow Source,Cash Flow Rationale',
+      'explicit-chart,Explicit expense,Expenses,Other business expenses,OPERATING_REVENUE_EXPENSE,CONFIRMED,USER,Explicit classification for the imported chart account.',
+    ].join('\n'));
+    expect(imported).toEqual([jasmine.objectContaining({ id: 'explicit-chart', name: 'Explicit expense' })]);
+    expect(repository.getCashFlowClassification('CHART', 'explicit-chart')).toEqual(jasmine.objectContaining({
+      treatment: 'OPERATING_REVENUE_EXPENSE', status: 'CONFIRMED', source: 'USER',
+      rationale: 'Explicit classification for the imported chart account.',
+    }));
+    expect(repository.audit.some(event => event.operation === 'IMPORT_CHART')).toBeTrue();
+    expect(repository.audit.some(event => event.operation === 'SAVE_CASH_FLOW_CLASSIFICATION' && event.entityId === 'explicit-chart')).toBeTrue();
+  });
+
   it('keeps tax treatment report-only with federal excluded by default', () => {
     const account = app.listAccounts()[0];
     const federal = app.listChartAccounts().find(item => item.name === 'Federal Income Tax')!;

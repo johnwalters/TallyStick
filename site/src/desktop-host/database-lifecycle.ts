@@ -64,10 +64,15 @@ export class DatabaseLifecycleManager {
 
   async backup(databaseBytes: Uint8Array, reason: 'MANUAL' | 'PRE_MIGRATION' | 'PRE_RELOCATE' | 'PRE_RESTORE' = 'MANUAL'): Promise<DatabaseFileOperationResult> {
     const settings = await this.readSettings();
-    if (!settings.backupDirectory) throw new Error('Choose a backup folder before creating a backup.');
+    // Schema-6 migration happens before the renderer can display settings, so
+    // it must never depend on a user-selected backup directory. Keep this
+    // safety copy under the host-controlled profile directory instead.
+    const backupDirectory = settings.backupDirectory
+      ?? (reason === 'PRE_MIGRATION' ? this.migrationBackupDirectory() : undefined);
+    if (!backupDirectory) throw new Error('Choose a backup folder before creating a backup.');
     this.validateDatabase(databaseBytes);
-    await fs.mkdir(settings.backupDirectory, { recursive: true });
-    const targetPath = await this.availableBackupPath(settings.backupDirectory, reason, settings.backupTimeZone || this.defaultBackupTimeZone);
+    await fs.mkdir(backupDirectory, { recursive: true });
+    const targetPath = await this.availableBackupPath(backupDirectory, reason, settings.backupTimeZone || this.defaultBackupTimeZone);
     await this.writeVerifiedDatabase(targetPath, databaseBytes);
     const completedAtUtc = this.now().toISOString();
     settings.latestVerifiedBackupPath = targetPath;
@@ -134,7 +139,7 @@ export class DatabaseLifecycleManager {
       if (!Number.isInteger(schemaVersion) || schemaVersion < 1 || schemaVersion > CURRENT_SQLITE_SCHEMA_VERSION) throw new Error(`Unsupported SQLite schema version: ${schemaVersion || 'missing'}.`);
       const companyId = database.exec('SELECT id FROM company LIMIT 1')[0]?.values[0]?.[0];
       if (!companyId) throw new Error('The SQLite database does not contain a company record.');
-      if (schemaVersion >= 6) {
+      if (schemaVersion === 6) {
         const profileTable = database.exec(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'company_profile'`)[0]?.values ?? [];
         if (profileTable.length !== 1) throw new Error('The schema-6 SQLite database does not contain a valid company profile.');
         const profile = database.exec('SELECT company_id, legal_name, display_name FROM company_profile LIMIT 2')[0]?.values ?? [];
@@ -225,6 +230,10 @@ export class DatabaseLifecycleManager {
 
   private requireConfiguredBackupDirectory(locations: DatabaseLocations): void {
     if (!locations.backupDirectory) throw new Error('Choose a backup folder before changing or restoring the current database.');
+  }
+
+  private migrationBackupDirectory(): string {
+    return path.join(path.dirname(this.settingsPath), 'migration-backups');
   }
 
   private ensureOutsideBackupDirectory(candidate: string, backupDirectory: string): void {

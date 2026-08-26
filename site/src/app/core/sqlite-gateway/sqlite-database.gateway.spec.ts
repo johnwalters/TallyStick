@@ -97,6 +97,7 @@ describe('SqliteDatabaseGateway', () => {
       const gateway = new SqliteDatabaseGateway();
       await gateway.open();
       gateway.execute('INSERT INTO company(id, name, currency, fiscal_year_start_month, accounting_basis, active_tax_year) VALUES (?, ?, ?, ?, ?, ?)', ['bridge-company', 'Bridge Company', 'USD', 1, 'CASH', 2026]);
+      gateway.execute('INSERT INTO company_profile(company_id, legal_name, display_name, created_at, modified_at) VALUES (?, ?, ?, ?, ?)', ['bridge-company', 'Bridge Company', 'Bridge Company', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z']);
       gateway.transaction(() => {
         gateway.execute('INSERT INTO financial_account(id, type, name, institution_or_entity, opening_balance_minor, opening_balance_date, account_type, detail_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', ['bridge-account', 'BANK', 'Bridge Bank', 'Test', '0', '2026-01-01', 'BANK', 'Checking']);
         gateway.execute(`INSERT INTO financial_account_cash_flow_classification(

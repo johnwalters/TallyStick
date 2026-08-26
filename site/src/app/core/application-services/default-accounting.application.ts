@@ -1512,6 +1512,9 @@ export class DefaultAccountingApplication implements AccountingApplication {
     try { parsed = JSON.parse(payload); } catch { throw new AccountingError('BACKUP_INVALID_JSON', 'Backup is not valid JSON.'); }
     if (parsed?.version !== 1 || !Array.isArray(parsed.accounts) || !Array.isArray(parsed.transactions)) throw new AccountingError('BACKUP_INVALID_VERSION', 'Backup version or required records are unsupported.');
     const schemaVersion = Number.isInteger(parsed.schemaVersion) ? Number(parsed.schemaVersion) : 0;
+    if (schemaVersion < 0 || schemaVersion > CURRENT_BACKUP_SCHEMA_VERSION) {
+      throw new AccountingError('BACKUP_INVALID_VERSION', `Unsupported portable schema version: ${schemaVersion}.`);
+    }
     this.validatePortableClassifications(parsed, schemaVersion);
     this.repository.transaction(() => {
       this.repository.company = this.hydrate(parsed.company);
@@ -1578,6 +1581,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
     if (!result.valid || !result.bundle) return { valid: false, reason: result.reason ?? 'Backup failed verification.' };
     try {
       const payload = JSON.parse(result.bundle.data) as { company?: { id?: string }; schemaVersion?: number; accounts?: unknown[]; chartAccounts?: unknown[]; transactions?: unknown[]; batches?: unknown[]; rules?: unknown[]; transfers?: unknown[]; taxSettings?: unknown[]; cashFlowClassifications?: unknown[]; audit?: unknown[] };
+      if (payload.schemaVersion !== result.bundle.schemaVersion) return { valid: false, reason: 'Backup manifest and payload schema versions do not match.' };
       const recordCounts = {
         accounts: payload.accounts?.length ?? 0,
         chartAccounts: payload.chartAccounts?.length ?? 0,

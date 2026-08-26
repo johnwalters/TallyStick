@@ -159,6 +159,17 @@ export class AccountClassificationService {
     }
     this.repository.transaction(() => {
       const before = structuredClone(existing);
+      const classificationKey = `${role}:${accountId}`;
+      const classification = this.repository.cashFlowClassifications.get(classificationKey);
+      if (classification) {
+        this.repository.cashFlowClassifications.delete(classificationKey);
+        this.repository.audit.push({
+          id: newId(), timestampUtc: nowUtc(), operation: 'DELETE_CASH_FLOW_CLASSIFICATION',
+          entityType: role === 'FINANCIAL_SOURCE' ? 'FinancialAccountCashFlowClassification' : 'ChartAccountCashFlowClassification',
+          entityId: accountId, before: structuredClone(classification),
+          reason: 'The parent account was permanently deleted; remove its classification with an audit trail.',
+        });
+      }
       if (role === 'FINANCIAL_SOURCE') this.repository.accounts.delete(accountId);
       else this.repository.chartAccounts.delete(accountId);
       this.repository.audit.push({

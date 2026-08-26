@@ -74,7 +74,12 @@ async function openDatabase(requestedPath?: string): Promise<void> {
   if (bytes) {
     databaseLifecycle.validateDatabase(bytes);
     if (databaseLifecycle.schemaVersion(bytes) < CURRENT_SQLITE_SCHEMA_VERSION) {
-      await databaseLifecycle.backup(bytes, 'PRE_MIGRATION');
+      const safetyBackup = await databaseLifecycle.backup(bytes, 'PRE_MIGRATION');
+      // Re-read the committed safety copy before the renderer is allowed to
+      // run a migration. This keeps the original bytes recoverable even if a
+      // later migration or host write fails during startup.
+      const verifiedBackup = new Uint8Array(await fs.readFile(safetyBackup.path));
+      databaseLifecycle.validateDatabase(verifiedBackup);
     }
   }
   databaseStore ??= new SqliteHostStore(sql);

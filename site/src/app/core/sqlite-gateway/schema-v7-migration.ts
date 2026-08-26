@@ -72,6 +72,89 @@ const SCHEMA_6_REQUIRED_INDEXES: Readonly<Record<string, readonly string[]>> = {
   idx_chart_account_parent_display: ['parent_id', 'display_order'],
 };
 
+/**
+ * Schema 7 keeps the schema-6 ledger tables intact.  Recovery must therefore
+ * validate the inherited schema as well as the two new classification tables;
+ * checking only the Cash Flow tables can otherwise activate an unusable file.
+ */
+const SCHEMA_7_REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
+  schema_version: ['version'],
+  company: ['id', 'name', 'currency', 'fiscal_year_start_month', 'accounting_basis', 'active_tax_year'],
+  company_profile: ['company_id', 'legal_name', 'display_name', 'doing_business_as', 'entity_type', 'address_line_1', 'address_line_2', 'locality', 'region', 'postal_code', 'country_code', 'phone', 'email', 'website', 'tax_identifier', 'created_at', 'modified_at'],
+  financial_account: ['id', 'type', 'name', 'institution_or_entity', 'opening_balance_minor', 'opening_balance_date', 'archived', 'last_four', 'detail_type', 'parent_account_id', 'description', 'locked', 'account_type', 'classification_status', 'import_enabled', 'supported_source_kinds_json', 'opening_balance_source'],
+  chart_account: ['id', 'name', 'parent_id', 'type', 'display_order', 'archived', 'account_type', 'detail_type', 'description', 'locked'],
+  import_batch: ['id', 'destination_account_id', 'source_kind', 'source_name', 'source_hash', 'mapping_version', 'accepted_count', 'rejected_count', 'skipped_count', 'warning_count', 'total_accepted_minor', 'committed_at_utc'],
+  transaction_record: ['id', 'account_id', 'posting_date', 'amount_minor', 'currency', 'raw_description', 'description', 'state', 'source_batch_id', 'exclusion_reason', 'transfer_match_id', 'created_at_utc', 'modified_at_utc', 'transaction_date', 'raw_payee', 'payee', 'memo', 'reference', 'source_row_number', 'categorization_source', 'rule_id', 'rationale', 'posted_at_utc', 'excluded_at_utc', 'undone_at_utc'],
+  posting_split: ['id', 'transaction_id', 'chart_account_id', 'amount_minor', 'memo'],
+  audit_event: ['id', 'timestamp_utc', 'operation', 'entity_type', 'entity_id', 'before_json', 'after_json', 'reason', 'correlation_id'],
+  transfer_match: ['id', 'left_transaction_id', 'right_transaction_id', 'confidence', 'rationale', 'confirmed_at_utc'],
+  transaction_rule: ['id', 'name', 'enabled', 'priority', 'conditions_json', 'chart_account_id', 'payee', 'memo', 'tags_json', 'suggest_exclude'],
+  tax_year_settings: ['tax_year', 'federal_income_tax_account_ids_json', 'state_local_income_tax_account_ids_json', 'include_federal_income_tax', 'include_state_local_income_tax', 'confirmed_at_utc', 'accountant_note'],
+  financial_account_cash_flow_classification: ['financial_account_id', 'cash_flow_cash_role', 'cash_flow_treatment', 'cash_flow_status', 'cash_flow_source', 'cash_flow_rationale', 'cash_flow_modified_at_utc'],
+  chart_account_cash_flow_classification: ['chart_account_id', 'cash_flow_treatment', 'cash_flow_status', 'cash_flow_source', 'cash_flow_rationale', 'cash_flow_modified_at_utc'],
+};
+
+const SCHEMA_7_REQUIRED_NOT_NULL: Readonly<Record<string, readonly string[]>> = {
+  schema_version: ['version'],
+  company: ['id', 'name', 'currency', 'fiscal_year_start_month', 'accounting_basis', 'active_tax_year'],
+  company_profile: ['company_id', 'legal_name', 'display_name', 'created_at', 'modified_at'],
+  financial_account: ['id', 'type', 'name', 'institution_or_entity', 'opening_balance_minor', 'opening_balance_date', 'archived', 'detail_type', 'locked', 'account_type', 'classification_status', 'import_enabled', 'supported_source_kinds_json', 'opening_balance_source'],
+  chart_account: ['id', 'name', 'type', 'display_order', 'archived', 'account_type', 'detail_type', 'locked'],
+  import_batch: ['id', 'destination_account_id', 'source_kind', 'source_name', 'source_hash', 'mapping_version', 'accepted_count', 'rejected_count', 'skipped_count', 'warning_count', 'total_accepted_minor'],
+  transaction_record: ['id', 'account_id', 'posting_date', 'amount_minor', 'currency', 'raw_description', 'description', 'state', 'created_at_utc', 'modified_at_utc', 'categorization_source'],
+  posting_split: ['id', 'transaction_id', 'chart_account_id', 'amount_minor'],
+  audit_event: ['id', 'timestamp_utc', 'operation', 'entity_type', 'entity_id'],
+  transfer_match: ['id', 'left_transaction_id', 'right_transaction_id', 'confidence', 'rationale', 'confirmed_at_utc'],
+  transaction_rule: ['id', 'name', 'enabled', 'priority', 'conditions_json', 'suggest_exclude'],
+  tax_year_settings: ['tax_year', 'federal_income_tax_account_ids_json', 'state_local_income_tax_account_ids_json', 'include_federal_income_tax', 'include_state_local_income_tax'],
+  financial_account_cash_flow_classification: ['cash_flow_cash_role', 'cash_flow_treatment', 'cash_flow_status', 'cash_flow_source', 'cash_flow_rationale'],
+  chart_account_cash_flow_classification: ['cash_flow_treatment', 'cash_flow_status', 'cash_flow_source', 'cash_flow_rationale'],
+};
+
+const SCHEMA_7_PRIMARY_KEYS: Readonly<Record<string, string>> = {
+  company: 'id',
+  company_profile: 'company_id',
+  financial_account: 'id',
+  chart_account: 'id',
+  import_batch: 'id',
+  transaction_record: 'id',
+  posting_split: 'id',
+  audit_event: 'id',
+  transfer_match: 'id',
+  transaction_rule: 'id',
+  tax_year_settings: 'tax_year',
+  financial_account_cash_flow_classification: 'financial_account_id',
+  chart_account_cash_flow_classification: 'chart_account_id',
+};
+
+const SCHEMA_7_REQUIRED_INDEXES: Readonly<Record<string, readonly string[]>> = {
+  ...SCHEMA_6_REQUIRED_INDEXES,
+  idx_financial_account_cash_flow_classification: ['cash_flow_cash_role', 'cash_flow_treatment', 'cash_flow_status'],
+  idx_chart_account_cash_flow_classification: ['cash_flow_treatment', 'cash_flow_status'],
+};
+
+const SCHEMA_7_REQUIRED_FOREIGN_KEYS: readonly {
+  readonly table: string;
+  readonly from: string;
+  readonly parent: string;
+  readonly to: string;
+  readonly onDelete?: string;
+}[] = [
+  { table: 'company_profile', from: 'company_id', parent: 'company', to: 'id' },
+  { table: 'financial_account', from: 'parent_account_id', parent: 'financial_account', to: 'id' },
+  { table: 'chart_account', from: 'parent_id', parent: 'chart_account', to: 'id' },
+  { table: 'import_batch', from: 'destination_account_id', parent: 'financial_account', to: 'id' },
+  { table: 'transaction_record', from: 'account_id', parent: 'financial_account', to: 'id' },
+  { table: 'transaction_record', from: 'source_batch_id', parent: 'import_batch', to: 'id' },
+  { table: 'posting_split', from: 'transaction_id', parent: 'transaction_record', to: 'id' },
+  { table: 'posting_split', from: 'chart_account_id', parent: 'chart_account', to: 'id' },
+  { table: 'transfer_match', from: 'left_transaction_id', parent: 'transaction_record', to: 'id' },
+  { table: 'transfer_match', from: 'right_transaction_id', parent: 'transaction_record', to: 'id' },
+  { table: 'transaction_rule', from: 'chart_account_id', parent: 'chart_account', to: 'id' },
+  { table: 'financial_account_cash_flow_classification', from: 'financial_account_id', parent: 'financial_account', to: 'id', onDelete: 'CASCADE' },
+  { table: 'chart_account_cash_flow_classification', from: 'chart_account_id', parent: 'chart_account', to: 'id', onDelete: 'CASCADE' },
+];
+
 export interface Schema7MigrationOptions {
   readonly timestampUtc?: string;
   readonly correlationId?: string;
@@ -185,6 +268,17 @@ export function applySchema7Migration(database: Database, options: Schema7Migrat
 export function validateSchema7Database(database: Database): void {
   validateSchema7Objects(database);
 
+  const integrity = String(rows(database, 'PRAGMA integrity_check')[0]?.['integrity_check'] ?? 'unknown');
+  if (integrity.toLowerCase() !== 'ok') throw new Error(`Schema 7 integrity check failed: ${integrity}.`);
+  const foreignKeyViolations = rows(database, 'PRAGMA foreign_key_check');
+  if (foreignKeyViolations.length > 0) throw new Error(`Schema 7 foreign-key check found ${foreignKeyViolations.length} violation(s).`);
+
+  const versionRows = rows(database, 'SELECT version FROM schema_version');
+  if (versionRows.length !== 1 || Number(versionRows[0]?.['version']) !== SCHEMA_7_VERSION) {
+    throw new Error(`Schema 7 database requires exactly one schema-7 version row; found ${versionRows.length}.`);
+  }
+  validateSchema7Relationships(database);
+
   const financialRows = rows(database, `SELECT f.id, f.account_type, f.detail_type,
       c.cash_flow_cash_role, c.cash_flow_treatment, c.cash_flow_status,
       c.cash_flow_source, c.cash_flow_rationale, c.cash_flow_modified_at_utc
@@ -227,15 +321,59 @@ export function validateSchema7Database(database: Database): void {
 }
 
 function validateSchema7Objects(database: Database): void {
-  const parentContracts: Readonly<Record<string, readonly string[]>> = {
-    financial_account: ['id', 'account_type', 'detail_type'],
-    chart_account: ['id', 'account_type', 'detail_type'],
-  };
-  for (const [table, columns] of Object.entries(parentContracts)) {
+  for (const [table, columns] of Object.entries(SCHEMA_7_REQUIRED_COLUMNS)) {
     if (!tableExists(database, table)) throw new Error(`Schema 7 database is missing required table ${table}.`);
-    const actual = new Set(rows(database, `PRAGMA table_info(${table})`).map(row => String(row['name'])));
+    const tableInfo = rows(database, `PRAGMA table_info(${table})`);
+    const actual = new Set(tableInfo.map(row => String(row['name'])));
     for (const column of columns) if (!actual.has(column)) throw new Error(`Schema 7 database is missing required column ${table}.${column}.`);
+    const primaryKeyColumn = tableInfo.find(row => Number(row['pk']) === 1)?.['name'];
+    for (const column of SCHEMA_7_REQUIRED_NOT_NULL[table] ?? []) {
+      if (column === primaryKeyColumn) continue;
+      const definition = tableInfo.find(row => String(row['name']) === column);
+      if (Number(definition?.['notnull'] ?? 0) !== 1) throw new Error(`Schema 7 database requires ${table}.${column} to be NOT NULL.`);
+    }
+    const primaryKey = SCHEMA_7_PRIMARY_KEYS[table];
+    if (primaryKey) {
+      const primaryKeyColumns = tableInfo
+        .filter(row => Number(row['pk']) > 0)
+        .sort((left, right) => Number(left['pk']) - Number(right['pk']))
+        .map(row => String(row['name']));
+      if (primaryKeyColumns.length !== 1 || primaryKeyColumns[0] !== primaryKey) throw new Error(`Schema 7 database requires ${table}.${primaryKey} as its primary key.`);
+    }
   }
+
+  for (const [index, columns] of Object.entries(SCHEMA_7_REQUIRED_INDEXES)) {
+    const indexRows = rows(database, `SELECT name FROM sqlite_master WHERE type = 'index' AND name = '${index}'`);
+    if (!indexRows.length) throw new Error(`Schema 7 database is missing required index ${index}.`);
+    const actual = rows(database, `PRAGMA index_info(${index})`)
+      .sort((left, right) => Number(left['seqno']) - Number(right['seqno']))
+      .map(row => String(row['name']));
+    if (actual.length !== columns.length || actual.some((column, position) => column !== columns[position])) {
+      throw new Error(`Schema 7 database has an invalid index ${index}.`);
+    }
+  }
+
+  const expectedForeignKeysByTable = new Map<string, number>();
+  for (const foreignKey of SCHEMA_7_REQUIRED_FOREIGN_KEYS) {
+    expectedForeignKeysByTable.set(foreignKey.table, (expectedForeignKeysByTable.get(foreignKey.table) ?? 0) + 1);
+    const actual = rows(database, `PRAGMA foreign_key_list(${foreignKey.table})`);
+    const match = actual.find(row => String(row['table']) === foreignKey.parent
+      && String(row['from']) === foreignKey.from
+      && String(row['to']) === foreignKey.to);
+    if (!match) throw new Error(`Schema 7 database is missing foreign key ${foreignKey.table}.${foreignKey.from} → ${foreignKey.parent}.${foreignKey.to}.`);
+    if (foreignKey.onDelete && String(match['on_delete']).toUpperCase() !== foreignKey.onDelete) {
+      throw new Error(`Schema 7 database has an invalid delete action for ${foreignKey.table}.${foreignKey.from}.`);
+    }
+  }
+  for (const [table, expectedCount] of expectedForeignKeysByTable) {
+    const actualCount = rows(database, `PRAGMA foreign_key_list(${table})`).length;
+    if (actualCount !== expectedCount) throw new Error(`Schema 7 database has an invalid foreign-key set for ${table}.`);
+  }
+
+  requireUniqueIndex(database, 'financial_account', ['name'], 'financial account name');
+  requireUniqueIndex(database, 'transfer_match', ['left_transaction_id'], 'left transfer transaction');
+  requireUniqueIndex(database, 'transfer_match', ['right_transaction_id'], 'right transfer transaction');
+  requireUniqueIndex(database, 'transaction_rule', ['priority'], 'rule priority');
 
   const contracts = [
     {
@@ -279,8 +417,11 @@ function validateSchema7Objects(database: Database): void {
         throw new Error(`Schema 7 database requires ${contract.table}.${column} to be NOT NULL.`);
       }
     }
-    const primaryKey = columns.find(row => Number(row['pk']) === 1);
-    if (String(primaryKey?.['name'] ?? '') !== contract.columns[0]) throw new Error(`Schema 7 database requires ${contract.table}.${contract.columns[0]} as its primary key.`);
+    const primaryKey = columns
+      .filter(row => Number(row['pk']) > 0)
+      .sort((left, right) => Number(left['pk']) - Number(right['pk']))
+      .map(row => String(row['name']));
+    if (primaryKey.length !== 1 || primaryKey[0] !== contract.columns[0]) throw new Error(`Schema 7 database requires ${contract.table}.${contract.columns[0]} as its primary key.`);
     const foreignKeys = rows(database, `PRAGMA foreign_key_list(${contract.table})`);
     if (!foreignKeys.some(row => String(row['table']) === contract.parentTable && String(row['from']) === contract.parentColumn && String(row['to']) === 'id' && String(row['on_delete']).toUpperCase() === 'CASCADE')) {
       throw new Error(`Schema 7 database requires a cascading foreign key from ${contract.table} to ${contract.parentTable}.`);
@@ -293,6 +434,72 @@ function validateSchema7Objects(database: Database): void {
     }
     const sql = String(rows(database, `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = '${contract.table}'`)[0]?.['sql'] ?? '').replace(/\s+/g, ' ').toLowerCase();
     for (const check of contract.checks) if (!sql.includes(check.toLowerCase())) throw new Error(`Schema 7 database is missing a classification constraint on ${contract.table}.`);
+  }
+}
+
+function requireUniqueIndex(database: Database, table: string, columns: readonly string[], label: string): void {
+  const indexes = rows(database, `PRAGMA index_list(${table})`)
+    .filter(row => Number(row['unique']) === 1)
+    .map(row => String(row['name']));
+  const matching = indexes.some(index => {
+    const actual = rows(database, `PRAGMA index_info(${index})`)
+      .sort((left, right) => Number(left['seqno']) - Number(right['seqno']))
+      .map(row => String(row['name']));
+    return actual.length === columns.length && actual.every((column, position) => column === columns[position]);
+  });
+  if (!matching) throw new Error(`Schema 7 database is missing the unique constraint for ${label}.`);
+}
+
+/** Validates inherited row relationships and data-level invariants. */
+function validateSchema7Relationships(database: Database): void {
+  const companies = rows(database, 'SELECT id, name, currency, fiscal_year_start_month, accounting_basis, active_tax_year FROM company');
+  if (companies.length === 0) {
+    const populated = Object.keys(SCHEMA_7_REQUIRED_COLUMNS)
+      .filter(table => table !== 'schema_version' && tableCount(database, table) > 0);
+    if (populated.length) throw new Error(`Schema 7 database has data without a company record: ${populated.join(', ')}.`);
+    return;
+  }
+  if (companies.length !== 1) throw new Error(`Schema 7 database requires exactly one company row; found ${companies.length}.`);
+  const companyId = requiredText(companies[0], 'id', 'company');
+  requiredText(companies[0], 'name', 'company');
+  requiredText(companies[0], 'currency', 'company');
+  requiredText(companies[0], 'accounting_basis', 'company');
+
+  const profiles = rows(database, 'SELECT company_id, legal_name, display_name, created_at, modified_at FROM company_profile');
+  if (profiles.length !== 1) throw new Error(`Schema 7 database requires exactly one company_profile row; found ${profiles.length}.`);
+  if (String(profiles[0]['company_id'] ?? '') !== companyId) throw new Error('Schema 7 company_profile must reference the sole company row.');
+  requiredText(profiles[0], 'legal_name', 'company_profile');
+  requiredText(profiles[0], 'display_name', 'company_profile');
+
+  for (const [table, column] of [
+    ['company_profile', 'created_at'], ['company_profile', 'modified_at'],
+    ['import_batch', 'committed_at_utc'], ['transaction_record', 'created_at_utc'],
+    ['transaction_record', 'modified_at_utc'], ['transaction_record', 'posted_at_utc'],
+    ['transaction_record', 'excluded_at_utc'], ['transaction_record', 'undone_at_utc'],
+    ['audit_event', 'timestamp_utc'], ['transfer_match', 'confirmed_at_utc'],
+    ['tax_year_settings', 'confirmed_at_utc'],
+    ['financial_account_cash_flow_classification', 'cash_flow_modified_at_utc'],
+    ['chart_account_cash_flow_classification', 'cash_flow_modified_at_utc'],
+  ] as const) {
+    rows(database, `SELECT ${column} FROM ${table}`).forEach((row, index) => {
+      const value = row[column];
+      if (value !== null && value !== undefined) validateTimestampValue(value, `${table}.${column} row ${index + 1}`);
+    });
+  }
+
+  for (const [table, idColumn] of [['financial_account', 'id'], ['chart_account', 'id']] as const) {
+    rows(database, `SELECT ${idColumn} FROM ${table}`).forEach(row => requiredText(row, idColumn, table));
+  }
+  validateNoCycles(database, 'financial_account', 'parent_account_id');
+  validateNoCycles(database, 'chart_account', 'parent_id');
+}
+
+function validateTimestampValue(value: unknown, label: string): void {
+  if (typeof value !== 'string' || !value.trim()) throw new Error(`Schema 7 ${label} must be a canonical ISO UTC timestamp.`);
+  try {
+    if (new Date(value).toISOString() !== value) throw new Error('not canonical');
+  } catch {
+    throw new Error(`Schema 7 ${label} must be a canonical ISO UTC timestamp.`);
   }
 }
 
@@ -440,8 +647,7 @@ function validateSchema7(
     throw new Error('Schema 7 migration audit-event count is incomplete.');
   }
   validateMigrationTimestamp(timestampUtc);
-  validateNoCycles(database, 'financial_account', 'parent_account_id');
-  validateNoCycles(database, 'chart_account', 'parent_id');
+  validateSchema7Relationships(database);
 }
 
 function validatePersistedClassification(row: SqlRow, accountRole: 'FINANCIAL_SOURCE' | 'CHART'): void {
@@ -571,9 +777,7 @@ export function validateSchema6Database(database: Database): void {
 
 
 function validateMigrationTimestamp(timestampUtc: string): void {
-  if (!timestampUtc.trim() || Number.isNaN(Date.parse(timestampUtc)) || new Date(timestampUtc).toISOString() !== timestampUtc) {
-    throw new Error('Schema 7 migration timestamp must be a canonical ISO UTC timestamp.');
-  }
+  validateTimestampValue(timestampUtc, 'migration timestamp');
 }
 
 function requiredText(row: SqlRow, column: string, entity: string): string {

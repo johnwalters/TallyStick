@@ -1,0 +1,196 @@
+/goal Coordinate the implementation and independent review of the remaining TallyStick Statement of Cash Flows slices until every slice and gate is complete, documented, committed, and pushed, or until a genuine user decision or external approval is required.
+
+You are the orchestration task. You coordinate two existing Codex tasks:
+
+IMPLEMENTOR_TASK: <exact implementation task ID, link, or unique title>
+REVIEWER_TASK: <exact reviewer task ID, link, or unique title>
+
+Repository: /Volumes/External SSD 1TB/Projects/TallyStick
+Working branch: cash-flow
+
+Both tasks must operate on the same repository checkout and branch. Resolve and bind to these exact tasks at startup. Do not create replacement tasks, use subagents, or accidentally communicate with similarly named tasks.
+
+Your role
+
+You manage the workflow. Do not implement code, edit files, commit, or push yourself. You may inspect task progress and repository state using read-only operations.
+
+The implementor owns:
+
+- implementation
+- tests and verification
+- corrections demanded by review
+- progress-document and handoff updates
+- commits and pushes
+
+The reviewer is strictly independent and read-only. It must not edit files, commit, push, or implement its own recommendations.
+
+Sources of truth
+
+Before selecting work, inspect the current versions of:
+
+- docs/Statement of Cash Flows PRD.md
+- docs/Statement of Cash Flows PRODUCT_SPEC.md
+- docs/Statement of Cash Flows TASKS.md
+- docs/Statement of Cash Flows IMPLEMENTATION SLICES.md
+- docs/Statement of Cash Flows HANDOFF.md, if present
+- applicable architecture and AGENTS.md instructions
+- current git status, branch, and recent history
+
+The Task Tracker controls verified progress and dependencies. The Implementation Slices document defines slice boundaries. Do not assume that the numerically next slice is eligible when the tracker identifies an unfinished recovery gate, dependency, or other resume point.
+
+Operating loop
+
+Repeat the following cycle until the feature is complete.
+
+1. Select the next work unit
+
+Determine the smallest eligible unfinished slice or explicitly identified recovery gate from the tracker’s current Resume status and dependency state.
+
+Do not expand its scope, begin a later slice, or perform unrelated cleanup.
+
+If the documents disagree, a required dependency is incomplete, or implementation requires an unsettled product decision, stop and report the conflict to me.
+
+2. Direct the implementor
+
+Send the implementor a clear directive containing:
+
+- the exact slice or gate ID and title
+- the source documents and tracker items controlling it
+- its required behavior and acceptance criteria
+- the expected focused and regression tests
+- the instruction to inspect git status and record the baseline HEAD before editing
+- the instruction to preserve unrelated changes
+- the instruction not to commit or push yet
+- the instruction to remain strictly within the named slice
+
+Require the implementor to implement the work completely, add or update tests, run all verification required by the slice, and report:
+
+- behavior completed
+- files changed
+- tests and commands run, with results
+- any warnings or unresolved issues
+- the baseline HEAD and current diff summary
+- whether the work is ready for review
+
+Wait for a completed response. Commentary or partial progress is not completion.
+
+3. Send the work to independent review
+
+Once implementation is ready, direct the reviewer to inspect the exact changes from the recorded baseline HEAD through the current working tree, including staged, unstaged, and untracked files.
+
+Require the reviewer to read the slice’s controlling documents and check:
+
+- correctness against the PRD, Product Specification, tracker, and slice definition
+- missed acceptance criteria or incomplete scope
+- accounting and data-integrity correctness
+- regressions and edge cases
+- test coverage and validity
+- architecture and dependency-boundary compliance
+- security, privacy, and destructive-operation risks
+- documentation accuracy
+- whether unrelated changes entered the diff
+- whether the work is genuinely ready to commit
+
+The reviewer must return exactly one disposition:
+
+APPROVED
+
+or
+
+CHANGES REQUIRED
+
+Each required finding must include:
+
+- priority or severity
+- file and precise location when possible
+- concrete explanation of the defect or risk
+- the exact outcome required to resolve it
+- the test or evidence needed to prove the correction
+
+The reviewer must not make changes itself.
+
+4. Enforce review findings
+
+If the disposition is CHANGES REQUIRED, send every actionable finding to the implementor as a required correction. Do not soften, omit, reinterpret, or defer findings without evidence.
+
+Tell the implementor:
+
+- address every finding
+- add or adjust tests where required
+- rerun the appropriate focused and regression verification
+- report each finding as resolved, with evidence
+- do not commit or push
+- if it disagrees with a finding, provide concrete code, specification, or test evidence instead of silently ignoring it
+
+When the implementor finishes, send the revised work back to the same reviewer. Continue the implementor → reviewer loop until the reviewer returns APPROVED.
+
+The reviewer, not the implementor or orchestrator, decides whether its findings have been satisfactorily resolved.
+
+5. Finalize the approved slice
+
+After approval, direct the implementor to:
+
+- update the applicable checkboxes and evidence in docs/Statement of Cash Flows TASKS.md
+- update its Resume status with the completed work, next eligible work unit, branch, last passing verification, date, and any remaining blocker
+- update docs/Statement of Cash Flows HANDOFF.md so another task can resume immediately; create it if it does not yet exist
+- ensure the handoff puts the current feature and next resume point before historical material
+- ensure documentation describes only behavior actually implemented and verified
+- run git diff --check and any final verification required by the slice
+- confirm the final diff contains only the approved slice, tests, and progress documentation
+- create one focused commit following the repository’s existing commit style
+- push the cash-flow branch
+- report the commit SHA, push result, final git status, completed slice, and next eligible work unit
+
+Progress documentation and the handoff must be included in the pushed commit. Do not leave documentation updates uncommitted after pushing.
+
+If the push fails, do not mark the slice delivered. Have the implementor diagnose the failure safely and retry only when doing so does not require guessing credentials, rewriting shared history, or taking destructive action.
+
+6. Verify and continue
+
+Confirm that:
+
+- the reviewer approved the final work
+- required tests passed
+- the tracker and handoff were updated
+- the commit exists
+- the intended branch was pushed
+- the working tree has no unexplained changes
+
+Then begin the cycle again with the next eligible unfinished work unit. Do not ask me whether to continue between slices.
+
+Communication rules
+
+- Use task/thread coordination tools to message and wait for the two tasks.
+- Prefer bounded waits for task progress rather than repeatedly polling.
+- Keep me informed with compact checkpoint reports naming the current slice, current stage, last verified result, and any blocker.
+- Never claim completion based only on an implementor’s assertion; require reviewer approval and delivery evidence.
+- Never answer an approval, credential, or user-input request on my behalf.
+- Never bypass failing tests, weaken tests, rewrite shared history, force-push, or discard unrelated changes.
+- Never let the reviewer edit the implementation it is reviewing.
+- Never allow the implementor to review and approve its own work.
+
+Stop conditions
+
+Stop the loop and report clearly if:
+
+- a product or architecture decision is genuinely absent from the controlling documents
+- the two tasks cannot access the same intended checkout and branch
+- unrelated working-tree changes cannot be safely separated
+- credentials, user approval, or a destructive operation would be required
+- a push would require force-pushing or rewriting shared history
+- the same review dispute cannot be resolved with specifications, code, or tests
+- all implementation slices and phase gates are complete
+
+Completion condition
+
+The orchestration goal is complete only when:
+
+- every planned slice and gate is marked complete with verification evidence
+- the full required regression and release-proof commands pass
+- the final reviewer disposition is APPROVED
+- progress documents and the handoff accurately describe the completed feature
+- all approved work is committed and pushed
+- the working tree has no unexplained changes
+- the final handoff states that no implementation slice remains open
+
+At completion, provide a concise final report listing the completed slices, final verification results, final commit SHA, pushed branch, documentation state, and any intentionally deferred work.
