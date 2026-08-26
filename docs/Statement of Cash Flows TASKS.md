@@ -16,18 +16,18 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Slice 4 complete; schema-7 migration hardening verified |
-| Current phase | Phase 2 — Schema 7 migration, persistence, revision, and recovery compatibility |
-| Next task | `CF2-008` through `CF2-013` via `CF-SLICE-05-PERSISTENCE-RECOVERY` |
+| Overall status | Slice 5 in progress; persistence and recovery review fixes implemented, gate pending final acceptance |
+| Current phase | Phase 2 — Persistence and recovery review closure |
+| Next task | Re-verify `CF2-008`, `CF2-011`, `CF2-012`, and `CF2-GATE` after recovery acceptance tests |
 | Current branch | `cash-flow` |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Cash Flow test | Schema-7 migration fixture, full standard taxonomy matrix, malformed-source and transaction-rollback cases, exact ledger/P&L/Balance Sheet totals, 217 browser/unit tests, boundary and fixture oracles, production build, and 8 desktop-host tests passed; schema-6 ledger preservation and idempotent reopen verified |
-| Last tracker update | August 25, 2026 — `CF-SLICE-04-SCHEMA-7-MIGRATION` hardening completed |
-| Known blocker | None |
+| Last verified Cash Flow test | Schema-7 migration and repository round-trip, atomic classification update/revision, portable backup data, backup/restore/relocation/future-schema rejection, exact ledger/P&L/Balance Sheet totals, 218 browser/unit tests, boundary and fixture oracles, production build, and 8 desktop-host tests passed |
+| Last tracker update | August 25, 2026 — `CF-SLICE-05-PERSISTENCE-RECOVERY` review findings addressed; completion remains intentionally open |
+| Known blocker | Recovery acceptance gate remains open pending explicit review of pre-migration backup, strict schema-7 restore, classification preservation, portable bundle, and in-memory parity cases |
 
 ## Tracker use
 
@@ -132,11 +132,11 @@ Execution is divided into token-conscious, independently testable units in the [
 ### Persistence and recovery
 
 - [ ] **CF2-008** Implement classification repository mappings, atomic batch updates, and revision increments.
-- [ ] **CF2-009** Extend report snapshots with cash roles, treatments, opening balances, transfers, splits, hierarchy, state, and one consistent revision.
-- [ ] **CF2-010** Update the shared current-schema constant to 7 only after the migration is registered.
+- [x] **CF2-009** Extend report snapshots with cash roles, treatments, opening balances, transfers, splits, hierarchy, state, and one consistent revision.
+- [x] **CF2-010** Update the shared current-schema constant to 7 only after the migration is registered.
 - [ ] **CF2-011** Update backup, restore, portable export, Electron validation, temporary databases, and smoke fixtures through the shared schema constant.
 - [ ] **CF2-012** Test schema-6-to-7 migration, idempotent reopen, corrupt migration rollback, backup/restore, relocation, and future-schema rejection.
-- [ ] **CF2-013** Prove exact pre/post ledger and completed-report totals remain unchanged except for newly derived Cash Flow reporting.
+- [x] **CF2-013** Prove exact pre/post ledger and completed-report totals remain unchanged except for newly derived Cash Flow reporting.
 - [ ] **CF2-GATE** Exit gate: schema-6 data safely reopens as schema 7, recovery paths pass, and no existing ledger or statement value drifts.
 
 ## Phase 3 — Classification services, exchange, and review UI
@@ -262,6 +262,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | 2026-08-25 | `CF-SLICE-02-CLASSIFICATION-CORE` | Corrected Loan payable to Financing, routed custom and ambiguous details to Review required, changed ambiguous financial cash role to Review required, separated default seeding from preservation/reclassification, and added exhaustive taxonomy/failure-path tests; `npm run test:ci` (192 browser/unit tests plus boundaries and fixture oracles) and `npm run build` passed | Complete |
 | 2026-08-25 | `CF-SLICE-03-PUBLIC-CONTRACTS` | Added immutable query/report/detail/classification contracts, permissive raw exchange preview input with strict normalized output, role-valid catalog compatibility/defaults, classification exchange facade methods, Cash Flow feature facade state, dedicated deferred-operation failures, and exhaustive boundary tests; `npm run test:ci` (203 browser/unit tests plus boundaries and fixture oracles) and `npm run build` passed | Complete |
 | 2026-08-25 | `CF-SLICE-04-SCHEMA-7-MIGRATION` | Added atomic schema-6-to-7 migration with one-to-one financial/Chart classification tables, checked enums, provenance/review/rationale/timestamps, classification indexes, structural-only defaults, correlated audit events, FK/integrity/cycle/count/compatibility validation, strict schema-6 table/column/index/version/profile preflight, role/type compatibility checks, canonical ISO-UTC timestamp validation, true legacy-review audit rationale, full taxonomy and malformed-source/constraint-rollback acceptance tests, and exact pre/post ledger/P&L/Balance Sheet totals; `npm run test:ci` (217 browser/unit tests plus boundaries and fixture oracles), `npm run build`, and `npm run test:desktop-host` (8 tests) passed | Complete |
+| 2026-08-25 | `CF-SLICE-05-PERSISTENCE-RECOVERY` | Registered schema 7 for fresh bootstrap and schema-6 reopen, added pre-migration safety backup, strict schema-7 recovery validation, non-destructive/audited structural reclassification, complete portable classification validation, and in-memory/SQLite contract parity; `npm run test:ci` (218 browser/unit tests plus boundaries and fixture oracles) passed. Slice remains in progress until CF2-008/011/012 and the recovery gate are explicitly re-accepted | In progress |
 | 2026-08-25 | Slice 1 pre-change baseline | `test:ci`: 181 passed; production build passed; `test:desktop-host`: 8 passed including validated restore/safety backup; isolated `desktop:smoke` passed | Complete |
 | 2026-08-25 | `CF-SLICE-01-BASELINE-ORACLE` | Independent validator passed for 2 neutral companies, A1–A20, schema-6 counts, exact integer totals/source Balance Sheets/cash composition/detail/warnings, 2025–2026 fiscal coverage, migration targets, and privacy terms | Complete |
 | 2026-08-25 | Slice 1 post-change verification | `test:ci`: Cash Flow oracle plus 181 browser/unit tests passed; production build passed; `test:desktop-host`: 8 passed; isolated `desktop:smoke` passed | Complete |

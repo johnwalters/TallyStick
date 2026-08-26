@@ -20,8 +20,8 @@ assert.equal(oracle.moneyUnit, 'INTEGER_MINOR_UNITS');
 assert.equal(oracle.method, 'INDIRECT');
 
 const currentSchemaVersion = Number(schemaSource.match(/CURRENT_SQLITE_SCHEMA_VERSION\s*=\s*(\d+)/)?.[1]);
-assert.equal(oracle.databaseBaseline.databaseSchemaVersion, 6, 'The Cash Flow baseline must record schema 6 exactly.');
-assert.equal(currentSchemaVersion, oracle.databaseBaseline.databaseSchemaVersion, 'The pre-migration application schema must match the Cash Flow oracle.');
+assert.equal(oracle.databaseBaseline.databaseSchemaVersion, 6, 'The Cash Flow migration baseline must record schema 6 exactly.');
+assert.equal(currentSchemaVersion, oracle.databaseBaseline.databaseSchemaVersion + 1, 'The application schema must advance the Cash Flow oracle baseline by one migration.');
 
 const expectedCounts = oracle.databaseBaseline.counts;
 assert.deepEqual(expectedCounts, {

@@ -2,6 +2,7 @@ import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { Database, SqlJsStatic } from 'sql.js';
 import { CURRENT_SQLITE_SCHEMA_VERSION } from '../shared/schema-version';
+import { validateSchema6Database, validateSchema7Database } from '../app/core/sqlite-gateway/schema-v7-migration';
 
 export const DEFAULT_BACKUP_TIME_ZONE = 'UTC';
 
@@ -61,7 +62,7 @@ export class DatabaseLifecycleManager {
     return this.locations();
   }
 
-  async backup(databaseBytes: Uint8Array, reason: 'MANUAL' | 'PRE_RELOCATE' | 'PRE_RESTORE' = 'MANUAL'): Promise<DatabaseFileOperationResult> {
+  async backup(databaseBytes: Uint8Array, reason: 'MANUAL' | 'PRE_MIGRATION' | 'PRE_RELOCATE' | 'PRE_RESTORE' = 'MANUAL'): Promise<DatabaseFileOperationResult> {
     const settings = await this.readSettings();
     if (!settings.backupDirectory) throw new Error('Choose a backup folder before creating a backup.');
     this.validateDatabase(databaseBytes);
@@ -106,6 +107,18 @@ export class DatabaseLifecycleManager {
     };
   }
 
+  schemaVersion(bytes: Uint8Array): number {
+    let database: Database | undefined;
+    try {
+      database = new this.sql.Database(bytes);
+      const rows = database.exec('SELECT version FROM schema_version')[0]?.values ?? [];
+      if (rows.length !== 1) throw new Error(`SQLite schema_version must contain exactly one row; found ${rows.length}.`);
+      return Number(rows[0]?.[0]);
+    } finally {
+      database?.close();
+    }
+  }
+
   validateDatabase(bytes: Uint8Array): void {
     let database: Database | undefined;
     try {
@@ -115,7 +128,9 @@ export class DatabaseLifecycleManager {
       if (integrity.toLowerCase() !== 'ok') throw new Error(`SQLite integrity check failed: ${integrity}.`);
       const foreignKeys = database.exec('PRAGMA foreign_key_check');
       if (foreignKeys.some(result => result.values.length)) throw new Error('SQLite foreign-key check failed.');
-      const schemaVersion = Number(database.exec('SELECT version FROM schema_version LIMIT 1')[0]?.values[0]?.[0]);
+      const versionRows = database.exec('SELECT version FROM schema_version')[0]?.values ?? [];
+      if (versionRows.length !== 1) throw new Error(`SQLite schema_version must contain exactly one row; found ${versionRows.length}.`);
+      const schemaVersion = Number(versionRows[0]?.[0]);
       if (!Number.isInteger(schemaVersion) || schemaVersion < 1 || schemaVersion > CURRENT_SQLITE_SCHEMA_VERSION) throw new Error(`Unsupported SQLite schema version: ${schemaVersion || 'missing'}.`);
       const companyId = database.exec('SELECT id FROM company LIMIT 1')[0]?.values[0]?.[0];
       if (!companyId) throw new Error('The SQLite database does not contain a company record.');
@@ -126,6 +141,10 @@ export class DatabaseLifecycleManager {
         if (profile.length !== 1 || profile[0][0] !== companyId || !String(profile[0][1] ?? '').trim() || !String(profile[0][2] ?? '').trim()) {
           throw new Error('The schema-6 SQLite database does not contain a valid company profile.');
         }
+        if (schemaVersion === 6) validateSchema6Database(database);
+      }
+      if (schemaVersion >= 7) {
+        validateSchema7Database(database);
       }
     } catch (error) {
       if (error instanceof Error && /SQLite|schema|company/.test(error.message)) throw error;
@@ -149,9 +168,9 @@ export class DatabaseLifecycleManager {
     }
   }
 
-  private async availableBackupPath(directory: string, reason: 'MANUAL' | 'PRE_RELOCATE' | 'PRE_RESTORE', timeZone: string): Promise<string> {
+  private async availableBackupPath(directory: string, reason: 'MANUAL' | 'PRE_MIGRATION' | 'PRE_RELOCATE' | 'PRE_RESTORE', timeZone: string): Promise<string> {
     const stamp = this.backupStamp(this.now(), timeZone);
-    const suffix = reason === 'MANUAL' ? '' : reason === 'PRE_RELOCATE' ? '-pre-relocate' : '-pre-restore';
+    const suffix = reason === 'MANUAL' ? '' : reason === 'PRE_MIGRATION' ? '-pre-migration' : reason === 'PRE_RELOCATE' ? '-pre-relocate' : '-pre-restore';
     for (let counter = 0; counter < 1000; counter += 1) {
       const collision = counter ? `-${counter + 1}` : '';
       const candidate = path.join(directory, `tallystick-${stamp}${suffix}${collision}.sqlite`);

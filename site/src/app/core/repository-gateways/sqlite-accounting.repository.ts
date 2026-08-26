@@ -12,11 +12,19 @@ import {
   Transaction,
   TransactionRule,
   TransferMatch,
+  nowUtc,
 } from '../domain-model/accounting.types';
-import { CompanyProfile, databaseRevision } from '../domain-model/balance-sheet.types';
+import { CompanyProfile, databaseRevision, DatabaseRevision } from '../domain-model/balance-sheet.types';
+import {
+  CashFlowClassification,
+  getDefaultCashFlowClassification,
+  validateCashFlowClassification,
+} from '../domain-model/cash-flow-classification';
+import { validateAccountUse } from '../domain-model/account-taxonomy';
 import {
   AccountingRepository,
   BalanceSheetRepositorySnapshot,
+  CashFlowClassificationRecord,
   PersistedCompanyProfile,
   TaxIdentifierPersistence,
 } from './accounting.repository';
@@ -37,6 +45,9 @@ interface RepositorySnapshot {
   transfers: Map<string, TransferMatch>;
   taxSettings: Map<number, TaxYearSettings>;
   audit: AuditEvent[];
+  cashFlowClassifications: Map<string, CashFlowClassificationRecord>;
+  persistedFinancialAccountIds: Set<string>;
+  persistedChartAccountIds: Set<string>;
 }
 
 /**
@@ -66,6 +77,9 @@ export class SqliteAccountingRepository implements AccountingRepository {
   transfers = new Map<string, TransferMatch>();
   taxSettings = new Map<number, TaxYearSettings>();
   audit: AuditEvent[] = [];
+  cashFlowClassifications = new Map<string, CashFlowClassificationRecord>();
+  private persistedFinancialAccountIds = new Set<string>();
+  private persistedChartAccountIds = new Set<string>();
 
   private initialized = false;
   private companyProfile?: CompanyProfile;
@@ -129,17 +143,81 @@ export class SqliteAccountingRepository implements AccountingRepository {
 
   readBalanceSheetSnapshot(asOfDate: string): BalanceSheetRepositorySnapshot {
     this.requireInitialized();
-    const bytes = this.database.exportBytes();
     return structuredClone({
       asOfDate,
-      databaseRevision: databaseRevision(`sqlite:${this.database.schemaVersion()}:${this.hashBytes(bytes)}`),
+      databaseRevision: this.getDatabaseRevision(),
       company: this.company,
       companyProfile: this.companyProfile,
       accounts: [...this.accounts.values()],
       chartAccounts: [...this.chartAccounts.values()],
       transactions: [...this.transactions.values()],
       transfers: [...this.transfers.values()],
+      cashFlowClassifications: [...this.cashFlowClassifications.values()],
     });
+  }
+
+  readCashFlowSnapshot(asOfDate: string): BalanceSheetRepositorySnapshot {
+    return this.readBalanceSheetSnapshot(asOfDate);
+  }
+
+  getDatabaseRevision(): DatabaseRevision {
+    this.requireInitialized();
+    const bytes = this.database.exportBytes();
+    return databaseRevision(`sqlite:${this.database.schemaVersion()}:${this.hashBytes(bytes)}`);
+  }
+
+  getCashFlowClassification(accountRole: 'FINANCIAL_SOURCE' | 'CHART', accountId: string): CashFlowClassificationRecord | undefined {
+    const value = this.cashFlowClassifications.get(this.classificationKey(accountRole, accountId));
+    return value ? structuredClone(value) : undefined;
+  }
+
+  saveCashFlowClassifications(updates: readonly CashFlowClassificationRecord[], expectedRevision?: DatabaseRevision): DatabaseRevision {
+    this.requireInitialized();
+    if (expectedRevision !== undefined && expectedRevision !== this.getDatabaseRevision()) {
+      throw new Error('Cash Flow classification update is stale; reload the current database revision.');
+    }
+    this.transaction(() => {
+      for (const update of updates) {
+        const structure = update.accountRole === 'FINANCIAL_SOURCE'
+          ? this.accounts.get(update.accountId)
+          : this.chartAccounts.get(update.accountId);
+        if (!structure) throw new Error(`Cash Flow account not found: ${update.accountRole}/${update.accountId}.`);
+        const normalizedAccountType = String(structure.accountType).trim();
+        const normalizedDetailType = String(structure.detailType).trim();
+        const accountUse = validateAccountUse({ accountType: normalizedAccountType, requestedRole: update.accountRole });
+        if (!accountUse.ok) throw new Error(`Invalid Cash Flow account structure for ${update.accountId}: ${accountUse.error.code}.`);
+        const validation = validateCashFlowClassification({
+          accountRole: update.accountRole,
+          accountType: normalizedAccountType,
+          detailType: normalizedDetailType,
+          classification: update,
+        });
+        if (!validation.ok) throw new Error(`Invalid Cash Flow classification for ${update.accountId}: ${validation.error.code}.`);
+        const before = this.cashFlowClassifications.get(this.classificationKey(update.accountRole, update.accountId));
+        const modifiedAtUtc = update.modifiedAtUtc ?? nowUtc();
+        if (new Date(modifiedAtUtc).toISOString() !== modifiedAtUtc) throw new Error(`Invalid Cash Flow classification timestamp for ${update.accountId}.`);
+        const normalized: CashFlowClassificationRecord = {
+          ...validation.value.classification,
+          modifiedAtUtc,
+          accountRole: update.accountRole,
+          accountId: update.accountId,
+          accountType: normalizedAccountType,
+          detailType: normalizedDetailType,
+        };
+        this.cashFlowClassifications.set(this.classificationKey(update.accountRole, update.accountId), normalized);
+        this.audit.push({
+          id: `cash-flow-classification:${update.accountRole}:${update.accountId}:${Date.now()}-${this.audit.length}`,
+          timestampUtc: normalized.modifiedAtUtc ?? new Date().toISOString(),
+          operation: 'SAVE_CASH_FLOW_CLASSIFICATION',
+          entityType: update.accountRole === 'FINANCIAL_SOURCE' ? 'FinancialAccountCashFlowClassification' : 'ChartAccountCashFlowClassification',
+          entityId: update.accountId,
+          before: before ? structuredClone(before) : undefined,
+          after: structuredClone(normalized),
+          reason: normalized.rationale,
+        });
+      }
+    });
+    return this.getDatabaseRevision();
   }
 
   private loadState(): void {
@@ -211,6 +289,7 @@ export class SqliteAccountingRepository implements AccountingRepository {
         locked: this.boolean(item.locked),
       } satisfies FinancialAccount];
     }));
+    this.persistedFinancialAccountIds = new Set(this.accounts.keys());
 
     this.chartAccounts = new Map(this.database.execute('SELECT * FROM chart_account ORDER BY display_order, name').map(row => {
       const item = row as SqlRow;
@@ -227,6 +306,25 @@ export class SqliteAccountingRepository implements AccountingRepository {
         locked: this.boolean(item.locked),
       } satisfies ChartAccount];
     }));
+    this.persistedChartAccountIds = new Set(this.chartAccounts.keys());
+
+    this.cashFlowClassifications = new Map<string, CashFlowClassificationRecord>();
+    if (this.tableExists('financial_account_cash_flow_classification')) {
+      this.database.execute(`SELECT f.id AS account_id, f.account_type, f.detail_type,
+        c.cash_flow_cash_role, c.cash_flow_treatment, c.cash_flow_status, c.cash_flow_source,
+        c.cash_flow_rationale, c.cash_flow_modified_at_utc
+        FROM financial_account f
+        JOIN financial_account_cash_flow_classification c ON c.financial_account_id = f.id`).forEach(row => {
+        this.setLoadedCashFlowClassification(row, 'FINANCIAL_SOURCE');
+      });
+      this.database.execute(`SELECT a.id AS account_id, a.account_type, a.detail_type,
+        c.cash_flow_treatment, c.cash_flow_status, c.cash_flow_source,
+        c.cash_flow_rationale, c.cash_flow_modified_at_utc
+        FROM chart_account a
+        JOIN chart_account_cash_flow_classification c ON c.chart_account_id = a.id`).forEach(row => {
+        this.setLoadedCashFlowClassification(row, 'CHART');
+      });
+    }
 
     this.batches = new Map(this.database.execute('SELECT * FROM import_batch ORDER BY committed_at_utc, id').map(row => {
       const item = row as SqlRow;
@@ -354,6 +452,9 @@ export class SqliteAccountingRepository implements AccountingRepository {
   }
 
   private writeState(): void {
+    this.prepareCashFlowClassifications();
+    this.database.execute('DELETE FROM financial_account_cash_flow_classification');
+    this.database.execute('DELETE FROM chart_account_cash_flow_classification');
     this.database.execute('DELETE FROM posting_split');
     this.database.execute('DELETE FROM transfer_match');
     this.database.execute('DELETE FROM transaction_record');
@@ -400,6 +501,22 @@ export class SqliteAccountingRepository implements AccountingRepository {
         account.id, account.name, account.parentId ?? null, account.type, account.accountType, account.detailType, account.description ?? null, account.displayOrder, account.archived ? 1 : 0, account.locked ? 1 : 0,
       ]);
     }
+    for (const account of this.accounts.values()) {
+      const classification = this.cashFlowClassifications.get(this.classificationKey('FINANCIAL_SOURCE', account.id));
+      if (!classification || classification.cashRole === undefined) throw new Error(`Missing Cash Flow classification for financial account ${account.id}.`);
+      this.database.execute(`INSERT INTO financial_account_cash_flow_classification(
+        financial_account_id, cash_flow_cash_role, cash_flow_treatment, cash_flow_status,
+        cash_flow_source, cash_flow_rationale, cash_flow_modified_at_utc)
+        VALUES (?, ?, ?, ?, ?, ?, ?)`, [account.id, classification.cashRole, classification.treatment, classification.status, classification.source, classification.rationale, classification.modifiedAtUtc ?? null]);
+    }
+    for (const account of this.chartAccounts.values()) {
+      const classification = this.cashFlowClassifications.get(this.classificationKey('CHART', account.id));
+      if (!classification || classification.cashRole !== undefined) throw new Error(`Missing Cash Flow classification for Chart account ${account.id}.`);
+      this.database.execute(`INSERT INTO chart_account_cash_flow_classification(
+        chart_account_id, cash_flow_treatment, cash_flow_status,
+        cash_flow_source, cash_flow_rationale, cash_flow_modified_at_utc)
+        VALUES (?, ?, ?, ?, ?, ?)`, [account.id, classification.treatment, classification.status, classification.source, classification.rationale, classification.modifiedAtUtc ?? null]);
+    }
     for (const batch of this.batches.values()) {
       this.database.execute('INSERT INTO import_batch(id, destination_account_id, source_kind, source_name, source_hash, mapping_version, accepted_count, rejected_count, skipped_count, warning_count, total_accepted_minor, committed_at_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)', [
         batch.id, batch.destinationAccountId, batch.sourceKind, batch.sourceName, batch.sourceHash, batch.mappingVersion, batch.acceptedCount, batch.rejectedCount, batch.skippedCount, batch.warningCount, batch.totalAcceptedAmount.minorUnits, batch.committedAtUtc ?? null,
@@ -435,6 +552,8 @@ export class SqliteAccountingRepository implements AccountingRepository {
         event.id, event.timestampUtc, event.operation, event.entityType, event.entityId, this.json(event.before), this.json(event.after), event.reason ?? null, event.correlationId ?? null,
       ]);
     }
+    this.persistedFinancialAccountIds = new Set(this.accounts.keys());
+    this.persistedChartAccountIds = new Set(this.chartAccounts.keys());
   }
 
   private parentFirst<T extends { id: string }>(items: Iterable<T>, parentId: (item: T) => string | undefined): T[] {
@@ -467,6 +586,9 @@ export class SqliteAccountingRepository implements AccountingRepository {
       transfers: this.transfers,
       taxSettings: this.taxSettings,
       audit: this.audit,
+      cashFlowClassifications: this.cashFlowClassifications,
+      persistedFinancialAccountIds: this.persistedFinancialAccountIds,
+      persistedChartAccountIds: this.persistedChartAccountIds,
     });
   }
 
@@ -482,6 +604,77 @@ export class SqliteAccountingRepository implements AccountingRepository {
     this.transfers = snapshot.transfers;
     this.taxSettings = snapshot.taxSettings;
     this.audit = snapshot.audit;
+    this.cashFlowClassifications = snapshot.cashFlowClassifications;
+    this.persistedFinancialAccountIds = snapshot.persistedFinancialAccountIds;
+    this.persistedChartAccountIds = snapshot.persistedChartAccountIds;
+  }
+
+  /**
+   * Prepare only classifications for genuinely new accounts. Existing rows
+   * are validated in place; a missing or structurally incompatible row is a
+   * persistence error rather than an invitation to overwrite user/migration
+   * provenance with a new default.
+   */
+  private prepareCashFlowClassifications(): void {
+    const next = new Map<string, CashFlowClassificationRecord>();
+    for (const account of this.accounts.values()) {
+      next.set(this.classificationKey('FINANCIAL_SOURCE', account.id), this.classificationFor('FINANCIAL_SOURCE', account.id, account.accountType, account.detailType, this.persistedFinancialAccountIds.has(account.id)));
+    }
+    for (const account of this.chartAccounts.values()) {
+      next.set(this.classificationKey('CHART', account.id), this.classificationFor('CHART', account.id, account.accountType, account.detailType, this.persistedChartAccountIds.has(account.id)));
+    }
+    this.cashFlowClassifications = next;
+  }
+
+  private classificationFor(accountRole: 'FINANCIAL_SOURCE' | 'CHART', accountId: string, accountType: string, detailType: string, persisted: boolean): CashFlowClassificationRecord {
+    const normalizedAccountType = accountType.trim();
+    const normalizedDetailType = detailType.trim();
+    const accountUse = validateAccountUse({ accountType: normalizedAccountType, requestedRole: accountRole });
+    if (!accountUse.ok) throw new Error(`Existing account ${accountId} has an incompatible Cash Flow role/type: ${accountUse.error.code}.`);
+    const existing = this.cashFlowClassifications.get(this.classificationKey(accountRole, accountId));
+    if (existing && existing.accountType === normalizedAccountType && existing.detailType === normalizedDetailType) {
+      const validated = validateCashFlowClassification({ accountRole, accountType: normalizedAccountType, detailType: normalizedDetailType, classification: existing });
+      if (validated.ok) {
+        if (existing.modifiedAtUtc !== undefined && new Date(existing.modifiedAtUtc).toISOString() !== existing.modifiedAtUtc) {
+          throw new Error(`Existing Cash Flow classification for ${accountId} has an invalid timestamp. Reclassify it explicitly before saving the account.`);
+        }
+        return { ...existing, ...validated.value.classification, accountType: normalizedAccountType, detailType: normalizedDetailType };
+      }
+      throw new Error(`Existing Cash Flow classification for ${accountId} is invalid: ${validated.error.code}. Reclassify it explicitly before saving the account.`);
+    }
+    if (persisted) {
+      throw new Error(`Existing Cash Flow classification for ${accountId} no longer matches its account structure. Reclassify it explicitly before saving the account.`);
+    }
+    const seeded = getDefaultCashFlowClassification({ accountRole, accountType: normalizedAccountType, detailType: normalizedDetailType });
+    if (!seeded.ok) throw new Error(`Unable to seed Cash Flow classification for ${accountId}: ${seeded.error.code}.`);
+    return { ...seeded.value, accountRole, accountId, accountType: normalizedAccountType, detailType: normalizedDetailType };
+  }
+
+  private setLoadedCashFlowClassification(row: SqlRow, accountRole: 'FINANCIAL_SOURCE' | 'CHART'): void {
+    const accountId = String(row['account_id']);
+    const classification: CashFlowClassification = {
+      ...(row['cash_flow_cash_role'] === null || row['cash_flow_cash_role'] === undefined ? {} : { cashRole: String(row['cash_flow_cash_role']) as CashFlowClassification['cashRole'] }),
+      treatment: String(row['cash_flow_treatment']) as CashFlowClassification['treatment'],
+      status: String(row['cash_flow_status']) as CashFlowClassification['status'],
+      source: String(row['cash_flow_source']) as CashFlowClassification['source'],
+      rationale: String(row['cash_flow_rationale']),
+      ...(row['cash_flow_modified_at_utc'] === null || row['cash_flow_modified_at_utc'] === undefined ? {} : { modifiedAtUtc: String(row['cash_flow_modified_at_utc']) }),
+    };
+    this.cashFlowClassifications.set(this.classificationKey(accountRole, accountId), {
+      ...classification,
+      accountRole,
+      accountId,
+      accountType: String(row['account_type']),
+      detailType: String(row['detail_type']),
+    });
+  }
+
+  private classificationKey(accountRole: 'FINANCIAL_SOURCE' | 'CHART', accountId: string): string {
+    return `${accountRole}:${accountId}`;
+  }
+
+  private tableExists(table: string): boolean {
+    return this.database.execute('SELECT 1 FROM sqlite_master WHERE type = ? AND name = ? LIMIT 1', ['table', table]).length > 0;
   }
 
   private requireInitialized(): void {

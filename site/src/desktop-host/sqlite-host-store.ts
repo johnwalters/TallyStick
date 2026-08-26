@@ -1,5 +1,6 @@
 import { Database, SqlJsStatic } from 'sql.js';
 import { CURRENT_SQLITE_SCHEMA_VERSION } from '../shared/schema-version';
+import { validateSchema7Database } from '../app/core/sqlite-gateway/schema-v7-migration';
 
 /**
  * Owns the Electron process's authoritative in-memory SQLite image.
@@ -60,7 +61,12 @@ export class SqliteHostStore {
     }
     const versionTable = database.exec(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'`);
     if (versionTable[0]?.values.length) {
-      const version = Number(database.exec('SELECT version FROM schema_version LIMIT 1')[0]?.values[0]?.[0]);
+      const versionRows = database.exec('SELECT version FROM schema_version')[0]?.values ?? [];
+      if (versionRows.length !== 1) {
+        database.close();
+        throw new Error(`SQLite schema_version must contain exactly one row; found ${versionRows.length}.`);
+      }
+      const version = Number(versionRows[0]?.[0]);
       if (!Number.isInteger(version) || version < 1 || version > CURRENT_SQLITE_SCHEMA_VERSION) {
         database.close();
         throw new Error(`Unsupported SQLite schema version: ${version || 'missing'}.`);
@@ -70,6 +76,7 @@ export class SqliteHostStore {
         database.close();
         throw new Error('SQLite foreign-key check failed.');
       }
+      if (version === CURRENT_SQLITE_SCHEMA_VERSION) validateSchema7Database(database);
     }
     return database;
   }

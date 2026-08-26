@@ -19,6 +19,7 @@ import {
 } from '../domain-model/account-taxonomy';
 import { AuditEvent, ChartAccount, ChartAccountType, FinancialAccount, money, newId, nowUtc } from '../domain-model/accounting.types';
 import { BalanceSheetContractError, PreviewAccountPlacementResult } from '../domain-model/balance-sheet.types';
+import { CashFlowClassification, seedDefaultCashFlowClassification } from '../domain-model/cash-flow-classification';
 import { ACCOUNTING_REPOSITORY, AccountingRepository } from '../repository-gateways/accounting.repository';
 
 @Injectable({ providedIn: 'root' })
@@ -93,6 +94,15 @@ export class AccountClassificationService {
       const before = context.existing ? structuredClone(context.existing) : undefined;
       if (command.requestedRole === 'FINANCIAL_SOURCE') this.repository.accounts.set(context.accountId, this.financialAccount(command, context));
       else this.repository.chartAccounts.set(context.accountId, this.chartAccount(command, context));
+      const key = `${command.requestedRole}:${context.accountId}`;
+      const existingClassification = this.repository.cashFlowClassifications.get(key);
+      const structureChanged = Boolean(context.existing && (
+        context.existing.accountType !== command.accountType || context.existing.detailType !== command.detailType.trim()
+      ));
+      const classificationNeedsReclassification = Boolean(context.existing && (
+        !existingClassification || existingClassification.accountType !== command.accountType || existingClassification.detailType !== command.detailType.trim()
+      ));
+      if (structureChanged || classificationNeedsReclassification) this.reclassifyAfterStructureChange(command, context);
       const after = command.requestedRole === 'FINANCIAL_SOURCE'
         ? this.repository.accounts.get(context.accountId)
         : this.repository.chartAccounts.get(context.accountId);
@@ -109,6 +119,32 @@ export class AccountClassificationService {
         classificationStatus: context.classificationStatus,
         affectedReferences: validation.confirmationReferences,
       };
+    });
+  }
+
+  private reclassifyAfterStructureChange(command: SaveGenericAccountCommand, context: ReturnType<AccountClassificationService['context']>): void {
+    const role = command.requestedRole;
+    const seeded = seedDefaultCashFlowClassification({ accountRole: role, accountType: command.accountType, detailType: command.detailType });
+    if (!seeded.ok) this.fail('ACCOUNT_CLASSIFICATION_INVALID', seeded.error.message, context.accountId);
+    const before = this.repository.cashFlowClassifications.get(`${role}:${context.accountId}`);
+    const classification: CashFlowClassification = {
+      ...seeded.value,
+      source: 'USER',
+      modifiedAtUtc: nowUtc(),
+      rationale: 'User changed the account structure; apply the new structural Cash Flow default and review if ambiguous.',
+    };
+    this.repository.cashFlowClassifications.set(`${role}:${context.accountId}`, {
+      ...classification,
+      accountRole: role,
+      accountId: context.accountId,
+      accountType: command.accountType,
+      detailType: command.detailType.trim(),
+    });
+    this.repository.audit.push({
+      id: newId(), timestampUtc: classification.modifiedAtUtc!, operation: 'RECLASSIFY_CASH_FLOW_CLASSIFICATION',
+      entityType: role === 'FINANCIAL_SOURCE' ? 'FinancialAccountCashFlowClassification' : 'ChartAccountCashFlowClassification',
+      entityId: context.accountId, before: structuredClone(before), after: structuredClone(this.repository.cashFlowClassifications.get(`${role}:${context.accountId}`)),
+      reason: classification.rationale,
     });
   }
 

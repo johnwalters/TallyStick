@@ -8,6 +8,7 @@ import { ACCOUNTING_REPOSITORY } from '../repository-gateways/accounting.reposit
 import * as XLSX from 'xlsx';
 import { AlternateUiHarness } from '../../features/alternate/alternate-ui.harness';
 import { BOFA_SUMMARY_PREAMBLE_CSV } from '../import-services/test-fixtures/bofa-summary-preamble.fixture';
+import { CURRENT_SQLITE_SCHEMA_VERSION } from '../../../shared/schema-version';
 
 describe('DefaultAccountingApplication', () => {
   let app: DefaultAccountingApplication;
@@ -714,7 +715,7 @@ describe('DefaultAccountingApplication', () => {
 
   it('verifies backup bundles and emits report exports', () => {
     const bundle = app.createBackupBundle();
-    expect(JSON.parse(bundle).schemaVersion).toBe(6);
+    expect(JSON.parse(bundle).schemaVersion).toBe(CURRENT_SQLITE_SCHEMA_VERSION);
     expect(app.verifyBackupBundle(bundle).valid).toBeTrue();
     expect(app.validateBackupBundle(bundle).valid).toBeTrue();
     expect(app.validateBackupBundle(bundle).recordCounts?.['accounts']).toBe(5);

@@ -25,6 +25,25 @@ async function databaseBytes(companyId: string, schemaVersion = CURRENT_SQLITE_S
     )`);
     database.run(`INSERT INTO company_profile(company_id, legal_name, display_name, tax_identifier, created_at, modified_at)
       VALUES (?, ?, ?, ?, ?, ?)`, [companyId, `Company ${companyId}`, `Display ${companyId}`, '99-9999999', '2026-01-01T00:00:00.000Z', '2026-01-01T00:00:00.000Z']);
+    if (schemaVersion >= 7) {
+      database.run(`CREATE TABLE financial_account (id TEXT PRIMARY KEY, account_type TEXT NOT NULL, detail_type TEXT NOT NULL);
+        CREATE TABLE chart_account (id TEXT PRIMARY KEY, account_type TEXT NOT NULL, detail_type TEXT NOT NULL);`);
+      database.run(`CREATE TABLE financial_account_cash_flow_classification (
+        financial_account_id TEXT PRIMARY KEY REFERENCES financial_account(id) ON DELETE CASCADE,
+        cash_flow_cash_role TEXT NOT NULL CHECK (cash_flow_cash_role IN ('CASH', 'CASH_EQUIVALENT', 'RESTRICTED_CASH', 'NOT_CASH', 'REVIEW_REQUIRED')),
+        cash_flow_treatment TEXT NOT NULL CHECK (cash_flow_treatment IN ('CASH_BALANCE', 'OPERATING_REVENUE_EXPENSE', 'OPERATING_ASSET', 'OPERATING_LIABILITY', 'NONCASH_PNL_ADJUSTMENT', 'INVESTING', 'FINANCING', 'NONCASH_DISCLOSURE', 'EXCLUDED', 'REVIEW_REQUIRED')),
+        cash_flow_status TEXT NOT NULL CHECK (cash_flow_status IN ('CONFIRMED', 'REVIEW_REQUIRED')),
+        cash_flow_source TEXT NOT NULL CHECK (cash_flow_source IN ('DEFAULT', 'MIGRATED', 'USER')),
+        cash_flow_rationale TEXT NOT NULL CHECK (length(trim(cash_flow_rationale)) > 0), cash_flow_modified_at_utc TEXT
+      ); CREATE TABLE chart_account_cash_flow_classification (
+        chart_account_id TEXT PRIMARY KEY REFERENCES chart_account(id) ON DELETE CASCADE,
+        cash_flow_treatment TEXT NOT NULL CHECK (cash_flow_treatment IN ('CASH_BALANCE', 'OPERATING_REVENUE_EXPENSE', 'OPERATING_ASSET', 'OPERATING_LIABILITY', 'NONCASH_PNL_ADJUSTMENT', 'INVESTING', 'FINANCING', 'NONCASH_DISCLOSURE', 'EXCLUDED', 'REVIEW_REQUIRED')),
+        cash_flow_status TEXT NOT NULL CHECK (cash_flow_status IN ('CONFIRMED', 'REVIEW_REQUIRED')),
+        cash_flow_source TEXT NOT NULL CHECK (cash_flow_source IN ('DEFAULT', 'MIGRATED', 'USER')),
+        cash_flow_rationale TEXT NOT NULL CHECK (length(trim(cash_flow_rationale)) > 0), cash_flow_modified_at_utc TEXT
+      ); CREATE INDEX idx_financial_account_cash_flow_classification ON financial_account_cash_flow_classification(cash_flow_cash_role, cash_flow_treatment, cash_flow_status);
+      CREATE INDEX idx_chart_account_cash_flow_classification ON chart_account_cash_flow_classification(cash_flow_treatment, cash_flow_status);`);
+    }
   }
   const bytes = database.export();
   database.close();

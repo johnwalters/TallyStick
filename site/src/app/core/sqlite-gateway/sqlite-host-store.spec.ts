@@ -51,7 +51,26 @@ describe('SqliteHostStore', () => {
   it('rejects a future schema before replacing the active database', async () => {
     const sql = await initSqlJs({ locateFile: file => `assets/${file}` });
     const current = new sql.Database();
-    current.run(`CREATE TABLE schema_version(version INTEGER NOT NULL); INSERT INTO schema_version VALUES (${CURRENT_SQLITE_SCHEMA_VERSION});`);
+    current.run(`CREATE TABLE schema_version(version INTEGER NOT NULL); INSERT INTO schema_version VALUES (${CURRENT_SQLITE_SCHEMA_VERSION});
+      CREATE TABLE financial_account(id TEXT PRIMARY KEY, account_type TEXT NOT NULL, detail_type TEXT NOT NULL);
+      CREATE TABLE chart_account(id TEXT PRIMARY KEY, account_type TEXT NOT NULL, detail_type TEXT NOT NULL);
+      CREATE TABLE financial_account_cash_flow_classification (
+        financial_account_id TEXT NOT NULL PRIMARY KEY REFERENCES financial_account(id) ON DELETE CASCADE,
+        cash_flow_cash_role TEXT NOT NULL CHECK (cash_flow_cash_role IN ('CASH', 'CASH_EQUIVALENT', 'RESTRICTED_CASH', 'NOT_CASH', 'REVIEW_REQUIRED')),
+        cash_flow_treatment TEXT NOT NULL CHECK (cash_flow_treatment IN ('CASH_BALANCE', 'OPERATING_REVENUE_EXPENSE', 'OPERATING_ASSET', 'OPERATING_LIABILITY', 'NONCASH_PNL_ADJUSTMENT', 'INVESTING', 'FINANCING', 'NONCASH_DISCLOSURE', 'EXCLUDED', 'REVIEW_REQUIRED')),
+        cash_flow_status TEXT NOT NULL CHECK (cash_flow_status IN ('CONFIRMED', 'REVIEW_REQUIRED')),
+        cash_flow_source TEXT NOT NULL CHECK (cash_flow_source IN ('DEFAULT', 'MIGRATED', 'USER')),
+        cash_flow_rationale TEXT NOT NULL CHECK (length(trim(cash_flow_rationale)) > 0), cash_flow_modified_at_utc TEXT
+      );
+      CREATE TABLE chart_account_cash_flow_classification (
+        chart_account_id TEXT NOT NULL PRIMARY KEY REFERENCES chart_account(id) ON DELETE CASCADE,
+        cash_flow_treatment TEXT NOT NULL CHECK (cash_flow_treatment IN ('CASH_BALANCE', 'OPERATING_REVENUE_EXPENSE', 'OPERATING_ASSET', 'OPERATING_LIABILITY', 'NONCASH_PNL_ADJUSTMENT', 'INVESTING', 'FINANCING', 'NONCASH_DISCLOSURE', 'EXCLUDED', 'REVIEW_REQUIRED')),
+        cash_flow_status TEXT NOT NULL CHECK (cash_flow_status IN ('CONFIRMED', 'REVIEW_REQUIRED')),
+        cash_flow_source TEXT NOT NULL CHECK (cash_flow_source IN ('DEFAULT', 'MIGRATED', 'USER')),
+        cash_flow_rationale TEXT NOT NULL CHECK (length(trim(cash_flow_rationale)) > 0), cash_flow_modified_at_utc TEXT
+      );
+      CREATE INDEX idx_financial_account_cash_flow_classification ON financial_account_cash_flow_classification(cash_flow_cash_role, cash_flow_treatment, cash_flow_status);
+      CREATE INDEX idx_chart_account_cash_flow_classification ON chart_account_cash_flow_classification(cash_flow_treatment, cash_flow_status);`);
     const future = new sql.Database();
     future.run(`CREATE TABLE schema_version(version INTEGER NOT NULL); INSERT INTO schema_version VALUES (${CURRENT_SQLITE_SCHEMA_VERSION + 1});`);
     const store = new SqliteHostStore(sql);

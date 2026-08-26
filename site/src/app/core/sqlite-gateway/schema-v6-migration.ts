@@ -63,9 +63,10 @@ interface LegacyAccountRow extends SqlRow {
 }
 
 /**
- * Migrates a complete schema-5 database in one transaction. Schema 6 remains
- * opt-in until the shared current-version constant is advanced in the next
- * persistence/recovery slice.
+ * Migrates a complete schema-5 database in one transaction. The application
+ * now advances schema-6 files through the registered schema-7 migration on
+ * reopen; this entry point remains available for focused schema-6 migration
+ * tests and intermediate migration callers.
  */
 export function migrateSchema5DatabaseTo6(database: Database, options: MigrationOptions = {}): void {
   const version = readSchemaVersion(database);

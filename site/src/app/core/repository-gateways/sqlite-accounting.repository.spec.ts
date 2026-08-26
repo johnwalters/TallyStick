@@ -7,6 +7,7 @@ import { ACCOUNTING_REPOSITORY } from './accounting.repository';
 import { SqliteAccountingRepository } from './sqlite-accounting.repository';
 import { SqliteDatabaseGateway } from '../sqlite-gateway/sqlite-database.gateway';
 import { money } from '../domain-model/accounting.types';
+import { CURRENT_SQLITE_SCHEMA_VERSION } from '../../../shared/schema-version';
 
 describe('SqliteAccountingRepository', () => {
   it('persists domain state and reloads it from exported SQLite bytes', async () => {
@@ -48,7 +49,13 @@ describe('SqliteAccountingRepository', () => {
     expect(JSON.stringify(reopenedRepository.getCompanyProfile())).not.toContain('12-3456789');
     expect(reopenedRepository.revealCompanyTaxIdentifier()).toBe('12-3456789');
     expect(reopenedRepository.transactions.get('transaction-1')?.splits[0].amount.minorUnits).toBe(-1250n);
-    expect(reopenedDatabase.execute('SELECT version FROM schema_version')[0]['version']).toBe(6);
+    expect(reopenedRepository.getCashFlowClassification('FINANCIAL_SOURCE', 'bank-1')).toEqual(jasmine.objectContaining({
+      accountId: 'bank-1', accountRole: 'FINANCIAL_SOURCE', accountType: 'BANK', detailType: 'Checking',
+      cashRole: 'CASH', treatment: 'CASH_BALANCE', source: 'DEFAULT', status: 'CONFIRMED',
+    }));
+    expect(reopenedDatabase.execute('SELECT COUNT(*) AS count FROM financial_account_cash_flow_classification')[0]['count']).toBe(1);
+    expect(reopenedDatabase.execute('SELECT COUNT(*) AS count FROM chart_account_cash_flow_classification')[0]['count']).toBe(1);
+    expect(reopenedDatabase.execute('SELECT version FROM schema_version')[0]['version']).toBe(CURRENT_SQLITE_SCHEMA_VERSION);
   });
 
   it('rolls back in-memory and SQLite state when a transaction fails', async () => {
@@ -70,6 +77,32 @@ describe('SqliteAccountingRepository', () => {
     expect(repository.accounts.has('will-rollback')).toBeFalse();
     expect(database.exportBytes()).toEqual(initialBytes);
     expect(database.execute('SELECT COUNT(*) AS count FROM financial_account')[0]['count']).toBe(0);
+  });
+
+  it('atomically persists Cash Flow classification batches and rejects stale updates', async () => {
+    const database = new SqliteDatabaseGateway();
+    const repository = new SqliteAccountingRepository(database);
+    await repository.initialize();
+    repository.transaction(() => {
+      repository.accounts.set('bank-classification', {
+        id: 'bank-classification', type: 'BANK', name: 'Classification Bank', institutionOrEntity: 'Bank',
+        accountType: 'BANK', classificationStatus: 'CONFIRMED', importEnabled: true,
+        supportedSourceKinds: ['CSV'], openingBalanceSource: 'DERIVED_EQUITY', detailType: 'Checking',
+        openingBalance: money(0n), openingBalanceDate: '2026-01-01', archived: false, locked: false,
+      });
+    });
+    const before = repository.getDatabaseRevision();
+    const existing = repository.getCashFlowClassification('FINANCIAL_SOURCE', 'bank-classification')!;
+    const updated = { ...existing, cashRole: 'RESTRICTED_CASH' as const, treatment: 'CASH_BALANCE' as const, source: 'USER' as const, rationale: 'Restricted operating reserve.', modifiedAtUtc: '2026-08-25T20:00:00.000Z' };
+    const after = repository.saveCashFlowClassifications([updated], before);
+    expect(after).not.toBe(before);
+    expect(repository.getCashFlowClassification('FINANCIAL_SOURCE', 'bank-classification')).toEqual(jasmine.objectContaining({ cashRole: 'RESTRICTED_CASH', source: 'USER' }));
+    expect(() => repository.saveCashFlowClassifications([{ ...updated, cashRole: 'CASH' }], before)).toThrowError(/stale/);
+
+    const reopenedDatabase = new SqliteDatabaseGateway();
+    const reopenedRepository = new SqliteAccountingRepository(reopenedDatabase);
+    await reopenedRepository.initialize(database.exportBytes());
+    expect(reopenedRepository.getCashFlowClassification('FINANCIAL_SOURCE', 'bank-classification')).toEqual(jasmine.objectContaining({ cashRole: 'RESTRICTED_CASH', source: 'USER', rationale: 'Restricted operating reserve.' }));
   });
 
   it('returns a deterministic isolated report snapshot and changes revision after a committed mutation', async () => {

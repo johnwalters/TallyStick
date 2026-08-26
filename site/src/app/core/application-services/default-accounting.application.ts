@@ -37,6 +37,7 @@ import {
 } from '../domain-model/balance-sheet.types';
 import {
   ACCOUNT_TYPE_CATALOG,
+  validateAccountUse,
 } from '../domain-model/account-taxonomy';
 import {
   CASH_FLOW_CASH_ROLES,
@@ -67,7 +68,7 @@ import {
   PreviewCashFlowClassificationImportCommand,
   SaveCashFlowClassificationCommand,
 } from '../domain-model/cash-flow.types';
-import { getCashFlowPermittedTreatments, seedDefaultCashFlowClassification } from '../domain-model/cash-flow-classification';
+import { getCashFlowPermittedTreatments, seedDefaultCashFlowClassification, validateCashFlowClassification, CashFlowClassification } from '../domain-model/cash-flow-classification';
 import { DATABASE_LIFECYCLE_GATEWAY } from '../database-lifecycle/database-lifecycle.gateway';
 import { ImportPipelineService } from '../import-services/import-pipeline.service';
 import { BackupBundleService, CURRENT_BACKUP_SCHEMA_VERSION } from '../backup-services/backup-bundle.service';
@@ -334,6 +335,10 @@ export class DefaultAccountingApplication implements AccountingApplication {
       const updated = this.buildFinancialAccount(id, command, existing.archived);
       this.validateFinancialAccounts([...this.repository.accounts.values()].map(account => account.id === id ? updated : account));
       this.repository.accounts.set(id, updated);
+      const classification = this.repository.cashFlowClassifications.get(`FINANCIAL_SOURCE:${id}`);
+      if (classification?.accountType !== updated.accountType || classification?.detailType !== updated.detailType) {
+        this.reclassifyCashFlowAfterStructureChange('FINANCIAL_SOURCE', id, updated.accountType, updated.detailType);
+      }
       this.record('UPDATE_ACCOUNT', 'FinancialAccount', id, before, updated);
       return structuredClone(updated);
     });
@@ -381,6 +386,10 @@ export class DefaultAccountingApplication implements AccountingApplication {
       });
       this.validateChartRows(rows);
       this.repository.chartAccounts = new Map(rows.map(account => [account.id, account]));
+      const classification = this.repository.cashFlowClassifications.get(`CHART:${id}`);
+      if (classification?.accountType !== updated.accountType || classification?.detailType !== updated.detailType) {
+        this.reclassifyCashFlowAfterStructureChange('CHART', id, updated.accountType, updated.detailType);
+      }
       this.record('UPDATE_CHART_ACCOUNT', 'ChartAccount', id, before, updated);
       return structuredClone(updated);
     });
@@ -1390,6 +1399,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
   exportAllData(): string {
     const payload = {
       version: 1,
+      schemaVersion: CURRENT_BACKUP_SCHEMA_VERSION,
       exportedAtUtc: nowUtc(),
       company: this.repository.company,
       companyProfile: this.repository.exportCompanyProfile(),
@@ -1400,6 +1410,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
       rules: [...this.repository.rules.values()],
       transfers: [...this.repository.transfers.values()],
       taxSettings: [...this.repository.taxSettings.entries()],
+      cashFlowClassifications: [...this.repository.cashFlowClassifications.values()],
       audit: this.repository.audit,
     };
     return JSON.stringify(payload, (_key, value) => typeof value === 'bigint' ? `${value}n` : value);
@@ -1409,6 +1420,8 @@ export class DefaultAccountingApplication implements AccountingApplication {
     let parsed: any;
     try { parsed = JSON.parse(payload); } catch { throw new AccountingError('BACKUP_INVALID_JSON', 'Backup is not valid JSON.'); }
     if (parsed?.version !== 1 || !Array.isArray(parsed.accounts) || !Array.isArray(parsed.transactions)) throw new AccountingError('BACKUP_INVALID_VERSION', 'Backup version or required records are unsupported.');
+    const schemaVersion = Number.isInteger(parsed.schemaVersion) ? Number(parsed.schemaVersion) : 0;
+    this.validatePortableClassifications(parsed, schemaVersion);
     this.repository.transaction(() => {
       this.repository.company = this.hydrate(parsed.company);
       if (parsed.companyProfile) {
@@ -1426,6 +1439,35 @@ export class DefaultAccountingApplication implements AccountingApplication {
       this.repository.rules = new Map((parsed.rules ?? []).map((item: any) => [item.id, this.hydrate(item)]));
       this.repository.transfers = new Map((parsed.transfers ?? []).map((item: any) => [item.id, this.hydrate(item)]));
       this.repository.taxSettings = new Map((parsed.taxSettings ?? []).map((entry: any[]) => [Number(entry[0]), this.hydrate(entry[1])]));
+      this.repository.cashFlowClassifications = new Map((parsed.cashFlowClassifications ?? []).map((item: any) => {
+        const account = item.accountRole === 'FINANCIAL_SOURCE'
+          ? this.repository.accounts.get(item.accountId)
+          : this.repository.chartAccounts.get(item.accountId);
+        return [`${item.accountRole}:${item.accountId}`, {
+          ...this.hydrate(item),
+          accountRole: item.accountRole,
+          accountId: item.accountId,
+          accountType: account?.accountType ?? item.accountType,
+          detailType: account?.detailType ?? item.detailType,
+        }];
+      }));
+      // Schema-6/older portable data has no authoritative classification
+      // coverage. Preserve any valid imported rows and seed only the missing
+      // rows from the imported account structure.
+      if (!Array.isArray(parsed.cashFlowClassifications) || schemaVersion < CURRENT_BACKUP_SCHEMA_VERSION) {
+        for (const account of this.repository.accounts.values()) {
+          const key = `FINANCIAL_SOURCE:${account.id}`;
+          if (this.repository.cashFlowClassifications.has(key)) continue;
+          const seeded = seedDefaultCashFlowClassification({ accountRole: 'FINANCIAL_SOURCE', accountType: account.accountType, detailType: account.detailType });
+          if (seeded.ok) this.repository.cashFlowClassifications.set(key, { ...seeded.value, accountRole: 'FINANCIAL_SOURCE', accountId: account.id, accountType: account.accountType, detailType: account.detailType });
+        }
+        for (const account of this.repository.chartAccounts.values()) {
+          const key = `CHART:${account.id}`;
+          if (this.repository.cashFlowClassifications.has(key)) continue;
+          const seeded = seedDefaultCashFlowClassification({ accountRole: 'CHART', accountType: account.accountType, detailType: account.detailType });
+          if (seeded.ok) this.repository.cashFlowClassifications.set(key, { ...seeded.value, accountRole: 'CHART', accountId: account.id, accountType: account.accountType, detailType: account.detailType });
+        }
+      }
       this.repository.audit = this.hydrate(parsed.audit ?? []);
       this.record('RESTORE_DATA', 'Company', this.repository.company.id, undefined, { version: 1 });
     });
@@ -1444,7 +1486,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
     const result = this.backupBundles.verify(bundle);
     if (!result.valid || !result.bundle) return { valid: false, reason: result.reason ?? 'Backup failed verification.' };
     try {
-      const payload = JSON.parse(result.bundle.data) as { company?: { id?: string }; accounts?: unknown[]; chartAccounts?: unknown[]; transactions?: unknown[]; batches?: unknown[]; rules?: unknown[]; transfers?: unknown[]; taxSettings?: unknown[]; audit?: unknown[] };
+      const payload = JSON.parse(result.bundle.data) as { company?: { id?: string }; schemaVersion?: number; accounts?: unknown[]; chartAccounts?: unknown[]; transactions?: unknown[]; batches?: unknown[]; rules?: unknown[]; transfers?: unknown[]; taxSettings?: unknown[]; cashFlowClassifications?: unknown[]; audit?: unknown[] };
       const recordCounts = {
         accounts: payload.accounts?.length ?? 0,
         chartAccounts: payload.chartAccounts?.length ?? 0,
@@ -1453,9 +1495,15 @@ export class DefaultAccountingApplication implements AccountingApplication {
         rules: payload.rules?.length ?? 0,
         transfers: payload.transfers?.length ?? 0,
         taxSettings: payload.taxSettings?.length ?? 0,
+        cashFlowClassifications: payload.cashFlowClassifications?.length ?? 0,
         audit: payload.audit?.length ?? 0,
       };
       if (payload.company?.id !== this.repository.company.id) return { valid: false, reason: 'Backup belongs to a different company.', companyId: payload.company?.id, recordCounts };
+      try {
+        this.validatePortableClassifications(payload, result.bundle.schemaVersion);
+      } catch (error) {
+        return { valid: false, reason: error instanceof Error ? error.message : 'Backup Cash Flow classifications are invalid.', companyId: payload.company?.id, recordCounts };
+      }
       return { valid: true, companyId: payload.company.id, recordCounts };
     } catch { return { valid: false, reason: 'Backup data could not be inspected.' }; }
   }
@@ -1463,7 +1511,63 @@ export class DefaultAccountingApplication implements AccountingApplication {
   restoreBackupBundle(bundle: string): void {
     const result = this.backupBundles.verify(bundle);
     if (!result.valid || !result.bundle) throw new AccountingError('BACKUP_INVALID', result.reason ?? 'Backup failed verification.');
+    const validation = this.validateBackupBundle(bundle);
+    if (!validation.valid) throw new AccountingError('BACKUP_INVALID', validation.reason ?? 'Backup Cash Flow classifications are invalid.');
     this.importAllData(result.bundle.data);
+  }
+
+  private validatePortableClassifications(payload: {
+    accounts?: readonly any[];
+    chartAccounts?: readonly any[];
+    cashFlowClassifications?: readonly any[];
+  }, schemaVersion: number): void {
+    const currentSchema = schemaVersion >= CURRENT_BACKUP_SCHEMA_VERSION;
+    const hasClassifications = Array.isArray(payload.cashFlowClassifications);
+    if (currentSchema && (!Array.isArray(payload.accounts) || !Array.isArray(payload.chartAccounts) || !hasClassifications)) {
+      throw new Error('Current-schema backup must include complete Cash Flow classifications.');
+    }
+    if (!hasClassifications) return;
+
+    const accounts = new Map<string, { accountRole: 'FINANCIAL_SOURCE' | 'CHART'; accountType: string; detailType: string }>();
+    for (const account of payload.accounts ?? []) {
+      if (!account?.id || typeof account.accountType !== 'string' || typeof account.detailType !== 'string') throw new Error('Backup contains an invalid financial account structure.');
+      const key = `FINANCIAL_SOURCE:${String(account.id)}`;
+      if (accounts.has(key)) throw new Error(`Backup contains duplicate financial account ${key}.`);
+      accounts.set(key, { accountRole: 'FINANCIAL_SOURCE', accountType: account.accountType, detailType: account.detailType });
+    }
+    for (const account of payload.chartAccounts ?? []) {
+      if (!account?.id || typeof account.accountType !== 'string' || typeof account.detailType !== 'string') throw new Error('Backup contains an invalid Chart account structure.');
+      const key = `CHART:${String(account.id)}`;
+      if (accounts.has(key)) throw new Error(`Backup contains duplicate Chart account ${key}.`);
+      accounts.set(key, { accountRole: 'CHART', accountType: account.accountType, detailType: account.detailType });
+    }
+    const seen = new Set<string>();
+    for (const raw of payload.cashFlowClassifications!) {
+      const role = raw?.accountRole;
+      const accountId = raw?.accountId;
+      if ((role !== 'FINANCIAL_SOURCE' && role !== 'CHART') || typeof accountId !== 'string') throw new Error('Backup contains a Cash Flow classification with an invalid account reference.');
+      const key = `${role}:${accountId}`;
+      if (seen.has(key)) throw new Error(`Backup contains duplicate Cash Flow classification ${key}.`);
+      seen.add(key);
+      const structure = accounts.get(key);
+      if (!structure) throw new Error(`Backup contains a Cash Flow classification for unknown account ${key}.`);
+      const accountUse = validateAccountUse({ accountType: structure.accountType, requestedRole: role });
+      if (!accountUse.ok) throw new Error(`Backup contains an incompatible Cash Flow account structure for ${key}: ${accountUse.error.code}.`);
+      const classification: CashFlowClassification = {
+        ...(raw.cashRole === undefined ? {} : { cashRole: raw.cashRole }),
+        treatment: raw.treatment,
+        status: raw.status,
+        source: raw.source,
+        rationale: raw.rationale,
+        ...(raw.modifiedAtUtc === undefined ? {} : { modifiedAtUtc: raw.modifiedAtUtc }),
+      };
+      const validation = validateCashFlowClassification({ ...structure, classification });
+      if (!validation.ok) throw new Error(`Backup contains an invalid Cash Flow classification for ${key}: ${validation.error.code}.`);
+      if (raw.accountType !== undefined && raw.accountType !== structure.accountType) throw new Error(`Backup Cash Flow classification ${key} has a stale account type.`);
+      if (raw.detailType !== undefined && raw.detailType !== structure.detailType) throw new Error(`Backup Cash Flow classification ${key} has a stale detail type.`);
+      if (raw.modifiedAtUtc !== undefined && (typeof raw.modifiedAtUtc !== 'string' || new Date(raw.modifiedAtUtc).toISOString() !== raw.modifiedAtUtc)) throw new Error(`Backup Cash Flow classification ${key} has an invalid modification timestamp.`);
+    }
+    if (currentSchema && seen.size !== accounts.size) throw new Error(`Current-schema backup has incomplete Cash Flow classification coverage (${seen.size}/${accounts.size}).`);
   }
 
   getDatabaseLocations() { return this.databaseLifecycle.getLocations(); }
@@ -2049,6 +2153,38 @@ export class DefaultAccountingApplication implements AccountingApplication {
   private record(operation: string, entityType: string, entityId: string, before?: unknown, after?: unknown, reason?: string, correlationId?: string): void {
     const event: AuditEvent = { id: newId(), timestampUtc: nowUtc(), operation, entityType, entityId, before: structuredClone(before), after: structuredClone(after), reason, correlationId };
     this.repository.audit.push(event);
+  }
+
+  /**
+   * Structural account edits are an explicit Cash Flow reclassification, not a
+   * repository-side defaulting opportunity.  Keep the replacement auditable so
+   * a malformed or legacy classification can never be silently erased by a
+   * normal account save.
+   */
+  private reclassifyCashFlowAfterStructureChange(
+    accountRole: 'FINANCIAL_SOURCE' | 'CHART',
+    accountId: string,
+    accountType: string,
+    detailType: string,
+  ): void {
+    const seeded = seedDefaultCashFlowClassification({ accountRole, accountType, detailType });
+    if (!seeded.ok) throw new AccountingError('ACCOUNT_CLASSIFICATION_INVALID', `Unable to reclassify Cash Flow account ${accountId}: ${seeded.error.code}.`);
+    const key = `${accountRole}:${accountId}`;
+    const before = this.repository.cashFlowClassifications.get(key);
+    const modifiedAtUtc = nowUtc();
+    const classification: CashFlowClassification = {
+      ...seeded.value,
+      source: 'USER',
+      modifiedAtUtc,
+      rationale: 'User changed the account structure; apply the new structural Cash Flow default and review if ambiguous.',
+    };
+    const normalized = { ...classification, accountRole, accountId, accountType, detailType: detailType.trim() };
+    this.repository.cashFlowClassifications.set(key, normalized);
+    this.repository.audit.push({
+      id: newId(), timestampUtc: modifiedAtUtc, operation: 'RECLASSIFY_CASH_FLOW_CLASSIFICATION',
+      entityType: accountRole === 'FINANCIAL_SOURCE' ? 'FinancialAccountCashFlowClassification' : 'ChartAccountCashFlowClassification',
+      entityId: accountId, before: structuredClone(before), after: structuredClone(normalized), reason: classification.rationale,
+    });
   }
 
   private resetTransfer(match: TransferMatch): void {

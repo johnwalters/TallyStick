@@ -2,6 +2,7 @@ import initSqlJs, { Database } from 'sql.js';
 import { SqliteDatabaseGateway } from './sqlite-database.gateway';
 import { SQLITE_MIGRATIONS, SQLITE_V3_MIGRATIONS, SQLITE_V4_MIGRATIONS, SQLITE_V5_MIGRATIONS } from './schema';
 import { migrateSchema5DatabaseTo6, SCHEMA_6_VERSION } from './schema-v6-migration';
+import { SCHEMA_7_VERSION } from './schema-v7-migration';
 
 describe('schema 6 migration', () => {
   it('migrates and reopens a representative schema-5 database idempotently without ledger drift', async () => {
@@ -80,7 +81,7 @@ describe('schema 6 migration', () => {
     database.close();
     const reopened = new SqliteDatabaseGateway();
     await reopened.open(migratedBytes);
-    expect(reopened.schemaVersion()).toBe(SCHEMA_6_VERSION);
+    expect(reopened.schemaVersion()).toBe(SCHEMA_7_VERSION);
     expect(reopened.integrityCheck().valid).toBeTrue();
     expect(reopened.foreignKeyCheck().valid).toBeTrue();
     expect(reopened.execute('SELECT classification_status FROM financial_account WHERE id = ?', ['entity-ambiguous'])[0]['classification_status']).toBe('REVIEW_REQUIRED');

@@ -44,6 +44,11 @@ export const SQLITE_V7_SCHEMA_STATEMENTS: readonly string[] = [
 // callers that treat each statement list as a versioned migration bundle.
 export const SQLITE_V7_MIGRATIONS = SQLITE_V7_SCHEMA_STATEMENTS;
 
+/** Creates schema-7 persistence tables for a brand-new empty database. */
+export function applySchema7Bootstrap(database: Database): void {
+  SQLITE_V7_SCHEMA_STATEMENTS.forEach(statement => database.run(statement));
+}
+
 const SCHEMA_6_REQUIRED_COLUMNS: Readonly<Record<string, readonly string[]>> = {
   schema_version: ['version'],
   company: ['id', 'name', 'currency', 'fiscal_year_start_month', 'accounting_basis', 'active_tax_year'],
@@ -91,12 +96,15 @@ interface ClassificationTarget {
  */
 export function migrateSchema6DatabaseTo7(database: Database, options: Schema7MigrationOptions = {}): void {
   const version = readSchemaVersion(database);
-  if (version === SCHEMA_7_VERSION) return;
+  if (version === SCHEMA_7_VERSION) {
+    validateSchema7Database(database);
+    return;
+  }
   if (version !== 6) throw new Error(`Schema 7 migration requires schema 6, received schema ${version}.`);
 
   // Reject malformed sources before BEGIN/DDL so a bad schema-6 database is
   // never partially promoted or made to look like schema 7.
-  validateSchema6Source(database);
+  validateSchema6Database(database);
   validateMigrationTimestamp(options.timestampUtc ?? new Date().toISOString());
 
   database.run('PRAGMA foreign_keys = ON;');
@@ -118,7 +126,7 @@ export const migrateSchema6To7 = migrateSchema6DatabaseTo7;
 export function applySchema7Migration(database: Database, options: Schema7MigrationOptions = {}): void {
   const timestampUtc = options.timestampUtc ?? new Date().toISOString();
   validateMigrationTimestamp(timestampUtc);
-  validateSchema6Source(database);
+  validateSchema6Database(database);
   const companyId = String(rows(database, 'SELECT id FROM company ORDER BY id LIMIT 1')[0]?.['id'] ?? 'database');
   const correlationId = options.correlationId ?? `schema-6-to-7:${companyId}`;
   const priorCounts = preservedCounts(database);
@@ -165,6 +173,127 @@ export function applySchema7Migration(database: Database, options: Schema7Migrat
     reason: 'Create Cash Flow classifications from structural account metadata and preserve ambiguous records for review.',
     correlationId,
   });
+}
+
+/**
+ * Validates a current schema-7 database before native backup/restore or host
+ * activation. This is intentionally stricter than PRAGMA integrity checks:
+ * every parent account must have exactly one compatible classification row and
+ * the classification tables must retain their foreign keys, checks, and
+ * indexes.
+ */
+export function validateSchema7Database(database: Database): void {
+  validateSchema7Objects(database);
+
+  const financialRows = rows(database, `SELECT f.id, f.account_type, f.detail_type,
+      c.cash_flow_cash_role, c.cash_flow_treatment, c.cash_flow_status,
+      c.cash_flow_source, c.cash_flow_rationale, c.cash_flow_modified_at_utc
+    FROM financial_account f
+    LEFT JOIN financial_account_cash_flow_classification c ON c.financial_account_id = f.id
+    ORDER BY f.id`);
+  const financialCount = tableCount(database, 'financial_account');
+  if (financialRows.length !== financialCount) throw new Error('Schema 7 financial-account classification coverage is incomplete.');
+  const orphanFinancialRows = rows(database, `SELECT c.financial_account_id
+    FROM financial_account_cash_flow_classification c
+    LEFT JOIN financial_account f ON f.id = c.financial_account_id
+    WHERE f.id IS NULL`);
+  if (orphanFinancialRows.length) throw new Error('Schema 7 contains an orphan financial-account classification.');
+  for (const row of financialRows) {
+    if (row['cash_flow_treatment'] === null || row['cash_flow_status'] === null || row['cash_flow_source'] === null) {
+      throw new Error(`Schema 7 financial account ${String(row['id'])} is missing its Cash Flow classification.`);
+    }
+    validatePersistedClassification(row, 'FINANCIAL_SOURCE');
+  }
+
+  const chartRows = rows(database, `SELECT a.id, a.account_type, a.detail_type,
+      c.cash_flow_treatment, c.cash_flow_status, c.cash_flow_source,
+      c.cash_flow_rationale, c.cash_flow_modified_at_utc
+    FROM chart_account a
+    LEFT JOIN chart_account_cash_flow_classification c ON c.chart_account_id = a.id
+    ORDER BY a.id`);
+  const chartCount = tableCount(database, 'chart_account');
+  if (chartRows.length !== chartCount) throw new Error('Schema 7 Chart-account classification coverage is incomplete.');
+  const orphanChartRows = rows(database, `SELECT c.chart_account_id
+    FROM chart_account_cash_flow_classification c
+    LEFT JOIN chart_account a ON a.id = c.chart_account_id
+    WHERE a.id IS NULL`);
+  if (orphanChartRows.length) throw new Error('Schema 7 contains an orphan Chart-account classification.');
+  for (const row of chartRows) {
+    if (row['cash_flow_treatment'] === null || row['cash_flow_status'] === null || row['cash_flow_source'] === null) {
+      throw new Error(`Schema 7 Chart account ${String(row['id'])} is missing its Cash Flow classification.`);
+    }
+    validatePersistedClassification(row, 'CHART');
+  }
+}
+
+function validateSchema7Objects(database: Database): void {
+  const parentContracts: Readonly<Record<string, readonly string[]>> = {
+    financial_account: ['id', 'account_type', 'detail_type'],
+    chart_account: ['id', 'account_type', 'detail_type'],
+  };
+  for (const [table, columns] of Object.entries(parentContracts)) {
+    if (!tableExists(database, table)) throw new Error(`Schema 7 database is missing required table ${table}.`);
+    const actual = new Set(rows(database, `PRAGMA table_info(${table})`).map(row => String(row['name'])));
+    for (const column of columns) if (!actual.has(column)) throw new Error(`Schema 7 database is missing required column ${table}.${column}.`);
+  }
+
+  const contracts = [
+    {
+      table: 'financial_account_cash_flow_classification',
+      columns: ['financial_account_id', 'cash_flow_cash_role', 'cash_flow_treatment', 'cash_flow_status', 'cash_flow_source', 'cash_flow_rationale', 'cash_flow_modified_at_utc'],
+      parentTable: 'financial_account', parentColumn: 'financial_account_id',
+      index: 'idx_financial_account_cash_flow_classification', indexColumns: ['cash_flow_cash_role', 'cash_flow_treatment', 'cash_flow_status'],
+      checks: [
+        "cash_flow_cash_role IN ('CASH', 'CASH_EQUIVALENT', 'RESTRICTED_CASH', 'NOT_CASH', 'REVIEW_REQUIRED')",
+        "cash_flow_treatment IN ('CASH_BALANCE', 'OPERATING_REVENUE_EXPENSE', 'OPERATING_ASSET', 'OPERATING_LIABILITY', 'NONCASH_PNL_ADJUSTMENT', 'INVESTING', 'FINANCING', 'NONCASH_DISCLOSURE', 'EXCLUDED', 'REVIEW_REQUIRED')",
+        "cash_flow_status IN ('CONFIRMED', 'REVIEW_REQUIRED')",
+        "cash_flow_source IN ('DEFAULT', 'MIGRATED', 'USER')",
+        'length(trim(cash_flow_rationale)) > 0',
+      ],
+    },
+    {
+      table: 'chart_account_cash_flow_classification',
+      columns: ['chart_account_id', 'cash_flow_treatment', 'cash_flow_status', 'cash_flow_source', 'cash_flow_rationale', 'cash_flow_modified_at_utc'],
+      parentTable: 'chart_account', parentColumn: 'chart_account_id',
+      index: 'idx_chart_account_cash_flow_classification', indexColumns: ['cash_flow_treatment', 'cash_flow_status'],
+      checks: [
+        "cash_flow_treatment IN ('CASH_BALANCE', 'OPERATING_REVENUE_EXPENSE', 'OPERATING_ASSET', 'OPERATING_LIABILITY', 'NONCASH_PNL_ADJUSTMENT', 'INVESTING', 'FINANCING', 'NONCASH_DISCLOSURE', 'EXCLUDED', 'REVIEW_REQUIRED')",
+        "cash_flow_status IN ('CONFIRMED', 'REVIEW_REQUIRED')",
+        "cash_flow_source IN ('DEFAULT', 'MIGRATED', 'USER')",
+        'length(trim(cash_flow_rationale)) > 0',
+      ],
+    },
+  ] as const;
+
+  for (const contract of contracts) {
+    if (!tableExists(database, contract.table)) throw new Error(`Schema 7 database is missing required table ${contract.table}.`);
+    const columns = rows(database, `PRAGMA table_info(${contract.table})`);
+    const actual = new Set(columns.map(row => String(row['name'])));
+    for (const column of contract.columns) {
+      if (!actual.has(column)) throw new Error(`Schema 7 database is missing required column ${contract.table}.${column}.`);
+      // SQLite reports a single-column TEXT PRIMARY KEY as `notnull=0` on
+      // legacy files even though the primary-key constraint still enforces
+      // identity.  The PK/FK checks below cover that key; every other required
+      // classification field must remain explicitly NOT NULL.
+      if (column !== contract.columns[0] && column !== 'cash_flow_modified_at_utc' && Number(columns.find(row => String(row['name']) === column)?.['notnull'] ?? 0) !== 1) {
+        throw new Error(`Schema 7 database requires ${contract.table}.${column} to be NOT NULL.`);
+      }
+    }
+    const primaryKey = columns.find(row => Number(row['pk']) === 1);
+    if (String(primaryKey?.['name'] ?? '') !== contract.columns[0]) throw new Error(`Schema 7 database requires ${contract.table}.${contract.columns[0]} as its primary key.`);
+    const foreignKeys = rows(database, `PRAGMA foreign_key_list(${contract.table})`);
+    if (!foreignKeys.some(row => String(row['table']) === contract.parentTable && String(row['from']) === contract.parentColumn && String(row['to']) === 'id' && String(row['on_delete']).toUpperCase() === 'CASCADE')) {
+      throw new Error(`Schema 7 database requires a cascading foreign key from ${contract.table} to ${contract.parentTable}.`);
+    }
+    const indexExists = rows(database, `SELECT name FROM sqlite_master WHERE type = 'index' AND name = '${contract.index}'`).length > 0;
+    if (!indexExists) throw new Error(`Schema 7 database is missing required index ${contract.index}.`);
+    const indexColumns = rows(database, `PRAGMA index_info(${contract.index})`).sort((left, right) => Number(left['seqno']) - Number(right['seqno'])).map(row => String(row['name']));
+    if (indexColumns.length !== contract.indexColumns.length || indexColumns.some((column, index) => column !== contract.indexColumns[index])) {
+      throw new Error(`Schema 7 database has an invalid index ${contract.index}.`);
+    }
+    const sql = String(rows(database, `SELECT sql FROM sqlite_master WHERE type = 'table' AND name = '${contract.table}'`)[0]?.['sql'] ?? '').replace(/\s+/g, ' ').toLowerCase();
+    for (const check of contract.checks) if (!sql.includes(check.toLowerCase())) throw new Error(`Schema 7 database is missing a classification constraint on ${contract.table}.`);
+  }
 }
 
 function migratedClassification(target: ClassificationTarget): CashFlowClassification {
@@ -318,6 +447,8 @@ function validateSchema7(
 function validatePersistedClassification(row: SqlRow, accountRole: 'FINANCIAL_SOURCE' | 'CHART'): void {
   const accountType = requiredText(row, 'account_type', 'classification');
   const detailType = requiredText(row, 'detail_type', 'classification');
+  const accountUse = validateAccountUse({ accountType, requestedRole: accountRole });
+  if (!accountUse.ok) throw new Error(`Schema 7 account ${String(row['id'])} has an incompatible account role/type: ${accountUse.error.code}.`);
   const classification: CashFlowClassification = {
     ...(row['cash_flow_cash_role'] === null || row['cash_flow_cash_role'] === undefined ? {} : { cashRole: String(row['cash_flow_cash_role']) as CashFlowClassification['cashRole'] }),
     treatment: String(row['cash_flow_treatment']) as CashFlowClassification['treatment'],
@@ -325,6 +456,8 @@ function validatePersistedClassification(row: SqlRow, accountRole: 'FINANCIAL_SO
     source: String(row['cash_flow_source']) as CashFlowClassification['source'],
     rationale: String(row['cash_flow_rationale']),
   };
+  const modifiedAtUtc = row['cash_flow_modified_at_utc'];
+  if (modifiedAtUtc !== null && modifiedAtUtc !== undefined) validateMigrationTimestamp(String(modifiedAtUtc));
   if (accountRole === 'FINANCIAL_SOURCE' && classification.cashRole === undefined) throw new Error(`Schema 7 financial account ${String(row['id'])} is missing a cash role.`);
   if (accountRole === 'CHART' && classification.cashRole !== undefined) throw new Error(`Schema 7 Chart account ${String(row['id'])} has a cash role.`);
   const validated = validateCashFlowClassification({ accountRole, accountType, detailType, classification });
@@ -389,7 +522,8 @@ function preservedCounts(database: Database): Readonly<Record<string, number>> {
     .map(table => [table, tableCount(database, table)]));
 }
 
-function validateSchema6Source(database: Database): void {
+/** Validates a schema-6 image before it is backed up or promoted to schema 7. */
+export function validateSchema6Database(database: Database): void {
   const missingTables = Object.keys(SCHEMA_6_REQUIRED_COLUMNS).filter(table => !tableExists(database, table));
   if (missingTables.length > 0) {
     throw new Error(`Schema 7 source is missing required schema-6 table(s): ${missingTables.join(', ')}.`);
@@ -434,6 +568,7 @@ function validateSchema6Source(database: Database): void {
   requiredText(profiles[0], 'legal_name', 'company_profile');
   requiredText(profiles[0], 'display_name', 'company_profile');
 }
+
 
 function validateMigrationTimestamp(timestampUtc: string): void {
   if (!timestampUtc.trim() || Number.isNaN(Date.parse(timestampUtc)) || new Date(timestampUtc).toISOString() !== timestampUtc) {

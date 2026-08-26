@@ -1,6 +1,7 @@
 import { SqliteDatabaseGateway } from './sqlite-database.gateway';
 import initSqlJs from 'sql.js';
 import { SQLITE_MIGRATIONS, SQLITE_V3_MIGRATIONS, SQLITE_V4_MIGRATIONS } from './schema';
+import { CURRENT_SQLITE_SCHEMA_VERSION } from '../../../shared/schema-version';
 
 describe('SqliteDatabaseGateway', () => {
   it('opens, migrates, executes, transactions, and exports SQLite', async () => {
@@ -14,7 +15,7 @@ describe('SqliteDatabaseGateway', () => {
     expect(gateway.integrityCheck().valid).toBeTrue();
     expect(gateway.foreignKeyCheck().valid).toBeTrue();
     expect(gateway.execute('PRAGMA foreign_keys')[0]['foreign_keys']).toBe(1);
-    expect(gateway.schemaVersion()).toBe(6);
+    expect(gateway.schemaVersion()).toBe(CURRENT_SQLITE_SCHEMA_VERSION);
     gateway.close();
   });
 
@@ -24,7 +25,7 @@ describe('SqliteDatabaseGateway', () => {
     const bytes = first.exportBytes();
     const second = new SqliteDatabaseGateway();
     await second.open(bytes);
-    expect(second.schemaVersion()).toBe(6);
+    expect(second.schemaVersion()).toBe(CURRENT_SQLITE_SCHEMA_VERSION);
     expect(second.integrityCheck().valid).toBeTrue();
     second.close();
     first.close();
@@ -42,7 +43,7 @@ describe('SqliteDatabaseGateway', () => {
     const gateway = new SqliteDatabaseGateway();
     await gateway.open(bytes);
     const migrated = gateway.execute('SELECT account_type, detail_type, description, locked FROM chart_account WHERE id = ?', ['legacy-expense'])[0];
-    expect(gateway.schemaVersion()).toBe(6);
+    expect(gateway.schemaVersion()).toBe(CURRENT_SQLITE_SCHEMA_VERSION);
     expect(migrated['account_type']).toBe('EXPENSE');
     expect(migrated['detail_type']).toBe('Advertising');
     expect(migrated['description']).toBeNull();
@@ -61,7 +62,7 @@ describe('SqliteDatabaseGateway', () => {
 
     const gateway = new SqliteDatabaseGateway();
     await gateway.open(bytes);
-    expect(gateway.schemaVersion()).toBe(6);
+    expect(gateway.schemaVersion()).toBe(CURRENT_SQLITE_SCHEMA_VERSION);
     expect(gateway.execute('SELECT detail_type FROM chart_account WHERE id = ?', ['legacy-asset'])[0]['detail_type']).toBe('Goodwill');
     gateway.close();
   });
@@ -79,7 +80,7 @@ describe('SqliteDatabaseGateway', () => {
 
     const gateway = new SqliteDatabaseGateway();
     await gateway.open(bytes);
-    expect(gateway.schemaVersion()).toBe(6);
+    expect(gateway.schemaVersion()).toBe(CURRENT_SQLITE_SCHEMA_VERSION);
     expect(gateway.execute('SELECT detail_type FROM financial_account WHERE id = ?', ['legacy-bank'])[0]['detail_type']).toBe('Checking');
     expect(gateway.execute('SELECT detail_type FROM financial_account WHERE id = ?', ['legacy-card'])[0]['detail_type']).toBe('Credit Card');
     expect(gateway.execute('SELECT detail_type FROM financial_account WHERE id = ?', ['legacy-amazon'])[0]['detail_type']).toBe('Marketplace clearing');
@@ -96,7 +97,13 @@ describe('SqliteDatabaseGateway', () => {
       const gateway = new SqliteDatabaseGateway();
       await gateway.open();
       gateway.execute('INSERT INTO company(id, name, currency, fiscal_year_start_month, accounting_basis, active_tax_year) VALUES (?, ?, ?, ?, ?, ?)', ['bridge-company', 'Bridge Company', 'USD', 1, 'CASH', 2026]);
-      gateway.transaction(() => gateway.execute('INSERT INTO financial_account(id, type, name, institution_or_entity, opening_balance_minor, opening_balance_date) VALUES (?, ?, ?, ?, ?, ?)', ['bridge-account', 'BANK', 'Bridge Bank', 'Test', '0', '2026-01-01']));
+      gateway.transaction(() => {
+        gateway.execute('INSERT INTO financial_account(id, type, name, institution_or_entity, opening_balance_minor, opening_balance_date, account_type, detail_type) VALUES (?, ?, ?, ?, ?, ?, ?, ?)', ['bridge-account', 'BANK', 'Bridge Bank', 'Test', '0', '2026-01-01', 'BANK', 'Checking']);
+        gateway.execute(`INSERT INTO financial_account_cash_flow_classification(
+          financial_account_id, cash_flow_cash_role, cash_flow_treatment, cash_flow_status,
+          cash_flow_source, cash_flow_rationale)
+          VALUES (?, ?, ?, ?, ?, ?)`, ['bridge-account', 'CASH', 'CASH_BALANCE', 'CONFIRMED', 'DEFAULT', 'The standard bank detail is a cash balance.']);
+      });
       expect(gateway.execute('PRAGMA foreign_keys')[0]['foreign_keys']).toBe(1);
       expect(stored?.byteLength ?? 0).toBeGreaterThan(0);
       const reopened = new SqliteDatabaseGateway();

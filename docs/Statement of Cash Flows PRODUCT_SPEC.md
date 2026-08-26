@@ -340,7 +340,7 @@ Detail and output commands carry `reportId` and `databaseRevision`. The service 
 
 ## 7. Proposed schema version 7
 
-Schema 7 is the proposed next migration from the current schema 6. If another migration lands first, renumber this migration without changing its atomicity or compatibility requirements.
+Schema 7 is the Cash Flow classification migration from schema 6. If another migration lands first, renumber this migration without changing its atomicity or compatibility requirements.
 
 ### 7.1 Financial-account additions
 
@@ -950,7 +950,7 @@ Test pure functions for:
 
 ### 18.3 Persistence and migration tests
 
-- Migrate schema 6 to proposed schema 7 in place and reopen.
+- Migrate schema 6 to schema 7 in place and reopen.
 - Verify every standard Account Type/Detail Type mapping.
 - Prove ambiguous custom details become Review required.
 - Prove no mapping query or code path uses account/company/institution/marketplace names.

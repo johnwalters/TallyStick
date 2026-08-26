@@ -2,6 +2,7 @@ import { Injectable } from '@angular/core';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { CURRENT_SCHEMA_VERSION, SQLITE_MIGRATIONS, SQLITE_V3_MIGRATIONS, SQLITE_V4_MIGRATIONS, SQLITE_V5_MIGRATIONS } from './schema';
 import { applySchema6Bootstrap, applySchema6Migration, SCHEMA_6_VERSION } from './schema-v6-migration';
+import { applySchema7Bootstrap, applySchema7Migration, SCHEMA_7_VERSION, validateSchema7Database } from './schema-v7-migration';
 
 @Injectable()
 export class SqliteDatabaseGateway {
@@ -15,6 +16,10 @@ export class SqliteDatabaseGateway {
     this.database = hostBytes ? new this.sql.Database(hostBytes) : new this.sql.Database();
     this.enableForeignKeys();
     this.migrate();
+    if (this.schemaVersion() === SCHEMA_7_VERSION) validateSchema7Database(this.database);
+    // Do not replace the host-held/live file until migration and the complete
+    // schema-7 recovery validation have both succeeded.  The desktop host has
+    // already created the pre-migration safety backup before this path runs.
     this.persistHostSync();
   }
 
@@ -70,7 +75,8 @@ export class SqliteDatabaseGateway {
   }
 
   schemaVersion(): number {
-    const result = this.execute('SELECT version FROM schema_version LIMIT 1');
+    const result = this.execute('SELECT version FROM schema_version');
+    if (result.length !== 1) throw new Error(`SQLite schema_version must contain exactly one row; found ${result.length}.`);
     return Number(result[0]?.['version'] ?? 0);
   }
 
@@ -117,11 +123,17 @@ export class SqliteDatabaseGateway {
 
   private migrate(): void {
     if (!this.database) return;
+    const hadSchemaVersionTable = this.database.exec(`SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'schema_version'`)[0]?.values.length === 1;
     this.database.run(SQLITE_MIGRATIONS[0]);
-    const versionRow = this.database.exec('SELECT version FROM schema_version LIMIT 1');
-    const current = versionRow[0]?.values[0]?.[0] as number | undefined;
+    const versionRows = this.database.exec('SELECT version FROM schema_version')[0]?.values ?? [];
+    if (versionRows.length > 1) throw new Error(`SQLite schema_version must contain exactly one row; found ${versionRows.length}.`);
+    if (hadSchemaVersionTable && versionRows.length === 0) throw new Error('SQLite schema_version must contain exactly one row; found 0.');
+    const current = versionRows[0]?.[0] as number | undefined;
     if (current === undefined) this.database.run('INSERT INTO schema_version(version) VALUES (0)');
     const version = current ?? 0;
+    if (!Number.isInteger(version) || version < 0 || version > CURRENT_SCHEMA_VERSION) {
+      throw new Error(`Unsupported SQLite schema version: ${version || 'missing'}.`);
+    }
     if (version < CURRENT_SCHEMA_VERSION) {
       this.database.run('BEGIN');
       try {
@@ -135,7 +147,17 @@ export class SqliteDatabaseGateway {
         if (version < 5) SQLITE_V5_MIGRATIONS.forEach(sql => this.database!.run(sql));
         if (version < SCHEMA_6_VERSION && CURRENT_SCHEMA_VERSION >= SCHEMA_6_VERSION) {
           if (version === 0) applySchema6Bootstrap(this.database);
-          else applySchema6Migration(this.database);
+          else {
+            applySchema6Migration(this.database);
+            this.database.run('UPDATE schema_version SET version = ?', [SCHEMA_6_VERSION]);
+          }
+        }
+        if (version < SCHEMA_7_VERSION && CURRENT_SCHEMA_VERSION >= SCHEMA_7_VERSION) {
+          // A new database has no schema-6 company/profile rows to migrate;
+          // it receives the same schema objects without legacy classifications.
+          const hasCompany = this.database.exec('SELECT COUNT(*) FROM company')[0]?.values[0]?.[0] as number | undefined;
+          if (version === SCHEMA_6_VERSION || Number(hasCompany ?? 0) > 0) applySchema7Migration(this.database);
+          else applySchema7Bootstrap(this.database);
         }
         this.database.run('UPDATE schema_version SET version = ?', [CURRENT_SCHEMA_VERSION]);
         this.database.run('COMMIT');

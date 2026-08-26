@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { DatabaseLifecycleManager } from './database-lifecycle';
 import { SqliteHostStore } from './sqlite-host-store';
+import { CURRENT_SQLITE_SCHEMA_VERSION } from '../shared/schema-version';
 
 // Electron's accelerated compositor produces blank first frames on the target
 // macOS build. This bookkeeping UI does not need GPU acceleration, so use the
@@ -70,6 +71,12 @@ async function openDatabase(requestedPath?: string): Promise<void> {
   const selectedPath = requestedPath ?? (await databaseLifecycle.locations()).currentDatabasePath;
   let bytes: Uint8Array | undefined;
   try { bytes = new Uint8Array(await fs.readFile(selectedPath)); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  if (bytes) {
+    databaseLifecycle.validateDatabase(bytes);
+    if (databaseLifecycle.schemaVersion(bytes) < CURRENT_SQLITE_SCHEMA_VERSION) {
+      await databaseLifecycle.backup(bytes, 'PRE_MIGRATION');
+    }
+  }
   databaseStore ??= new SqliteHostStore(sql);
   databaseStore.open(bytes, selectedPath);
 }
