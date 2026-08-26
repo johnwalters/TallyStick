@@ -6,6 +6,7 @@ import { ACCOUNTING_REPOSITORY, CashFlowClassificationRecord } from '../reposito
 import { InMemoryAccountingRepository } from '../repository-gateways/in-memory-accounting.repository';
 import { BalanceSheetReportService } from './balance-sheet-report.service';
 import { CashFlowReportService, dayBeforeBusinessDate } from './cash-flow-report.service';
+import { calculateUnadjustedNetProfit } from './profit-loss-calculation';
 
 describe('CashFlowReportService query and cash balances', () => {
   let repository: InMemoryAccountingRepository;
@@ -111,6 +112,124 @@ describe('CashFlowReportService query and cash balances', () => {
       .toEqual(['review-cash', 'review-restricted']);
   });
 
+  it('matches unadjusted P/L exactly and reverses noncash depreciation and gains once', () => {
+    addAccount('cash', 'Operating Checking', 1_000n, '2025-12-01', 'CASH');
+    addAccount('card', 'Operating Card', 0n, '2025-12-01', 'NOT_CASH', false, 'CREDIT_CARD');
+    const income = addChartAccount('income', 'Sales', 'INCOME', 'Sales of product income');
+    const depreciation = addChartAccount('depreciation', 'Depreciation', 'OTHER_EXPENSE', 'Depreciation');
+    const gain = addChartAccount('gain', 'Asset gain', 'OTHER_INCOME', 'Other investment income');
+    addChartClassification(depreciation.id, depreciation.accountType, depreciation.detailType, 'NONCASH_PNL_ADJUSTMENT');
+    addChartClassification(gain.id, gain.accountType, gain.detailType, 'NONCASH_PNL_ADJUSTMENT');
+    addTransaction('cash-sale', 'cash', '2026-01-05', 200n, 'POSTED', undefined, [{ chartAccountId: income.id, amountMinor: 200n }]);
+    addTransaction('depreciation-charge', 'card', '2026-01-06', -60n, 'POSTED', undefined, [{ chartAccountId: depreciation.id, amountMinor: -60n }]);
+    addTransaction('gain', 'card', '2026-01-07', 25n, 'POSTED', undefined, [{ chartAccountId: gain.id, amountMinor: 25n }]);
+
+    const report = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: false });
+    const netProfit = report.rows.find(row => row.rowType === 'NET_PROFIT');
+    const depreciationRow = report.rows.find(row => row.rowType === 'ADJUSTMENT' && row.accountId === depreciation.id);
+    const gainRow = report.rows.find(row => row.rowType === 'ADJUSTMENT' && row.accountId === gain.id);
+    const operating = report.rows.find(row => row.rowId === 'SYNTHETIC:NET_OPERATING:2026-01-01:2026-01-31');
+
+    expect(netProfit?.amountMinor).toBe(165n);
+    expect(netProfit?.amountMinor).toBe(calculateUnadjustedNetProfit([...repository.transactions.values()], [...repository.chartAccounts.values()], '2026-01-01', '2026-01-31'));
+    expect(depreciationRow?.amountMinor).toBe(60n);
+    expect(gainRow?.amountMinor).toBe(-25n);
+    expect(operating?.amountMinor).toBe(200n);
+    expect(report.netOperatingMinor).toBe(200n);
+    expect(report.netChangeInCashMinor).toBe(200n);
+    expect(report.endingCashMinor).toBe(1_200n);
+    expect(sumDetail(report, netProfit?.detailKey)).toBe(165n);
+    expect(sumDetail(report, depreciationRow?.detailKey)).toBe(60n);
+    expect(sumDetail(report, gainRow?.detailKey)).toBe(-25n);
+    expect(sumDetail(report, operating?.detailKey)).toBe(200n);
+    expect(report.detailIndex[depreciationRow!.detailKey!][0].formula).toBe('-1 × period P/L contribution');
+    expect(report.rows.filter(row => row.rowType === 'ADJUSTMENT').map(row => row.accountId)).toEqual([depreciation.id, gain.id]);
+  });
+
+  it('excludes Pending and Excluded P/L activity and supports deterministic zero rows', () => {
+    addAccount('cash', 'Operating Checking', 0n, '2026-01-01', 'CASH');
+    const depreciation = addChartAccount('zero-depreciation', 'Zero depreciation', 'OTHER_EXPENSE', 'Depreciation');
+    const active = addChartAccount('active-depreciation', 'Active depreciation', 'OTHER_EXPENSE', 'Depreciation');
+    addChartClassification(depreciation.id, depreciation.accountType, depreciation.detailType, 'NONCASH_PNL_ADJUSTMENT');
+    addChartClassification(active.id, active.accountType, active.detailType, 'NONCASH_PNL_ADJUSTMENT');
+    addTransaction('pending', 'cash', '2026-01-02', -100n, 'PENDING', undefined, [{ chartAccountId: depreciation.id, amountMinor: -100n }]);
+    addTransaction('excluded', 'cash', '2026-01-03', -100n, 'EXCLUDED', undefined, [{ chartAccountId: depreciation.id, amountMinor: -100n }]);
+    addTransaction('posted', 'cash', '2026-01-04', -10n, 'POSTED', undefined, [{ chartAccountId: active.id, amountMinor: -10n }]);
+
+    const report = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: false });
+    const zeroHidden = report.rows.find(row => row.accountId === depreciation.id && row.rowType === 'ADJUSTMENT');
+    expect(zeroHidden).toBeUndefined();
+    expect(report.rows.find(row => row.accountId === active.id && row.rowType === 'ADJUSTMENT')?.amountMinor).toBe(10n);
+    expect(report.rows.find(row => row.rowType === 'NET_PROFIT')?.amountMinor).toBe(-10n);
+
+    const withZeroRows = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
+    expect(withZeroRows.rows.find(row => row.accountId === depreciation.id && row.rowType === 'ADJUSTMENT')?.amountMinor).toBe(0n);
+    expect(withZeroRows.rows.filter(row => row.rowType === 'ADJUSTMENT').map(row => row.accountId)).toEqual([depreciation.id, active.id]);
+    expect(withZeroRows.reportId).not.toBe(report.reportId);
+  });
+
+  it('keeps offsetting posted noncash provenance when zero-valued rows are hidden', () => {
+    addAccount('cash', 'Operating Checking', 0n, '2026-01-01', 'CASH');
+    const noncash = addChartAccount('offsetting-noncash', 'Offsetting noncash', 'OTHER_EXPENSE', 'Depreciation');
+    addChartClassification(noncash.id, noncash.accountType, noncash.detailType, 'NONCASH_PNL_ADJUSTMENT');
+    addTransaction('offset-plus', 'cash', '2026-01-02', 30n, 'POSTED', undefined, [{ chartAccountId: noncash.id, amountMinor: 30n }]);
+    addTransaction('offset-minus', 'cash', '2026-01-03', -30n, 'POSTED', undefined, [{ chartAccountId: noncash.id, amountMinor: -30n }]);
+
+    const hidden = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: false });
+    const shown = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
+    const hiddenAdjustment = hidden.rows.find(row => row.rowType === 'ADJUSTMENT' && row.accountId === noncash.id);
+    const shownAdjustment = shown.rows.find(row => row.rowType === 'ADJUSTMENT' && row.accountId === noncash.id)!;
+    const hiddenNetProfit = hidden.rows.find(row => row.rowType === 'NET_PROFIT')!;
+    const shownNetProfit = shown.rows.find(row => row.rowType === 'NET_PROFIT')!;
+    const hiddenOperating = hidden.rows.find(row => row.rowType === 'TOTAL' && row.section === 'OPERATING')!;
+    const shownOperating = shown.rows.find(row => row.rowType === 'TOTAL' && row.section === 'OPERATING')!;
+    const adjustmentDetail = hidden.detailIndex[shownAdjustment.detailKey!];
+    const shownAdjustmentDetail = shown.detailIndex[shownAdjustment.detailKey!];
+    const hiddenOperatingDetail = hidden.detailIndex[hiddenOperating.detailKey!];
+    const shownOperatingDetail = shown.detailIndex[shownOperating.detailKey!];
+
+    expect(hiddenAdjustment).toBeUndefined();
+    expect(shownAdjustment.amountMinor).toBe(0n);
+    expect(hiddenNetProfit.amountMinor).toBe(0n);
+    expect(shownNetProfit.amountMinor).toBe(hiddenNetProfit.amountMinor!);
+    expect(hiddenOperating.amountMinor).toBe(0n);
+    expect(shownOperating.amountMinor).toBe(hiddenOperating.amountMinor!);
+    expect(hidden.detailIndex[shownAdjustment.detailKey!]).toBeDefined();
+    expect(adjustmentDetail).toEqual(shownAdjustmentDetail);
+    expect(adjustmentDetail.map(contribution => [contribution.transactionId, contribution.contributionMinor])).toEqual([
+      ['offset-plus', -30n], ['offset-minus', 30n],
+    ]);
+    expect(hiddenOperatingDetail).toEqual(shownOperatingDetail);
+    expect(hiddenOperatingDetail.map(contribution => contribution.contributionId)).toEqual([
+      'pnl:offset-plus:offset-plus:offsetting-noncash',
+      'pnl:offset-minus:offset-minus:offsetting-noncash',
+      'noncash-reversal:offset-plus:offset-plus:offsetting-noncash',
+      'noncash-reversal:offset-minus:offset-minus:offsetting-noncash',
+    ]);
+    expect(hiddenOperatingDetail.filter(contribution => contribution.contributionType === 'PNL_SPLIT').map(contribution => contribution.contributionMinor)).toEqual([30n, -30n]);
+    expect(hiddenOperatingDetail.filter(contribution => contribution.contributionType === 'NONCASH_REVERSAL').map(contribution => contribution.contributionMinor)).toEqual([-30n, 30n]);
+    expect(sumDetail(hidden, hiddenNetProfit.detailKey)).toBe(hiddenNetProfit.amountMinor!);
+    expect(sumDetail(hidden, hiddenOperating.detailKey)).toBe(hiddenOperating.amountMinor!);
+    expect(sumDetail(hidden, shownAdjustment.detailKey)).toBe(shownAdjustment.amountMinor!);
+    expect(sumDetail(shown, shownNetProfit.detailKey)).toBe(shownNetProfit.amountMinor!);
+    expect(sumDetail(shown, shownOperating.detailKey)).toBe(shownOperating.amountMinor!);
+    expect(sumDetail(shown, shownAdjustment.detailKey)).toBe(shownAdjustment.amountMinor!);
+  });
+
+  it('fails report generation when P/L detail cannot reconcile to the shared Net Profit identity', () => {
+    addAccount('cash', 'Operating Checking', 0n, '2026-01-01', 'CASH');
+    const malformed = addChartAccount('malformed', 'Malformed P/L account', 'EXPENSE', 'Other expense');
+    (malformed as { type: string }).type = 'UNKNOWN_RUNTIME_TYPE';
+    addTransaction('malformed-entry', 'cash', '2026-01-02', -12n, 'POSTED', undefined, [{ chartAccountId: malformed.id, amountMinor: -12n }]);
+
+    expect(() => service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31' })).toThrowError(CashFlowContractError);
+    try {
+      service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31' });
+    } catch (error) {
+      expect((error as CashFlowContractError).code).toBe('CASH_FLOW_REPORT_GENERATION_FAILED');
+    }
+  });
+
   it('uses the prior calendar day for opening cash and respects opening-balance boundaries', () => {
     addAccount('opening-on-start', 'New Checking', 400n, '2026-01-01', 'CASH');
 
@@ -163,10 +282,10 @@ describe('CashFlowReportService query and cash balances', () => {
     }
   });
 
-  function addAccount(id: string, name: string, opening: bigint, openingDate: string, cashRole: CashFlowClassification['cashRole'], archived = false): void {
+  function addAccount(id: string, name: string, opening: bigint, openingDate: string, cashRole: CashFlowClassification['cashRole'], archived = false, accountType: 'BANK' | 'CREDIT_CARD' = 'BANK'): void {
     const account: FinancialAccount = {
-      id, type: 'BANK', accountType: 'BANK', classificationStatus: 'CONFIRMED', importEnabled: true,
-      supportedSourceKinds: ['CSV'], openingBalanceSource: 'DERIVED_EQUITY', detailType: 'Checking', name,
+      id, type: accountType, accountType, classificationStatus: 'CONFIRMED', importEnabled: true,
+      supportedSourceKinds: ['CSV'], openingBalanceSource: 'DERIVED_EQUITY', detailType: accountType === 'CREDIT_CARD' ? 'Credit Card' : 'Checking', name,
       institutionOrEntity: 'Example Bank', openingBalance: money(opening), openingBalanceDate: openingDate,
       archived, locked: false,
     };
@@ -186,12 +305,30 @@ describe('CashFlowReportService query and cash balances', () => {
     amount: bigint,
     state: Transaction['state'],
     transferMatchId?: string,
+    splitInputs: readonly { chartAccountId: string; amountMinor: bigint; memo?: string }[] = [],
   ): void {
     repository.transactions.set(id, {
-      id, accountId, postingDate, amount: money(amount), rawDescription: id, description: id, state, splits: [],
+      id, accountId, postingDate, amount: money(amount), rawDescription: id, description: id, state,
+      splits: splitInputs.map(split => ({ id: `${id}:${split.chartAccountId}`, chartAccountId: split.chartAccountId, amount: money(split.amountMinor), memo: split.memo })),
       categorizationSource: state === 'MATCHED_TRANSFER' ? 'TRANSFER' : 'MANUAL', transferMatchId,
       createdAtUtc: `${postingDate}T00:00:00.000Z`, modifiedAtUtc: `${postingDate}T00:00:00.000Z`,
     });
+  }
+
+  function addChartAccount(id: string, name: string, accountType: import('../domain-model/accounting.types').ChartAccount['accountType'], detailType: string): import('../domain-model/accounting.types').ChartAccount {
+    const account = { id, name, type: accountType === 'INCOME' || accountType === 'OTHER_INCOME' ? accountType : accountType === 'COGS' ? 'COGS' : accountType === 'OTHER_EXPENSE' ? 'OTHER_EXPENSE' : accountType === 'EXPENSE' ? 'EXPENSE' : accountType, accountType, detailType, displayOrder: repository.chartAccounts.size + 1, archived: false, locked: false } as import('../domain-model/accounting.types').ChartAccount;
+    repository.chartAccounts.set(id, account);
+    return account;
+  }
+
+  function addChartClassification(accountId: string, accountType: string, detailType: string, treatment: CashFlowClassification['treatment']): void {
+    repository.cashFlowClassifications.set(`CHART:${accountId}`, {
+      accountRole: 'CHART', accountId, accountType, detailType, treatment, status: 'CONFIRMED', source: 'USER', rationale: 'Explicit test classification.',
+    });
+  }
+
+  function sumDetail(report: ReturnType<CashFlowReportService['getCashFlowReport']>, detailKey: string | undefined): bigint {
+    return detailKey ? (report.detailIndex[detailKey] ?? []).reduce((sum, contribution) => sum + contribution.contributionMinor, 0n) : 0n;
   }
 
   function markReviewRequired(accountId: string): void {

@@ -2,10 +2,13 @@ import { Injectable, inject } from '@angular/core';
 import { reportCompanyIdentity } from '../domain-model/balance-sheet.types';
 import {
   CashFlowContractError,
+  CashFlowContribution,
   CashFlowQueryInput,
   CashFlowReport,
   CashFlowRow,
   CashFlowWarning,
+  cashFlowAccountRowId,
+  cashFlowDetailKey,
   cashFlowReportId,
   cashFlowSyntheticRowId,
   cashFlowWarningId,
@@ -14,6 +17,7 @@ import {
 } from '../domain-model/cash-flow.types';
 import { ACCOUNTING_REPOSITORY, AccountingRepository, CashFlowClassificationRecord } from '../repository-gateways/accounting.repository';
 import { calculateBalanceSheetProjection, calculateFinancialSourceBalances } from './balance-sheet-report.service';
+import { calculateUnadjustedProfitLoss, UnadjustedProfitLossContribution, UnadjustedProfitLossProjection } from './profit-loss-calculation';
 
 @Injectable({ providedIn: 'root' })
 export class CashFlowReportService {
@@ -43,6 +47,21 @@ export class CashFlowReportService {
     }
 
     const beginningDate = dayBeforeBusinessDate(query.startDate);
+    let profitAndLoss: UnadjustedProfitLossProjection;
+    let operating: OperatingRows;
+    try {
+      profitAndLoss = calculateUnadjustedProfitLoss(snapshot.transactions, snapshot.chartAccounts, query.startDate, query.endDate);
+      const chartClassifications = new Map(snapshot.cashFlowClassifications
+        .filter(classification => classification.accountRole === 'CHART')
+        .map(classification => [classification.accountId, classification]));
+      operating = buildNetProfitAndNoncashRows(query, snapshot.chartAccounts, chartClassifications, profitAndLoss);
+    } catch {
+      throw new CashFlowContractError({
+        code: 'CASH_FLOW_REPORT_GENERATION_FAILED',
+        message: 'Profit and Loss sections do not reconcile to transaction detail for this Cash Flow period.',
+        retryable: false,
+      });
+    }
     const beginningProjection = calculateBalanceSheetProjection(snapshot, { asOfDate: beginningDate, includeZeroBalanceAccounts: true });
     const endingProjection = calculateBalanceSheetProjection(snapshot, { asOfDate: query.endDate, includeZeroBalanceAccounts: true });
     const beginningBalances = beginningProjection.sourceBalances;
@@ -61,7 +80,7 @@ export class CashFlowReportService {
       beginningBalances, endingBalances,
       restrictedCashBeginningMinor, restrictedCashEndingMinor, beginningDate,
       beginningProjection.differenceMinor, endingProjection.differenceMinor);
-    const rows = cashBalanceRows(query, beginningCashMinor, endingCashMinor);
+    const rows = [...operating.rows, ...cashBalanceRows(query, beginningCashMinor, endingCashMinor)];
     const profile = snapshot.companyProfile ?? {
       companyId: snapshot.company.id,
       legalName: snapshot.company.name,
@@ -74,8 +93,8 @@ export class CashFlowReportService {
       modifiedAt: '',
     };
 
-    // Slice 08 establishes the measured cash boundary. Later slices replace the
-    // zero activity-section placeholders and determine final completeness.
+    // Slice 09 establishes the indirect Net Profit starting point and noncash
+    // reversals. Later slices add working-capital, Investing, and Financing rows.
     return freezeCashFlowReport({
       reportId: cashFlowReportId(snapshot.databaseRevision, query),
       databaseRevision: snapshot.databaseRevision,
@@ -87,7 +106,7 @@ export class CashFlowReportService {
       method: 'INDIRECT',
       status: 'REVIEW_REQUIRED',
       rows,
-      netOperatingMinor: 0n,
+      netOperatingMinor: operating.netOperatingMinor,
       netInvestingMinor: 0n,
       netFinancingMinor: 0n,
       netChangeInCashMinor: measuredNetChangeMinor,
@@ -99,9 +118,182 @@ export class CashFlowReportService {
       restrictedCashEndingMinor,
       unclassifiedCashActivityMinor: 0n,
       warnings,
-      detailIndex: {},
+      detailIndex: operating.detailIndex,
     });
   }
+}
+
+interface OperatingRows {
+  readonly rows: readonly CashFlowRow[];
+  readonly detailIndex: Readonly<Record<string, readonly CashFlowContribution[]>>;
+  readonly netOperatingMinor: bigint;
+}
+
+function buildNetProfitAndNoncashRows(
+  query: CashFlowReport['query'],
+  chartAccounts: readonly import('../domain-model/accounting.types').ChartAccount[],
+  classifications: ReadonlyMap<string, CashFlowClassificationRecord>,
+  profitAndLoss: UnadjustedProfitLossProjection,
+): OperatingRows {
+  const chartById = new Map(chartAccounts.map(account => [account.id, account]));
+  const netProfitRowId = cashFlowSyntheticRowId('NET_PROFIT', query);
+  const netOperatingRowId = cashFlowSyntheticRowId('NET_OPERATING', query);
+  const netProfitDetailKey = cashFlowDetailKey(netProfitRowId);
+  const netOperatingDetailKey = cashFlowDetailKey(netOperatingRowId);
+  const netProfitContributions = profitAndLoss.contributions.map(contribution => pnlContribution(contribution, netProfitDetailKey));
+  const contributionsByChart = new Map<string, UnadjustedProfitLossContribution[]>();
+  profitAndLoss.contributions.forEach(contribution => {
+    const contributions = contributionsByChart.get(contribution.chartAccountId) ?? [];
+    contributions.push(contribution);
+    contributionsByChart.set(contribution.chartAccountId, contributions);
+  });
+  const adjustments = [...classifications.values()]
+    .filter(classification => classification.treatment === 'NONCASH_PNL_ADJUSTMENT')
+    .map(classification => {
+      const account = chartById.get(classification.accountId);
+      if (!account) return undefined;
+      const sourceContributions = contributionsByChart.get(account.id) ?? [];
+      const amountMinor = sourceContributions.reduce((total, contribution) => total - contribution.contributionMinor, 0n);
+      const rowId = cashFlowAccountRowId('OPERATING', 'CHART', account.id);
+      const detailKey = cashFlowDetailKey(rowId);
+      const contributions = sourceContributions.map(contribution => noncashReversalContribution(contribution, detailKey));
+      return { account, classification, amountMinor, rowId, detailKey, contributions };
+    })
+    .filter((value): value is NoncashAdjustment => value !== undefined)
+    .sort((left, right) => accountOrder(left.account, right.account));
+
+  const adjustmentRows = adjustments
+    .filter(adjustment => query.includeZeroRows || adjustment.amountMinor !== 0n)
+    .map(adjustment => ({
+      rowId: adjustment.rowId,
+      rowType: 'ADJUSTMENT' as const,
+      section: 'OPERATING' as const,
+      treatment: 'NONCASH_PNL_ADJUSTMENT' as const,
+      accountRole: 'CHART' as const,
+      accountId: adjustment.account.id,
+      label: leafAccountName(adjustment.account.name),
+      fullPath: chartAccountPath(adjustment.account.id, chartById),
+      depth: 1,
+      amountMinor: adjustment.amountMinor,
+      detailKey: adjustment.detailKey,
+      bold: false,
+      derived: true,
+      archived: adjustment.account.archived,
+      reviewRequired: adjustment.classification.status === 'REVIEW_REQUIRED' || adjustment.classification.treatment === 'REVIEW_REQUIRED',
+    }));
+  const adjustmentContributions = adjustments
+    .flatMap(adjustment => adjustment.contributions);
+  const noncashMinor = adjustments.reduce((total, adjustment) => total + adjustment.amountMinor, 0n);
+  const netOperatingMinor = profitAndLoss.netProfitMinor + noncashMinor;
+  const sectionRow: CashFlowRow = {
+    rowId: cashFlowSyntheticRowId('SECTION_OPERATING', query),
+    rowType: 'SECTION_HEADER', section: 'OPERATING', label: 'Operating activities', depth: 0,
+    bold: true, derived: true, archived: false, reviewRequired: false,
+  };
+  const netProfitRow: CashFlowRow = {
+    rowId: netProfitRowId,
+    rowType: 'NET_PROFIT', section: 'OPERATING', label: 'Net Profit', depth: 0,
+    amountMinor: profitAndLoss.netProfitMinor, detailKey: netProfitDetailKey,
+    bold: true, derived: true, archived: false, reviewRequired: false,
+  };
+  const netOperatingRow: CashFlowRow = {
+    rowId: netOperatingRowId,
+    rowType: 'TOTAL', section: 'OPERATING', label: 'Net cash from operating activities', depth: 0,
+    amountMinor: netOperatingMinor, detailKey: netOperatingDetailKey,
+    bold: true, derived: true, archived: false, reviewRequired: false,
+  };
+  const allOperatingContributions = [...netProfitContributions, ...adjustmentContributions];
+  const details: Record<string, readonly CashFlowContribution[]> = {
+    [netProfitDetailKey]: netProfitContributions,
+    [netOperatingDetailKey]: allOperatingContributions,
+  };
+  adjustments.forEach(adjustment => {
+    details[adjustment.detailKey] = adjustment.contributions;
+  });
+  assertDetailAmount(netProfitRow, details[netProfitDetailKey]);
+  adjustmentRows.forEach(row => assertDetailAmount(row, details[row.detailKey!]));
+  assertDetailAmount(netOperatingRow, details[netOperatingDetailKey]);
+  return {
+    rows: Object.freeze([sectionRow, netProfitRow, ...adjustmentRows, netOperatingRow]),
+    detailIndex: Object.freeze(details),
+    netOperatingMinor,
+  };
+}
+
+interface NoncashAdjustment {
+  readonly account: import('../domain-model/accounting.types').ChartAccount;
+  readonly classification: CashFlowClassificationRecord;
+  readonly amountMinor: bigint;
+  readonly rowId: CashFlowRow['rowId'];
+  readonly detailKey: NonNullable<CashFlowRow['detailKey']>;
+  readonly contributions: CashFlowContribution[];
+}
+
+function pnlContribution(contribution: UnadjustedProfitLossContribution, detailKey: CashFlowContribution['detailKey']): CashFlowContribution {
+  return {
+    contributionId: `pnl:${contribution.transactionId}:${contribution.splitId}`,
+    detailKey,
+    contributionType: 'PNL_SPLIT',
+    contributionMinor: contribution.contributionMinor,
+    businessDate: contribution.postingDate,
+    accountRole: 'CHART',
+    accountId: contribution.chartAccountId,
+    accountName: contribution.accountName,
+    chartAccountId: contribution.chartAccountId,
+    chartAccountPath: contribution.chartAccountPath,
+    transactionId: contribution.transactionId,
+    splitId: contribution.splitId,
+    sourceBatchId: contribution.sourceBatchId,
+    payee: contribution.payee,
+    description: contribution.description,
+    memo: contribution.memo,
+  };
+}
+
+function noncashReversalContribution(contribution: UnadjustedProfitLossContribution, detailKey: CashFlowContribution['detailKey']): CashFlowContribution {
+  return {
+    contributionId: `noncash-reversal:${contribution.transactionId}:${contribution.splitId}`,
+    detailKey,
+    contributionType: 'NONCASH_REVERSAL',
+    contributionMinor: -contribution.contributionMinor,
+    businessDate: contribution.postingDate,
+    accountRole: 'CHART',
+    accountId: contribution.chartAccountId,
+    accountName: contribution.accountName,
+    chartAccountId: contribution.chartAccountId,
+    chartAccountPath: contribution.chartAccountPath,
+    transactionId: contribution.transactionId,
+    splitId: contribution.splitId,
+    sourceBatchId: contribution.sourceBatchId,
+    payee: contribution.payee,
+    description: contribution.description,
+    memo: contribution.memo,
+    formula: '-1 × period P/L contribution',
+  };
+}
+
+function assertDetailAmount(row: CashFlowRow, contributions: readonly CashFlowContribution[] | undefined): void {
+  if (row.amountMinor === undefined) return;
+  const total = (contributions ?? []).reduce((sum, contribution) => sum + contribution.contributionMinor, 0n);
+  if (total !== row.amountMinor) throw new Error(`Cash Flow detail does not reconcile for ${row.rowId}.`);
+}
+
+function accountOrder(left: { displayOrder: number; name: string; id: string }, right: { displayOrder: number; name: string; id: string }): number {
+  return left.displayOrder - right.displayOrder || left.name.localeCompare(right.name) || left.id.localeCompare(right.id);
+}
+
+function leafAccountName(name: string): string { return name.split(':').at(-1)?.trim() || name; }
+
+function chartAccountPath(accountId: string, chartById: ReadonlyMap<string, import('../domain-model/accounting.types').ChartAccount>): string {
+  const parts: string[] = [];
+  const visited = new Set<string>();
+  let current = chartById.get(accountId);
+  while (current && !visited.has(current.id)) {
+    visited.add(current.id);
+    parts.unshift(leafAccountName(current.name));
+    current = current.parentId ? chartById.get(current.parentId) : undefined;
+  }
+  return parts.join(' > ');
 }
 
 function classifiedAccountIds(
