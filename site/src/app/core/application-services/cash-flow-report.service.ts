@@ -5,6 +5,7 @@ import { reportCompanyIdentity } from '../domain-model/balance-sheet.types';
 import {
   CashFlowContractError,
   CashFlowContribution,
+  CashFlowDisclosure,
   CashFlowQueryInput,
   CashFlowReport,
   CashFlowRow,
@@ -91,6 +92,16 @@ export class CashFlowReportService {
     }
     const investing = renderCashFlowActivitySection(query, 'INVESTING', cashSide.investing, cashSide.hierarchyIssues);
     const financing = renderCashFlowActivitySection(query, 'FINANCING', cashSide.financing, cashSide.hierarchyIssues);
+    let noncash: NoncashDisclosureRows;
+    try {
+      noncash = buildNoncashDisclosures(query, snapshot, classifications, cashAccountIds, restrictedAccountIds);
+    } catch (error) {
+      throw new CashFlowContractError({
+        code: 'CASH_FLOW_REPORT_GENERATION_FAILED',
+        message: error instanceof Error ? error.message : 'Recorded noncash activity could not be validated for this Cash Flow period.',
+        retryable: false,
+      });
+    }
     const netChangeMinor = operating.netOperatingMinor + investing.amountMinor + financing.amountMinor;
     const netChangeRowId = cashFlowSyntheticRowId('NET_CHANGE_IN_CASH', query);
     const netChangeDetailKey = cashFlowDetailKey(netChangeRowId);
@@ -109,8 +120,14 @@ export class CashFlowReportService {
       beginningBalances, endingBalances,
       restrictedCashBeginningMinor, restrictedCashEndingMinor, beginningDate,
       beginningProjection.differenceMinor, endingProjection.differenceMinor,
-      [...operating.hierarchyIssues, ...cashSide.hierarchyIssues], cashSide.unclassifiedCashActivityMinor, cashSide.unclassifiedReferences,
-      cashSide.excludedCashActivityMinor, cashSide.excludedReferences, differenceMinor, cashSide.transferWarningReferences);
+      [...operating.hierarchyIssues, ...cashSide.hierarchyIssues, ...noncash.hierarchyIssues], cashSide.unclassifiedCashActivityMinor, cashSide.unclassifiedReferences,
+      cashSide.excludedCashActivityMinor, cashSide.excludedReferences, differenceMinor, cashSide.transferWarningReferences,
+      noncash.disclosures.flatMap(disclosure => [
+        disclosure.disclosureId,
+        disclosure.transactionId,
+        disclosure.accountId,
+        ...(disclosure.chartAccountId ? [disclosure.chartAccountId] : []),
+      ]).filter((reference): reference is string => Boolean(reference)));
     const netChangeRow: CashFlowRow = {
       rowId: netChangeRowId,
       rowType: 'TOTAL', section: 'CASH_RECONCILIATION', label: 'Net increase (decrease) in cash', depth: 0,
@@ -152,6 +169,26 @@ export class CashFlowReportService {
         : 'Excluded cash activity reconciliation difference',
       formula: 'Calculated Ending Cash - Ending Cash',
       }));
+    // In-period opening balances have no transaction ID, but they do change
+    // the ending cash boundary. Their contribution IDs are explicitly marked
+    // by the cash-side projector so Difference can attribute that boundary
+    // effect without inventing a transaction source.
+    const boundaryContributionIds = new Set(cashSide.cashBoundaryContributionIds);
+    differenceContributions.push(...[
+      ...cashSide.unclassifiedContributions,
+      ...cashSide.excludedContributions,
+    ].filter(contribution => boundaryContributionIds.has(contribution.contributionId))
+      .map(contribution => ({
+        ...contribution,
+        contributionId: `${contribution.contributionId}:reconciliation`,
+        detailKey: differenceDetailKey,
+        contributionType: 'FORMULA' as const,
+        contributionMinor: -contribution.contributionMinor,
+        description: contribution.contributionType === 'UNCLASSIFIED'
+          ? 'In-period opening balance reconciliation difference'
+          : 'Excluded cash activity reconciliation difference',
+        formula: 'Calculated Ending Cash - Ending Cash',
+      })));
     const differenceDetailTotal = differenceContributions.reduce((sum, contribution) => sum + contribution.contributionMinor, 0n);
     if (differenceDetailTotal !== differenceMinor) {
       differenceContributions.push({
@@ -166,7 +203,9 @@ export class CashFlowReportService {
     detailIndex[differenceDetailKey] = differenceContributions;
     const rows = [...operating.rows, ...investing.rows, ...financing.rows, netChangeRow,
       ...cashBalanceRows(query, beginningCashMinor, endingCashMinor, restrictedCashEndingMinor, restrictedDetailKey, beginningDetailKey, endingDetailKey,
-        cashSide.unclassifiedCashActivityMinor, cashSide.unclassifiedDetailKey, differenceMinor, differenceDetailKey)];
+      cashSide.unclassifiedCashActivityMinor, cashSide.unclassifiedDetailKey, differenceMinor, differenceDetailKey)];
+    rows.push(...noncash.rows);
+    Object.entries(noncash.detailIndex).forEach(([key, contributions]) => { detailIndex[key] = contributions; });
     rows.filter(row => row.amountMinor !== undefined).forEach(row => assertDetailAmount(row, row.detailKey ? detailIndex[row.detailKey] : undefined));
     const profile = snapshot.companyProfile ?? {
       companyId: snapshot.company.id,
@@ -181,8 +220,9 @@ export class CashFlowReportService {
     };
 
     // Slice 11 adds actual cash-side Investing and Financing activity to the
-    // indirect Operating calculation. Later reconciliation/disclosure slices
-    // may consume the same immutable result without recalculating it.
+    // indirect Operating calculation. Slice 13 appends recorded-only
+    // noncash disclosures after reconciliation without changing any cash
+    // section total or boundary projection.
     return freezeCashFlowReport({
       reportId: cashFlowReportId(snapshot.databaseRevision, query),
       databaseRevision: snapshot.databaseRevision,
@@ -194,6 +234,7 @@ export class CashFlowReportService {
       method: 'INDIRECT',
       status: 'REVIEW_REQUIRED',
       rows,
+      disclosures: noncash.disclosures,
       netOperatingMinor: operating.netOperatingMinor,
       netInvestingMinor: investing.amountMinor,
       netFinancingMinor: financing.amountMinor,
@@ -256,6 +297,9 @@ interface CashSideActivity {
   readonly unclassifiedContributions: readonly CashFlowContribution[];
   /** Transaction IDs that the Balance Sheet cash boundary actually includes. */
   readonly cashBoundaryTransactionIds: readonly string[];
+  /** Synthetic boundary contributions (currently in-period openings) that
+   * affect Ending Cash without having a transaction ID. */
+  readonly cashBoundaryContributionIds: readonly string[];
   readonly excludedContributions: readonly CashFlowContribution[];
   readonly transferDiagnosticContributions: readonly CashFlowContribution[];
   readonly transferDiagnosticReferences: readonly string[];
@@ -263,6 +307,45 @@ interface CashSideActivity {
   readonly excludedCashActivityMinor: bigint;
   readonly excludedReferences: readonly string[];
   readonly hierarchyIssues: readonly CashFlowActivityHierarchyIssue[];
+}
+
+interface NoncashDisclosureRows {
+  readonly rows: readonly CashFlowRow[];
+  readonly disclosures: readonly CashFlowDisclosure[];
+  readonly detailIndex: Readonly<Record<string, readonly CashFlowContribution[]>>;
+  readonly hierarchyIssues: readonly NoncashDisclosureHierarchyIssue[];
+}
+
+interface NoncashDisclosureCandidate {
+  readonly transaction: Transaction;
+  readonly split: PostingSplit;
+  readonly source: FinancialAccount;
+  readonly sourceClassification: CashFlowClassificationRecord;
+  readonly chart: ChartAccount;
+  readonly chartClassification: CashFlowClassificationRecord;
+  /** The explicit Investing/Financing side that establishes presentation. */
+  readonly sectionTreatment: 'INVESTING' | 'FINANCING';
+  readonly amountMinor: bigint;
+  readonly rowId: CashFlowRow['rowId'];
+  readonly detailKey: NonNullable<CashFlowRow['detailKey']>;
+}
+
+interface NoncashDisclosureAccount {
+  readonly account: ChartAccount;
+  readonly sectionTreatment: 'INVESTING' | 'FINANCING';
+  readonly amountMinor: bigint;
+  readonly rowId: CashFlowRow['rowId'];
+  readonly detailKey: NonNullable<CashFlowRow['detailKey']>;
+  readonly contributions: readonly CashFlowContribution[];
+  readonly archived: boolean;
+}
+
+interface NoncashDisclosureHierarchyIssue {
+  readonly accountRole: 'CHART';
+  readonly accountId: string;
+  readonly treatment: 'INVESTING' | 'FINANCING';
+  readonly parentId?: string;
+  readonly reason: 'MISSING_PARENT' | 'NONPARTICIPATING_PARENT' | 'CROSS_TREATMENT' | 'CYCLE' | 'INVALID_ANCESTOR';
 }
 
 interface CashFlowActivityHierarchyIssue {
@@ -905,6 +988,41 @@ function buildCashSideActivity(
       transfer ? `transfer-cash:${transaction.id}` : undefined);
   }
 
+  // A derived opening balance dated inside the selected period changes the
+  // ending cash boundary even though it is not a period transaction. Ordinary
+  // subsequent Posted activity does not explain that opening: it is separate
+  // ledger evidence and must not hide the opening diagnostic. The only
+  // supported representation of a ledger-sourced opening is the explicit
+  // LEDGER_ACTIVITY mode, which has no stored opening amount (and therefore
+  // never reaches this DERIVED_EQUITY-only path).
+  const cashBoundaryContributionIds = new Set<string>();
+  for (const account of snapshot.accounts
+    .filter(candidate => cashAccountIds.has(candidate.id))
+    .slice().sort((left, right) => left.id.localeCompare(right.id))) {
+    if (account.openingBalanceSource !== 'DERIVED_EQUITY' || account.openingBalance.minorUnits === 0n) continue;
+    if (account.openingBalanceDate < query.startDate || account.openingBalanceDate > query.endDate) continue;
+    const sourceKey = `opening:${account.id}:${account.openingBalanceDate}`;
+    const contributionId = `unclassified:${sourceKey}`;
+    if (unclassifiedContributionKeys.has(sourceKey)) continue;
+    unclassifiedContributionKeys.add(sourceKey);
+    unclassifiedReferences.add(sourceKey);
+    unclassifiedCashActivityMinor += account.openingBalance.minorUnits;
+    unclassifiedContributions.push({
+      contributionId,
+      detailKey: unclassifiedDetailKey(query),
+      contributionType: 'UNCLASSIFIED',
+      contributionMinor: account.openingBalance.minorUnits,
+      businessDate: account.openingBalanceDate,
+      accountRole: 'FINANCIAL_SOURCE',
+      accountId: account.id,
+      accountName: account.name,
+      openingAmountMinor: account.openingBalance.minorUnits,
+      description: 'Cash opening balance introduced within the report period',
+      formula: 'In-period opening balance is not a section cash flow',
+    });
+    cashBoundaryContributionIds.add(contributionId);
+  }
+
   const allContributions = [...unclassifiedContributions].sort(compareCashFlowContributions);
   const investingCandidates = [...activity.get('INVESTING')!.values()].sort(compareCashFlowActivityAccounts);
   const financingCandidates = [...activity.get('FINANCING')!.values()].sort(compareCashFlowActivityAccounts);
@@ -920,6 +1038,7 @@ function buildCashSideActivity(
     unclassifiedDetailKey: allContributions.length > 0 ? unclassifiedDetailKey(query) : undefined,
     unclassifiedContributions: allContributions,
     cashBoundaryTransactionIds: [...cashBoundaryTransactionIds].sort(),
+    cashBoundaryContributionIds: [...cashBoundaryContributionIds].sort(),
     excludedContributions: Object.freeze(excludedContributions.sort(compareCashFlowContributions)),
     transferDiagnosticContributions: transferDiagnosticContributions.sort(compareCashFlowContributions),
     transferDiagnosticReferences: [...transferDiagnosticReferences].sort(),
@@ -928,6 +1047,574 @@ function buildCashSideActivity(
     excludedReferences: [...excludedReferences].sort(),
     hierarchyIssues,
   };
+}
+
+/**
+ * Build the supplemental noncash disclosure hierarchy from recorded journal
+ * relationships only. A financial-source transaction is eligible when it is
+ * a confirmed noncash account and every nonzero posting split is explicitly
+ * confirmed. One side must establish Investing or Financing presentation;
+ * NONCASH_DISCLOSURE is allowed on the opposite side. No account name or
+ * description inference is used, and no disclosure contributes to cash totals.
+ */
+function buildNoncashDisclosures(
+  query: CashFlowReport['query'],
+  snapshot: BalanceSheetRepositorySnapshot,
+  classifications: readonly CashFlowClassificationRecord[],
+  cashAccountIds: ReadonlySet<string>,
+  restrictedAccountIds: ReadonlySet<string>,
+): NoncashDisclosureRows {
+  const chartById = new Map(snapshot.chartAccounts.map(account => [account.id, account]));
+  const sourceById = new Map(snapshot.accounts.map(account => [account.id, account]));
+  const chartClassifications = new Map(classifications
+    .filter(classification => classification.accountRole === 'CHART')
+    .map(classification => [classification.accountId, classification]));
+  const financialClassifications = new Map(classifications
+    .filter(classification => classification.accountRole === 'FINANCIAL_SOURCE')
+    .map(classification => [classification.accountId, classification]));
+  const candidates: NoncashDisclosureCandidate[] = [];
+
+  const periodTransactions = snapshot.transactions
+    .filter(transaction => transaction.state === 'POSTED' && !transaction.transferMatchId)
+    .filter(transaction => transaction.postingDate >= query.startDate && transaction.postingDate <= query.endDate)
+    .slice().sort((left, right) => left.postingDate.localeCompare(right.postingDate) || left.id.localeCompare(right.id));
+
+  for (const transaction of periodTransactions) {
+    const source = sourceById.get(transaction.accountId);
+    const sourceClassification = source ? financialClassifications.get(source.id) : undefined;
+    const nonzeroSplits = transaction.splits.filter(split => split.amount.minorUnits !== 0n);
+    const transactionHasMaterialActivity = transaction.amount.minorUnits !== 0n || nonzeroSplits.length > 0;
+    const chartSplits = transaction.splits.map(split => ({
+      split,
+      chart: chartById.get(split.chartAccountId),
+      classification: chartClassifications.get(split.chartAccountId),
+    }));
+    const chartSignalsNoncash = chartSplits.some(item => isNoncashDisclosureTreatment(item.classification?.treatment));
+
+    // Cash and restricted-cash sources are handled by the cash-side activity
+    // projector. Evaluate their Chart side first, however, so an unresolved
+    // cash-role source cannot hide an explicitly noncash structure.
+    if (source && (cashAccountIds.has(source.id) || restrictedAccountIds.has(source.id))) continue;
+    if (!source) {
+      if (transactionHasMaterialActivity && chartSignalsNoncash) {
+        throw new Error(`Noncash transaction ${transaction.id} has an explicit Chart noncash treatment but no financial source account.`);
+      }
+      // Neither recorded side signals a noncash structure. This can be an
+      // ordinary/legacy transaction whose source is outside the snapshot.
+      continue;
+    }
+
+    const sourceClassificationValid = Boolean(sourceClassification
+      && sourceClassification.status === 'CONFIRMED'
+      && classificationMatchesAccount(sourceClassification, source));
+    const sourceRequiresReview = sourceClassification?.status === 'REVIEW_REQUIRED'
+      || sourceClassification?.cashRole === 'REVIEW_REQUIRED';
+    if (sourceRequiresReview && transactionHasMaterialActivity) {
+      throw new Error(`Noncash source ${source.id} has an invalid or review-required Cash Flow classification.`);
+    }
+    if (!sourceClassificationValid) {
+      if (transactionHasMaterialActivity && chartSignalsNoncash) {
+        throw new Error(`Noncash source ${source.id} has an invalid or review-required Cash Flow classification.`);
+      }
+      // A source with no confirmed structural classification is only safe to
+      // leave alone after confirming that no Chart side explicitly signals a
+      // noncash Investing/Financing structure.
+      continue;
+    }
+
+    const confirmedSourceClassification = sourceClassification!;
+    if (confirmedSourceClassification.cashRole !== 'NOT_CASH') {
+      if (transactionHasMaterialActivity && chartSignalsNoncash) {
+        throw new Error(`Noncash source ${source.id} has an incompatible cash role for its Chart counteraccount.`);
+      }
+      continue;
+    }
+
+    const sourceHasSectionIntent = confirmedSourceClassification.treatment === 'INVESTING'
+      || confirmedSourceClassification.treatment === 'FINANCING'
+      || confirmedSourceClassification.treatment === 'NONCASH_DISCLOSURE';
+    const sourceSectionTreatment = confirmedSourceClassification.treatment === 'INVESTING' || confirmedSourceClassification.treatment === 'FINANCING'
+      ? confirmedSourceClassification.treatment : undefined;
+    // Only an explicitly Investing/Financing source can establish a
+    // supplemental noncash event. Ordinary operating source transactions
+    // (for example, a credit-card charge posted to an expense account) are
+    // handled by the normal P/L or working-capital paths. They are safe to
+    // exclude only after their Chart side has been checked for an explicit
+    // noncash signal.
+    if (!sourceHasSectionIntent) {
+      if (transactionHasMaterialActivity && chartSignalsNoncash) {
+        throw new Error(`Noncash source ${source.id} has an incompatible ordinary treatment for its Chart counteraccount.`);
+      }
+      continue;
+    }
+    if (transaction.amount.minorUnits !== 0n && transaction.splits.length === 0) {
+      throw new Error(`Noncash source transaction ${transaction.id} has no posting splits.`);
+    }
+    // Build zero-valued candidates too. The renderer applies includeZeroRows
+    // only after the complete disclosure/detail model exists, so hiding zero
+    // rows cannot erase provenance or change hierarchy identity.
+    const candidateSplits = transaction.splits;
+    if (candidateSplits.length === 0) continue;
+    const splitTotal = transaction.splits.reduce((total, split) => total + split.amount.minorUnits, 0n);
+    if (chartSplits.some(item => !item.chart || !item.classification
+      || item.classification.accountRole !== 'CHART'
+      || item.classification.accountId !== item.chart.id
+      || item.classification.accountType !== item.chart.accountType
+      || item.classification.detailType !== item.chart.detailType
+      || item.classification.status !== 'CONFIRMED'
+      || !['INVESTING', 'FINANCING', 'NONCASH_DISCLOSURE'].includes(item.classification.treatment))) {
+      throw new Error(`Noncash source transaction ${transaction.id} has a missing or invalid Chart counteraccount.`);
+    }
+    const chartSectionTreatments = [...new Set(chartSplits
+      .map(item => item.classification!.treatment)
+      .filter((treatment): treatment is 'INVESTING' | 'FINANCING' => treatment === 'INVESTING' || treatment === 'FINANCING'))];
+    if (chartSectionTreatments.length > 1) {
+      throw new Error(`Noncash source transaction ${transaction.id} has Investing and Financing counteraccounts mixed together.`);
+    }
+    const sectionTreatment = chartSectionTreatments[0] ?? sourceSectionTreatment;
+    if (!sectionTreatment) {
+      // Two NONCASH_DISCLOSURE sides (or an otherwise ambiguous pair) do not
+      // establish a presentation section and must never be guessed.
+      throw new Error(`Noncash source transaction ${transaction.id} has no confirmed Investing or Financing counteraccount.`);
+    }
+    const allowedCounteraccounts = chartSplits.every(item => item.classification!.treatment === sectionTreatment
+      || (sourceSectionTreatment !== undefined && item.classification!.treatment === 'NONCASH_DISCLOSURE'));
+    if (!allowedCounteraccounts) {
+      throw new Error(`Noncash source transaction ${transaction.id} has an incomplete, mismatched, or invalid counteraccount structure.`);
+    }
+    // Mixed/partial structures are not sufficiently identifiable for a
+    // disclosure. Fail through the typed report contract rather than
+    // disclosing only one side of an ambiguous journal or silently dropping
+    // the recorded noncash event.
+    const fullyIdentified = splitTotal === transaction.amount.minorUnits
+      && chartSplits.length > 0
+      && chartSplits.every(item => Boolean(item.chart && item.classification
+        && item.classification.accountRole === 'CHART'
+        && item.classification.accountId === item.chart!.id
+        && item.classification.accountType === item.chart!.accountType
+        && item.classification.detailType === item.chart!.detailType
+        && item.classification.status === 'CONFIRMED'));
+    if (!fullyIdentified) {
+      throw new Error(`Noncash source transaction ${transaction.id} has an incomplete, mismatched, or invalid counteraccount structure.`);
+    }
+
+    for (const item of chartSplits
+      .slice().sort((left, right) => left.split.id.localeCompare(right.split.id))) {
+      const chart = item.chart!;
+      const chartClassification = item.classification!;
+      const rowId = `DISCLOSURE:NONCASH:${encodeURIComponent(transaction.id)}:${encodeURIComponent(item.split.id)}` as CashFlowRow['rowId'];
+      candidates.push({
+        transaction,
+        split: item.split,
+        source,
+        sourceClassification: confirmedSourceClassification,
+        chart,
+        chartClassification,
+        sectionTreatment,
+        amountMinor: -item.split.amount.minorUnits,
+        rowId,
+        detailKey: cashFlowDetailKey(rowId),
+      });
+    }
+  }
+
+  const detailIndex: Record<string, readonly CashFlowContribution[]> = {};
+  const disclosures: CashFlowDisclosure[] = [];
+  const accountMap = new Map<string, NoncashDisclosureAccount>();
+  for (const candidate of candidates) {
+    const rowId = noncashDisclosureAccountRowId(candidate.sectionTreatment, candidate.chart.id);
+    const detailKey = cashFlowDetailKey(rowId);
+    const contribution: CashFlowContribution = {
+      contributionId: `noncash:${candidate.transaction.id}:${candidate.split.id}`,
+      detailKey,
+      contributionType: 'NONCASH_DISCLOSURE',
+      contributionMinor: candidate.amountMinor,
+      businessDate: candidate.transaction.postingDate,
+      accountRole: 'FINANCIAL_SOURCE',
+      accountId: candidate.source.id,
+      accountName: candidate.source.name,
+      chartAccountId: candidate.chart.id,
+      chartAccountPath: chartAccountPath(candidate.chart.id, chartById),
+      transactionId: candidate.transaction.id,
+      splitId: candidate.split.id,
+      sourceBatchId: candidate.transaction.sourceBatchId,
+      payee: candidate.transaction.payee,
+      description: candidate.transaction.description,
+      memo: candidate.split.memo ?? candidate.transaction.memo,
+      formula: 'Recorded noncash source and classified counteraccount',
+    };
+    const disclosureDetailKey = cashFlowDetailKey(candidate.rowId);
+    detailIndex[disclosureDetailKey] = [{ ...contribution, detailKey: disclosureDetailKey }];
+    const existing = accountMap.get(`${candidate.sectionTreatment}:${candidate.chart.id}`);
+    accountMap.set(`${candidate.sectionTreatment}:${candidate.chart.id}`, existing ? {
+      ...existing,
+      amountMinor: existing.amountMinor + candidate.amountMinor,
+      contributions: [...existing.contributions, contribution],
+      archived: existing.archived || candidate.source.archived || candidate.chart.archived,
+    } : {
+      account: candidate.chart,
+      sectionTreatment: candidate.sectionTreatment,
+      amountMinor: candidate.amountMinor,
+      rowId,
+      detailKey,
+      contributions: [contribution],
+      archived: candidate.source.archived || candidate.chart.archived,
+    });
+    disclosures.push({
+      disclosureId: candidate.rowId,
+      section: 'NONCASH_DISCLOSURE',
+      label: `${leafAccountName(candidate.chart.name)} — recorded noncash activity`,
+      amountMinor: candidate.amountMinor,
+      detailKey: disclosureDetailKey,
+      accountRole: 'FINANCIAL_SOURCE', accountId: candidate.source.id, chartAccountId: candidate.chart.id,
+      transactionId: candidate.transaction.id,
+      description: candidate.transaction.description,
+      rationale: `TallyStick discloses only identifiable recorded noncash activity; this item is excluded from cash-flow sections. Source: ${candidate.sourceClassification.rationale} Counteraccount: ${candidate.chartClassification.rationale}`,
+    });
+  }
+  const accounts = [...accountMap.values()].map(account => ({
+    ...account,
+    contributions: Object.freeze(account.contributions.slice().sort(compareCashFlowContributions)),
+  }));
+  accounts.forEach(account => { detailIndex[account.detailKey] = account.contributions; });
+  const hierarchyIssues = detectNoncashDisclosureHierarchyIssues(accounts, chartById, chartClassifications);
+  const rows = renderNoncashDisclosureRows(query, accounts, hierarchyIssues, detailIndex, chartById);
+  disclosures.sort((left, right) => left.disclosureId.localeCompare(right.disclosureId));
+  return {
+    rows: Object.freeze(rows),
+    disclosures: Object.freeze(disclosures),
+    detailIndex: Object.freeze(detailIndex),
+    hierarchyIssues: Object.freeze(hierarchyIssues),
+  };
+}
+
+function noncashDisclosureAccountRowId(
+  treatment: 'INVESTING' | 'FINANCING',
+  accountId: string,
+): CashFlowRow['rowId'] {
+  return `ACCOUNT:NONCASH_DISCLOSURE:${treatment}:CHART:${encodeURIComponent(accountId)}` as CashFlowRow['rowId'];
+}
+
+function noncashDisclosureGroupRowId(
+  treatment: 'INVESTING' | 'FINANCING',
+  query: CashFlowReport['query'],
+): CashFlowRow['rowId'] {
+  return `GROUP:NONCASH_DISCLOSURE:${treatment}:${query.startDate}:${query.endDate}` as CashFlowRow['rowId'];
+}
+
+function noncashDisclosureReviewGroupRowId(
+  treatment: 'INVESTING' | 'FINANCING',
+  query: CashFlowReport['query'],
+): CashFlowRow['rowId'] {
+  return `GROUP:NONCASH_DISCLOSURE:${treatment}:HIERARCHY_REVIEW:${query.startDate}:${query.endDate}` as CashFlowRow['rowId'];
+}
+
+function noncashDisclosureSubtotalRowId(
+  treatment: 'INVESTING' | 'FINANCING',
+  account: NoncashDisclosureAccount,
+  query: CashFlowReport['query'],
+): CashFlowRow['rowId'] {
+  return `SUBTOTAL:NONCASH_DISCLOSURE:${treatment}:CHART:${encodeURIComponent(account.account.id)}:${query.startDate}:${query.endDate}` as CashFlowRow['rowId'];
+}
+
+function detectNoncashDisclosureHierarchyIssues(
+  candidates: readonly NoncashDisclosureAccount[],
+  chartById: ReadonlyMap<string, ChartAccount>,
+  chartClassifications: ReadonlyMap<string, CashFlowClassificationRecord>,
+): readonly NoncashDisclosureHierarchyIssue[] {
+  const byKey = new Map(candidates.map(candidate => [
+    `${candidate.sectionTreatment}:${candidate.account.id}`,
+    candidate,
+  ]));
+  const issues = new Map<string, NoncashDisclosureHierarchyIssue>();
+  const accountCandidateFor = (treatment: 'INVESTING' | 'FINANCING', accountId: string): NoncashDisclosureAccount | undefined =>
+    byKey.get(`${treatment}:${accountId}`);
+  const addIssue = (candidate: NoncashDisclosureAccount, reason: NoncashDisclosureHierarchyIssue['reason']): void => {
+    const key = `${candidate.sectionTreatment}:${candidate.account.id}`;
+    if (issues.has(key)) return;
+    issues.set(key, {
+      accountRole: 'CHART', accountId: candidate.account.id, treatment: candidate.sectionTreatment,
+      parentId: candidate.account.parentId, reason,
+    });
+  };
+
+  for (const candidate of candidates) {
+    const parentId = candidate.account.parentId;
+    if (!parentId) continue;
+    const parent = chartById.get(parentId);
+    const sameTreatmentParent = accountCandidateFor(candidate.sectionTreatment, parentId);
+    const otherTreatmentParent = accountCandidateFor(candidate.sectionTreatment === 'INVESTING' ? 'FINANCING' : 'INVESTING', parentId);
+    if (!parent) addIssue(candidate, 'MISSING_PARENT');
+    else if (otherTreatmentParent && !sameTreatmentParent) addIssue(candidate, 'CROSS_TREATMENT');
+    else if (!sameTreatmentParent) {
+      const parentClassification = chartClassifications.get(parentId);
+      addIssue(candidate, parentClassification?.treatment === candidate.sectionTreatment ? 'NONPARTICIPATING_PARENT' : 'CROSS_TREATMENT');
+    }
+  }
+
+  for (const candidate of candidates) {
+    const path: string[] = [];
+    const pathIndexes = new Map<string, number>();
+    let current: NoncashDisclosureAccount | undefined = candidate;
+    while (current) {
+      const currentKey = `${current.sectionTreatment}:${current.account.id}`;
+      const previousIndex = pathIndexes.get(currentKey);
+      if (previousIndex !== undefined) {
+        for (const cycleKey of path.slice(previousIndex)) {
+          const cycleCandidate = byKey.get(cycleKey);
+          if (cycleCandidate) addIssue(cycleCandidate, 'CYCLE');
+        }
+        break;
+      }
+      if (issues.has(currentKey)) break;
+      pathIndexes.set(currentKey, path.length);
+      path.push(currentKey);
+      current = current.account.parentId
+        ? accountCandidateFor(current.sectionTreatment, current.account.parentId)
+        : undefined;
+    }
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const candidate of candidates) {
+      const parentId = candidate.account.parentId;
+      if (!parentId) continue;
+      const key = `${candidate.sectionTreatment}:${candidate.account.id}`;
+      const parentKey = `${candidate.sectionTreatment}:${parentId}`;
+      if (!issues.has(key) && issues.has(parentKey)) {
+        addIssue(candidate, 'INVALID_ANCESTOR');
+        changed = true;
+      }
+    }
+  }
+
+  return [...issues.values()].sort((left, right) =>
+    left.treatment.localeCompare(right.treatment) || left.accountId.localeCompare(right.accountId));
+}
+
+function renderNoncashDisclosureRows(
+  query: CashFlowReport['query'],
+  candidates: readonly NoncashDisclosureAccount[],
+  hierarchyIssues: readonly NoncashDisclosureHierarchyIssue[],
+  detailIndex: Record<string, readonly CashFlowContribution[]>,
+  chartById: ReadonlyMap<string, ChartAccount>,
+): readonly CashFlowRow[] {
+  if (candidates.length === 0) return [];
+  const sectionRowId = cashFlowSyntheticRowId('SECTION_NONCASH_DISCLOSURE', query);
+  const invalidKeys = new Set(hierarchyIssues.map(issue => `${issue.treatment}:${issue.accountId}`));
+  const rows: CashFlowRow[] = [];
+  const visibleGroups: CashFlowRow[] = [];
+  for (const treatment of ['INVESTING', 'FINANCING'] as const) {
+    const group = candidates.filter(candidate => candidate.sectionTreatment === treatment)
+      .slice().sort(compareNoncashDisclosureAccounts);
+    if (group.length === 0) continue;
+    const validCandidates = group.filter(candidate => !invalidKeys.has(`${treatment}:${candidate.account.id}`));
+    const reviewCandidates = group.filter(candidate => invalidKeys.has(`${treatment}:${candidate.account.id}`));
+    const byKey = new Map(validCandidates.map(candidate => [`${treatment}:${candidate.account.id}`, candidate]));
+    const children = new Map<string, NoncashDisclosureAccount[]>();
+    const roots: NoncashDisclosureAccount[] = [];
+    validCandidates.forEach(candidate => {
+      const parentKey = candidate.account.parentId ? `${treatment}:${candidate.account.parentId}` : undefined;
+      if (parentKey && byKey.has(parentKey) && noncashDisclosureParentChainIsAcyclic(candidate, byKey)) {
+        children.set(parentKey, [...(children.get(parentKey) ?? []), candidate]);
+      } else {
+        roots.push(candidate);
+      }
+    });
+    const groupRows: CashFlowRow[] = [];
+    const groupRowId = noncashDisclosureGroupRowId(treatment, query);
+    const renderedNodes = roots.sort(compareNoncashDisclosureAccounts)
+      .map(root => renderNoncashDisclosureNode(query, treatment, root, children, byKey, detailIndex, chartById));
+    const visibleNodeRows = renderedNodes.filter(result => result.rendered).flatMap(result => result.rows);
+    const visibleReviewCandidates = reviewCandidates.filter(candidate => query.includeZeroRows || candidate.amountMinor !== 0n);
+    if (visibleNodeRows.length > 0 || visibleReviewCandidates.length > 0 || query.includeZeroRows) {
+      groupRows.push({
+        rowId: groupRowId,
+        rowType: 'GROUP_HEADER', section: 'NONCASH_DISCLOSURE', label: `${treatment === 'INVESTING' ? 'Investing' : 'Financing'} noncash activity`, depth: 1,
+        parentRowId: sectionRowId, bold: true, derived: true, archived: false, reviewRequired: false,
+      }, ...visibleNodeRows);
+    }
+    if (visibleReviewCandidates.length > 0) {
+      const reviewGroupRowId = noncashDisclosureReviewGroupRowId(treatment, query);
+      groupRows.push({
+        rowId: reviewGroupRowId,
+        rowType: 'GROUP_HEADER', section: 'NONCASH_DISCLOSURE', label: `${treatment === 'INVESTING' ? 'Investing' : 'Financing'} noncash activity — hierarchy review`, depth: 1,
+        parentRowId: sectionRowId, bold: true, derived: true, archived: false, reviewRequired: true,
+      }, ...visibleReviewCandidates.map(candidate => ({
+        rowId: candidate.rowId,
+        rowType: 'NONCASH_DISCLOSURE' as const,
+        section: 'NONCASH_DISCLOSURE' as const,
+        treatment: 'NONCASH_DISCLOSURE' as const,
+        accountRole: 'CHART' as const,
+        accountId: candidate.account.id,
+        label: `${leafAccountName(candidate.account.name)} — recorded noncash activity`,
+        fullPath: chartDisclosurePath(candidate.account, chartById),
+        depth: 2,
+        amountMinor: candidate.amountMinor,
+        detailKey: candidate.detailKey,
+        bold: false, derived: true, archived: candidate.archived, reviewRequired: true,
+      })));
+    }
+    const groupTotalRowId = `SUBTOTAL:NONCASH_DISCLOSURE:${treatment}:${query.startDate}:${query.endDate}` as CashFlowRow['rowId'];
+    const groupTotalDetailKey = cashFlowDetailKey(groupTotalRowId);
+    const groupContributions = group.flatMap(candidate => candidate.contributions.map(contribution => ({
+      ...contribution,
+      contributionId: `group:${groupTotalRowId}:${contribution.contributionId}`,
+      detailKey: groupTotalDetailKey,
+    })));
+    detailIndex[groupTotalDetailKey] = groupContributions;
+    const groupTotal = group.reduce((total, candidate) => total + candidate.amountMinor, 0n);
+    const groupTotalRow: CashFlowRow = {
+      rowId: groupTotalRowId,
+      rowType: 'SUBTOTAL', section: 'NONCASH_DISCLOSURE', treatment: 'NONCASH_DISCLOSURE',
+      label: `${treatment === 'INVESTING' ? 'Investing' : 'Financing'} noncash activity total`, depth: 1,
+      parentRowId: groupRowId, amountMinor: groupTotal, detailKey: groupTotalDetailKey,
+      bold: true, derived: true, archived: group.some(candidate => candidate.archived), reviewRequired: reviewCandidates.length > 0,
+    };
+    assertDetailAmount(groupTotalRow, groupContributions);
+    if (groupRows.length > 0) {
+      groupRows.push(groupTotalRow);
+      visibleGroups.push(...groupRows);
+    }
+  }
+  if (visibleGroups.length === 0) return [];
+  rows.push({
+    rowId: sectionRowId,
+    rowType: 'SECTION_HEADER', section: 'NONCASH_DISCLOSURE', label: 'Supplemental noncash disclosures', depth: 0,
+    bold: true, derived: true, archived: false, reviewRequired: false,
+  }, ...visibleGroups);
+  return rows;
+}
+
+function renderNoncashDisclosureNode(
+  query: CashFlowReport['query'],
+  treatment: 'INVESTING' | 'FINANCING',
+  node: NoncashDisclosureAccount,
+  children: ReadonlyMap<string, readonly NoncashDisclosureAccount[]>,
+  byKey: ReadonlyMap<string, NoncashDisclosureAccount>,
+  detailIndex: Record<string, readonly CashFlowContribution[]>,
+  chartById: ReadonlyMap<string, ChartAccount>,
+): { readonly rows: readonly CashFlowRow[]; readonly totalMinor: bigint; readonly rendered: boolean } {
+  const childResults = (children.get(`${treatment}:${node.account.id}`) ?? [])
+    .slice().sort(compareNoncashDisclosureAccounts)
+    .map(child => renderNoncashDisclosureNode(query, treatment, child, children, byKey, detailIndex, chartById));
+  const childTotal = childResults.reduce((total, child) => total + child.totalMinor, 0n);
+  const totalMinor = node.amountMinor + childTotal;
+  const visibleChildren = childResults.filter(result => result.rendered);
+  const rendered = query.includeZeroRows || node.amountMinor !== 0n || visibleChildren.length > 0;
+  const row: CashFlowRow = {
+    rowId: node.rowId,
+    rowType: 'NONCASH_DISCLOSURE', section: 'NONCASH_DISCLOSURE', treatment: 'NONCASH_DISCLOSURE',
+    accountRole: 'CHART', accountId: node.account.id,
+    parentRowId: node.account.parentId && byKey.has(`${treatment}:${node.account.parentId}`)
+      ? noncashDisclosureAccountRowId(treatment, node.account.parentId) : undefined,
+    label: `${leafAccountName(node.account.name)} — recorded noncash activity`,
+    fullPath: chartDisclosurePath(node.account, chartById),
+    depth: noncashDisclosureAccountDepth(node, byKey), amountMinor: node.amountMinor, detailKey: node.detailKey,
+    bold: false, derived: true, archived: node.archived, reviewRequired: false,
+  };
+  const rows: CashFlowRow[] = rendered ? [row, ...visibleChildren.flatMap(child => child.rows)] : [];
+  if (childResults.length > 0) {
+    const subtotalRowId = noncashDisclosureSubtotalRowId(treatment, node, query);
+    const subtotalDetailKey = cashFlowDetailKey(subtotalRowId);
+    const subtree = collectNoncashDisclosureSubtree(node, children, treatment);
+    const subtotalContributions = subtree.flatMap(candidate => candidate.contributions.map(contribution => ({
+      ...contribution,
+      contributionId: `subtotal:${subtotalRowId}:${contribution.contributionId}`,
+      detailKey: subtotalDetailKey,
+      childRowId: candidate.rowId,
+    })));
+    detailIndex[subtotalDetailKey] = subtotalContributions;
+    const subtotal: CashFlowRow = {
+      rowId: subtotalRowId,
+      rowType: 'SUBTOTAL', section: 'NONCASH_DISCLOSURE', treatment: 'NONCASH_DISCLOSURE',
+      accountRole: 'CHART', accountId: node.account.id, parentRowId: node.rowId,
+      label: `Total for ${leafAccountName(node.account.name)} noncash activity`, fullPath: row.fullPath, depth: row.depth,
+      amountMinor: totalMinor, detailKey: subtotalDetailKey, bold: true, derived: true,
+      archived: node.archived, reviewRequired: false,
+    };
+    assertDetailAmount(subtotal, subtotalContributions);
+    if (rendered && (query.includeZeroRows || visibleChildren.length > 0)) rows.push(subtotal);
+  }
+  return { rows, totalMinor, rendered };
+}
+
+function noncashDisclosureParentChainIsAcyclic(
+  node: NoncashDisclosureAccount,
+  accounts: ReadonlyMap<string, NoncashDisclosureAccount>,
+): boolean {
+  const visited = new Set<string>([`${node.sectionTreatment}:${node.account.id}`]);
+  let parentKey = node.account.parentId ? `${node.sectionTreatment}:${node.account.parentId}` : undefined;
+  while (parentKey) {
+    if (visited.has(parentKey)) return false;
+    visited.add(parentKey);
+    const parent = accounts.get(parentKey);
+    if (!parent) return true;
+    parentKey = parent.account.parentId ? `${parent.sectionTreatment}:${parent.account.parentId}` : undefined;
+  }
+  return true;
+}
+
+function collectNoncashDisclosureSubtree(
+  node: NoncashDisclosureAccount,
+  children: ReadonlyMap<string, readonly NoncashDisclosureAccount[]>,
+  treatment: 'INVESTING' | 'FINANCING',
+): readonly NoncashDisclosureAccount[] {
+  return [node, ...(children.get(`${treatment}:${node.account.id}`) ?? [])
+    .slice().sort(compareNoncashDisclosureAccounts)
+    .flatMap(child => collectNoncashDisclosureSubtree(child, children, treatment))];
+}
+
+function noncashDisclosureAccountDepth(
+  node: NoncashDisclosureAccount,
+  accounts: ReadonlyMap<string, NoncashDisclosureAccount>,
+): number {
+  let depth = 2;
+  const visited = new Set<string>();
+  let parent = node.account.parentId;
+  while (parent && !visited.has(parent)) {
+    visited.add(parent);
+    depth += 1;
+    parent = accounts.get(`${node.sectionTreatment}:${parent}`)?.account.parentId;
+  }
+  return depth;
+}
+
+function compareNoncashDisclosureAccounts(left: NoncashDisclosureAccount, right: NoncashDisclosureAccount): number {
+  return left.account.displayOrder - right.account.displayOrder
+    || left.account.name.localeCompare(right.account.name)
+    || left.account.id.localeCompare(right.account.id);
+}
+
+function chartDisclosurePath(account: ChartAccount, accounts: ReadonlyMap<string, ChartAccount>): string {
+  const names: string[] = [account.name];
+  const visited = new Set<string>([account.id]);
+  let parentId = account.parentId;
+  while (parentId && !visited.has(parentId)) {
+    visited.add(parentId);
+    const parent = accounts.get(parentId);
+    if (!parent) break;
+    names.unshift(parent.name);
+    parentId = parent.parentId;
+  }
+  return names.join(' > ');
+}
+
+function isNoncashDisclosureTreatment(
+  treatment: CashFlowClassificationRecord['treatment'] | undefined,
+): treatment is 'INVESTING' | 'FINANCING' | 'NONCASH_DISCLOSURE' {
+  return treatment === 'INVESTING' || treatment === 'FINANCING' || treatment === 'NONCASH_DISCLOSURE';
+}
+
+function classificationMatchesAccount(
+  classification: CashFlowClassificationRecord,
+  account: FinancialAccount | ChartAccount,
+): boolean {
+  return classification.accountId === account.id
+    && classification.accountType === account.accountType
+    && classification.detailType === account.detailType;
 }
 
 function detectCashFlowActivityHierarchyIssues(
@@ -1874,13 +2561,14 @@ function buildWarnings(
   beginningDate: string,
   beginningDifference: bigint,
   endingDifference: bigint,
-  hierarchyIssues: readonly (WorkingCapitalHierarchyIssue | CashFlowActivityHierarchyIssue)[],
+  hierarchyIssues: readonly (WorkingCapitalHierarchyIssue | CashFlowActivityHierarchyIssue | NoncashDisclosureHierarchyIssue)[],
   unclassifiedCashActivityMinor: bigint,
   unclassifiedReferences: readonly string[],
   excludedCashActivityMinor: bigint,
   excludedReferences: readonly string[],
   differenceMinor: bigint,
   transferWarningReferences: readonly string[],
+  noncashReferences: readonly string[],
 ): readonly CashFlowWarning[] {
   const warnings: CashFlowWarning[] = [];
   const beginningByAccount = new Map(beginningBalances.map(balance => [balance.account.id, balance]));
@@ -1940,6 +2628,15 @@ function buildWarnings(
       references: unclassifiedReferences,
     });
   }
+  const openingReferences = unclassifiedReferences.filter(reference => reference.startsWith('opening:'));
+  if (openingReferences.length > 0) {
+    warnings.push({
+      warningId: cashFlowWarningId('OPENING_CASH_BALANCE_WITHIN_PERIOD', openingReferences, query),
+      code: 'OPENING_CASH_BALANCE_WITHIN_PERIOD',
+      message: 'A cash opening balance was introduced inside the selected period without supported ledger activity.',
+      references: openingReferences,
+    });
+  }
   if (excludedCashActivityMinor !== 0n) {
     warnings.push({
       warningId: cashFlowWarningId('EXCLUDED_MATERIAL_CASH_ACTIVITY', excludedReferences, query),
@@ -1954,6 +2651,15 @@ function buildWarnings(
       code: 'RESTRICTED_CASH_PRESENT',
       message: 'Restricted cash is reported separately from cash and cash equivalents.',
       references: [...restrictedAccountIds].sort(),
+    });
+  }
+  if (noncashReferences.length > 0) {
+    const references = [...new Set(noncashReferences)].sort();
+    warnings.push({
+      warningId: cashFlowWarningId('NONCASH_ACTIVITY_IDENTIFIED', references, query),
+      code: 'NONCASH_ACTIVITY_IDENTIFIED',
+      message: 'Identifiable recorded noncash Investing or Financing activity is disclosed separately from cash flows.',
+      references,
     });
   }
   if (differenceMinor !== 0n) {

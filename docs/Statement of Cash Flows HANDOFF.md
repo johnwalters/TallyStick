@@ -2,30 +2,30 @@
 
 ## Current feature state
 
-`CF-SLICE-12-TRANSFERS-RESTRICTED-CASH` is independently `APPROVED` as of August 26, 2026. CF5-005 and CF5-006 plus the proven transfer cases in CF5-010 are complete. Confirmed cash-to-cash transfers are eliminated from Operating, Investing, Financing, and Net Change; one-cash transfers follow the explicit counter-account treatment; unrestricted-to-restricted transfers are presented without duplication; and malformed, partial, stale, orphaned, mismatched, and ambiguous structures retain deterministic diagnostics and reconciliation provenance. Difference detail includes only unresolved activity that actually participates in the Balance Sheet cash boundary, while nonparticipating extra claimants remain explicit diagnostics. The executable fixture/oracle gate validates 20 static scenarios and runs 36 production acceptance tests.
+`CF-SLICE-13-OPENING-NONCASH` and the Phase 5 `CF5-GATE` are independently `APPROVED` and complete as of August 27, 2026. Phase 5 has no remaining open slice item. Supported recorded noncash Investing/Financing events are disclosed once outside cash totals; in-period cash openings remain outside the cash-flow sections with exact signed unclassified and Difference provenance; before/after-period openings follow the defined cash-boundary rules; malformed or ambiguous structures remain diagnosable; and supplemental disclosures use deterministic hierarchy, review grouping, warning, zero-row, and exact-detail behavior. Existing A6 and A8–A12 investing, financing, transfer, and restricted-cash behavior remains exact, with no duplicated cash or inferred accounting treatment. The executable canonical fixture/oracle gate validates 20 static scenarios and runs 52 production acceptance scenarios, including A11/A13 and the full A6/A8–A13 Phase 5 set.
 
-Slice 12 does not close noncash acquisition disclosures, opening events, later completeness/status work, UI, or exporters. Phase 5 remains open; the Phase 5 gate remains open.
+The overall Statement of Cash Flows feature is not finished: Phase 6 and later slices are intentionally deferred. No implementation slice is authorized by this handoff. The next eligible but not authorized unit is `CF-SLICE-14-RECONCILIATION-WARNINGS`; do not start it or mark later phases complete.
 
 ## Immediate resume point
 
-Next eligible but not authorized: `CF-SLICE-13-OPENING-NONCASH` / CF5-007–CF5-008 plus remaining applicable CF5-009/CF5-010 cases and CF5-GATE. Do not start or authorize Slice 13, implement later Phase 5 work, or close the Phase 5 gate without explicit authorization and verification.
+Next eligible but not authorized: `CF-SLICE-14-RECONCILIATION-WARNINGS`. Phase 5 is complete; do not start Slice 14 or authorize later Phase 6+ work without a new explicit implementation directive.
 
 ## Checkout context
 
 - Path: `/Volumes/External SSD 1TB/Projects/TallyStick`
 - Branch: `cash-flow`
-- Implementation baseline HEAD before this Slice 12 closeout: `f6de3811e98a5bc129af2bd9f8d885e6b41cd539`
-- Local commit evidence: this closeout is finalized as one focused local commit containing only the six approved Slice 12 implementation/fixture files and these two progress documents; the final commit SHA is reported with the task. No push is performed.
+- Implementation baseline HEAD before this Slice 13 closeout: `821af0a08a1b6303d480a621fcbb244802c62a6a`
+- Local commit evidence: this closeout is finalized as one focused local commit containing only the six approved Slice 13 implementation/oracle files and these two progress documents; the final commit SHA is recorded after commit and reported with the task. No push is performed.
 - No alternate checkout or worktree is in use.
 
 ## Verification evidence
 
-- Independent review disposition: `APPROVED` for Slice 12; Phase 5 remains open.
-- Fixture/oracle gate: 20 static Cash Flow scenarios plus 36 production acceptance tests executed against the canonical oracle; production service coverage includes the approved Slice 12 transfer and restricted-cash cases.
-- `npm run test:ci`: 274/274 browser/unit tests passed, including dependency boundaries and both fixture oracles (Balance Sheet: 2 companies/19 scenarios; Cash Flow: 2 companies/20 scenarios).
-- `npm run build`: passed with a 1.39 MB initial bundle and no warnings.
-- Application and specification TypeScript checks: passed; scoped diff checks passed.
-- Desktop-host/Electron suites were not run; Slice 12 changes do not cross native, persistence, or desktop boundaries.
+- Independent review disposition: `APPROVED` for Slice 13 and the Phase 5 `CF5-GATE`; Phase 5 is complete.
+- Fixture/oracle gate: 20 static Cash Flow scenarios plus 52 production acceptance tests executed against the canonical oracle, including A11/A13 and the full A6/A8–A13 Phase 5 set.
+- `npm run test:ci`: 290/290 browser/unit tests passed, including dependency boundaries and both fixture oracles (Balance Sheet: 2 companies/19 scenarios; Cash Flow: 2 companies/20 scenarios).
+- `npm run build`: passed with a 1.41 MB initial bundle and no warnings.
+- Application and specification TypeScript checks, dependency boundary checks, scoped diff checks, and byte-identical oracle-copy checks: passed.
+- Desktop-host/Electron smoke was not applicable; Slice 13 changes do not cross native or persistence boundaries.
 
 ## Historical context
 

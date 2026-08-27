@@ -179,7 +179,10 @@ for (const scenario of oracle.scenarios) {
   if (scenario.expectedStatus === 'COMPLETE') {
     assert.equal(totals.differenceMinor, 0, `${scenario.id} Complete status requires zero Difference.`);
     assert.equal(totals.unclassifiedCashActivityMinor, 0, `${scenario.id} Complete status requires zero unclassified activity.`);
-    assert.deepEqual(scenario.expectedWarnings, [], `${scenario.id} Complete fixture cannot retain a warning.`);
+    assert.ok(
+      scenario.expectedWarnings.every(warning => warning === 'NONCASH_ACTIVITY_IDENTIFIED'),
+      `${scenario.id} Complete fixture may retain only the supplemental noncash disclosure warning.`,
+    );
   } else {
     assert.equal(scenario.expectedStatus, 'REVIEW_REQUIRED');
     assert.ok(scenario.expectedWarnings.length > 0, `${scenario.id} Review-required status needs a warning.`);
@@ -192,7 +195,13 @@ const scenario = id => oracle.scenarios.find(candidate => candidate.id === id);
 assert.equal(scenario('A3').checkpoints[0].netOperatingMinor, 0, 'The credit-card charge must be offset before payment.');
 assert.equal(scenario('A4').checkpoints[0].operatingAssetAdjustmentsMinor, -20000, 'Uncollected A/R must reduce Operating cash flow.');
 assert.deepEqual(scenario('A12').expectedWarnings, ['RESTRICTED_CASH_PRESENT', 'UNCLASSIFIED_CASH_ACTIVITY', 'CASH_RECONCILIATION_DIFFERENCE']);
+assert.equal(scenario('A11').expectedRows['NONCASH_DISCLOSURE:asset-financed-by-debt'], 50_000);
+assert.deepEqual(scenario('A11').detailGroups['NONCASH_DISCLOSURE:asset-financed-by-debt'], [{ sourceId: 'a11-noncash-acquisition', amountMinor: 50_000 }]);
+assert.deepEqual(scenario('A11').expectedWarnings, ['NONCASH_ACTIVITY_IDENTIFIED']);
 assert.equal(scenario('A13').expectedTotals.differenceMinor, -25000);
+assert.deepEqual(scenario('A13').expectedWarnings, ['OPENING_CASH_BALANCE_WITHIN_PERIOD', 'UNCLASSIFIED_CASH_ACTIVITY', 'CASH_RECONCILIATION_DIFFERENCE']);
+assert.deepEqual(scenario('A13').detailGroups.UNCLASSIFIED_CASH_ACTIVITY, [{ sourceId: 'a13-opening', amountMinor: 25_000 }]);
+assert.deepEqual(scenario('A13').detailGroups.DIFFERENCE, [{ sourceId: 'a13-opening:reconciliation', amountMinor: -25_000 }]);
 assert.equal(scenario('A14').expectedTotals.unclassifiedCashActivityMinor, -3000);
 
 const fiscalCompany = companies.profiles.find(profile => profile.companyId === scenario('A16').companyId);

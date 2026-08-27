@@ -335,7 +335,7 @@
         "DIFFERENCE": []
       },
       "expectedStatus": "COMPLETE",
-      "expectedWarnings": []
+      "expectedWarnings": ["NONCASH_ACTIVITY_IDENTIFIED"]
     },
     {
       "id": "A12",
