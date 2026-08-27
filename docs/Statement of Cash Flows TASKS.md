@@ -16,18 +16,18 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Phase 4 cash balances and indirect Operating activities complete; Slice 11 Investing and Financing is independently approved; Phase 5 remains in progress |
+| Overall status | Phase 4 cash balances and indirect Operating activities complete; Slices 11 and 12 are independently approved; Phase 5 remains in progress |
 | Current phase | Phase 5 — Investing, Financing, transfers, and disclosures |
-| Next task | Next eligible but not authorized: `CF-SLICE-12-TRANSFERS-RESTRICTED-CASH` / CF5-005–CF5-006 plus its applicable CF5-010 cases; do not start or authorize Slice 12 or close the Phase 5 gate |
+| Next task | Next eligible but not authorized: `CF-SLICE-13-OPENING-NONCASH` / CF5-007–CF5-008 plus remaining applicable CF5-009/CF5-010 cases and CF5-GATE; do not start or authorize Slice 13 or close the Phase 5 gate |
 | Current branch | `cash-flow` |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Cash Flow test | Slice 11 fixture/oracle gate: 20 static scenarios plus 31 production acceptance tests; `npm run test:ci`: 269/269 browser/unit tests plus dependency boundaries and both fixture oracles (Balance Sheet 2 companies/19 scenarios; Cash Flow 2 companies/20 scenarios); `npm run build` (1.38 MB, no warnings); app/spec TypeScript checks and scoped diff checks passed. |
-| Last tracker update | August 26, 2026 — `CF-SLICE-11-INVESTING-FINANCING` independently approved; Slice 11 complete; Phase 5 remains open |
-| Known blocker | None for Slice 11. Slice 12 and the Phase 5 gate remain pending and are not authorized. |
+| Last verified Cash Flow test | Slice 12 focused suite: 36/36; canonical fixture/oracle gate: 20 static scenarios plus 36 production acceptance tests; `npm run test:ci`: 274/274 browser/unit tests plus dependency boundaries and both fixture oracles (Balance Sheet 2 companies/19 scenarios; Cash Flow 2 companies/20 scenarios); `npm run build` (1.39 MB, no warnings); app/spec TypeScript and scoped diff checks passed. Desktop/native smoke was not needed because Slice 12 crossed no native or persistence boundary. |
+| Last tracker update | August 26, 2026 — `CF-SLICE-12-TRANSFERS-RESTRICTED-CASH` independently approved; Slice 12 complete; Phase 5 remains open |
+| Known blocker | None for Slice 12. Slice 13, remaining applicable Phase 5 cases, and the Phase 5 gate remain pending and are not authorized. |
 
 ## Tracker use
 
@@ -71,7 +71,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | 2 | Schema 7 migration, persistence, revision, and recovery compatibility | Complete |
 | 3 | Classification services, chart exchange, and review UI | Complete |
 | 4 | Cash balances and indirect Operating activities | Complete — Slice 10 independently approved and CF4-GATE closed |
-| 5 | Investing, Financing, transfers, restricted cash, and disclosures | In progress — Slice 11 complete; Slice 12 and the Phase 5 gate remain pending |
+| 5 | Investing, Financing, transfers, restricted cash, and disclosures | In progress — Slices 11 and 12 complete; Slice 13 and the Phase 5 gate remain pending |
 | 6 | Reconciliation, warnings, detail, revision, and cache behavior | Not started |
 | 7 | Statement of Cash Flows workspace | Not started |
 | 8 | CSV, XLSX, print preview, and PDF parity | Not started |
@@ -181,12 +181,12 @@ Execution is divided into token-conscious, independently testable units in the [
 - [x] **CF5-002** Calculate Financing rows from actual cash-side transactions and supported transfers.
 - [x] **CF5-003** Allocate split debt payments among principal, interest, and other posted accounts without inference from descriptions.
 - [x] **CF5-004** Present owner contributions and distributions in Financing without changing Net Profit.
-- [ ] **CF5-005** Eliminate confirmed cash-to-cash transfers from all activity sections and Net Change.
-- [ ] **CF5-006** Handle transfers between unrestricted and restricted cash without double counting and expose the required presentation/warning.
+- [x] **CF5-005** Eliminate confirmed cash-to-cash transfers from all activity sections and Net Change.
+- [x] **CF5-006** Handle transfers between unrestricted and restricted cash without double counting and expose the required presentation/warning.
 - [ ] **CF5-007** Identify supported noncash investing/financing events, exclude them from cash totals, and disclose them separately.
 - [ ] **CF5-008** Handle in-period opening-balance events per the explicit opening-balance source/treatment rules.
 - [x] **CF5-009** Build deterministic Investing and Financing hierarchies, subtotals, signs, zero handling, and exact detail for Slice 11; supplemental-disclosure hierarchy remains pending in later slices.
-- [x] **CF5-010** Test the Slice 11 fixed-asset, debt, mixed-payment, owner-equity, and supported cash-side transfer cases; noncash acquisitions, restricted cash, and opening events remain pending.
+- [x] **CF5-010** Test the Slice 11 fixed-asset, debt, mixed-payment, owner-equity, and supported cash-side transfer cases plus the Slice 12 cash-to-cash and unrestricted/restricted transfer cases; noncash acquisitions and opening events remain pending.
 - [ ] **CF5-GATE** Exit gate: exact A6 and A8–A13 expectations pass with no duplicated cash or inferred accounting treatment.
 
 ## Phase 6 — Reconciliation, warnings, detail, revision, and cache
@@ -270,6 +270,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | 2026-08-26 | `CF-SLICE-08-QUERY-CASH-BALANCES` | Independent review approved the CF4-004 correction: explicit CASH/CASH_EQUIVALENT/RESTRICTED_CASH roles contribute even when Review required, and cash-role/archived-participation warnings require nonzero projected balances or applicable activity. Regression coverage verifies review-required unrestricted/restricted cash parity with Balance Sheet and suppresses warnings for zero-balance unresolved/archived accounts. Focused report service 7/7; `npm run test:ci` passed 245 browser/unit tests plus dependency boundaries and both fixture oracles (Balance Sheet 2 companies/19 scenarios; Cash Flow 2 companies/20 scenarios); `npm run build` produced a 1.35 MB initial bundle with no warnings; app/spec type checks, `npm run test:desktop-host` (13/13), and `git diff --check` passed. | Complete |
 | 2026-08-26 | `CF-SLICE-09-NET-PROFIT-NONCASH` | Independently approved. Reuses exact-period unadjusted P/L Net Profit from the same immutable revision and reverses each classified noncash P/L contribution once with deterministic signed detail, stable identities, state exclusion, and no book mutation. The P1 correction keeps all noncash contribution/provenance detail when zero-valued adjustment rows are hidden; `includeZeroRows` controls visibility only. Focused report service 11/11; `npm run test:ci` passed 249 browser/unit tests plus dependency boundaries and both fixture oracles (Balance Sheet 2 companies/19 scenarios; Cash Flow 2 companies/20 scenarios); `npm run build` produced a 1.36 MB initial bundle with no warnings; app/spec type checks passed. | Complete |
 | August 26, 2026 | `CF-SLICE-11-INVESTING-FINANCING` / CF5-001–CF5-004, in-scope CF5-009–CF5-010 | Independently approved. Investing and Financing use actual cash-side transactions and supported transfer sides; split debt payments allocate by stable posting-split classifications; owner contributions/draws do not alter Net Profit; deterministic hierarchy, subtotals, signed detail, zero-filter invariance, and invalid-classification/hierarchy diagnostics are covered. Only Slice 11 cases are closed; cash-to-cash elimination, restricted cash, noncash disclosures, and opening events remain pending. Focused production-service suite 31/31; fixture/oracle gate 20 static plus 31 production acceptance tests; `npm run test:ci` passed 269/269 plus dependency boundaries and both fixture oracles; `npm run build` produced a 1.38 MB initial bundle with no warnings; app/spec TypeScript and scoped diff checks passed. Independent review: APPROVED. | Complete |
+| August 26, 2026 | `CF-SLICE-12-TRANSFERS-RESTRICTED-CASH` / CF5-005–CF5-006 and proven CF5-010 transfer cases | Independently approved. Confirmed cash-to-cash transfers are eliminated from all activity sections and Net Change; one-cash transfers follow the explicit noncash treatment; unrestricted-to-restricted transfers are presented without double counting; malformed, partial, stale, orphaned, mismatched, and ambiguous structures retain deterministic diagnostics and reconciliation provenance. Focused suite 36/36; canonical fixture/oracle gate 20 static plus 36 production acceptance tests; `npm run test:ci` passed 274/274 plus dependency boundaries and both fixture oracles; `npm run build` produced a 1.39 MB initial bundle with no warnings; app/spec TypeScript and scoped diff checks passed. Desktop/native smoke was not needed because no native or persistence boundary changed. Independent review: APPROVED. Slice 13 opening/noncash cases and the Phase 5 gate remain open. | Complete |
 | 2026-08-25 | Slice 1 pre-change baseline | `test:ci`: 181 passed; production build passed; `test:desktop-host`: 8 passed including validated restore/safety backup; isolated `desktop:smoke` passed | Complete |
 | 2026-08-25 | `CF-SLICE-01-BASELINE-ORACLE` | Independent validator passed for 2 neutral companies, A1–A20, schema-6 counts, exact integer totals/source Balance Sheets/cash composition/detail/warnings, 2025–2026 fiscal coverage, migration targets, and privacy terms | Complete |
 | 2026-08-25 | Slice 1 post-change verification | `test:ci`: Cash Flow oracle plus 181 browser/unit tests passed; production build passed; `test:desktop-host`: 8 passed; isolated `desktop:smoke` passed | Complete |

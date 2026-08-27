@@ -360,7 +360,7 @@
         "DIFFERENCE": [{ "sourceId": "a12-restricted-transfer:reconciliation", "amountMinor": 20000 }]
       },
       "expectedStatus": "REVIEW_REQUIRED",
-      "expectedWarnings": ["RESTRICTED_CASH_PRESENT", "UNCLASSIFIED_CASH_ACTIVITY", "CASH_FLOW_DIFFERENCE_NONZERO"]
+      "expectedWarnings": ["RESTRICTED_CASH_PRESENT", "UNCLASSIFIED_CASH_ACTIVITY", "CASH_RECONCILIATION_DIFFERENCE"]
     },
     {
       "id": "A13",
@@ -383,7 +383,7 @@
         "DIFFERENCE": [{ "sourceId": "a13-opening:reconciliation", "amountMinor": -25000 }]
       },
       "expectedStatus": "REVIEW_REQUIRED",
-      "expectedWarnings": ["OPENING_CASH_BALANCE_WITHIN_PERIOD", "UNCLASSIFIED_CASH_ACTIVITY", "CASH_FLOW_DIFFERENCE_NONZERO"]
+      "expectedWarnings": ["OPENING_CASH_BALANCE_WITHIN_PERIOD", "UNCLASSIFIED_CASH_ACTIVITY", "CASH_RECONCILIATION_DIFFERENCE"]
     },
     {
       "id": "A14",
@@ -407,7 +407,7 @@
         "DIFFERENCE": [{ "sourceId": "a14-unclassified:reconciliation", "amountMinor": 3000 }]
       },
       "expectedStatus": "REVIEW_REQUIRED",
-      "expectedWarnings": ["CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED", "UNCLASSIFIED_CASH_ACTIVITY", "CASH_FLOW_DIFFERENCE_NONZERO"]
+      "expectedWarnings": ["CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED", "UNCLASSIFIED_CASH_ACTIVITY", "CASH_RECONCILIATION_DIFFERENCE"]
     },
     {
       "id": "A15",

@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 const siteRoot = fileURLToPath(new URL('../', import.meta.url));
 const ngCli = path.join(siteRoot, 'node_modules/@angular/cli/bin/ng.js');
 const acceptanceInclude = process.env.CASH_FLOW_ACCEPTANCE_INCLUDE ?? '**/cash-flow-report.service.spec.ts';
-const expectedTestCount = Number(process.env.CASH_FLOW_EXPECTED_TEST_COUNT ?? 31);
+const expectedTestCount = Number(process.env.CASH_FLOW_EXPECTED_TEST_COUNT ?? 36);
 const args = [
   ngCli,
   'test',

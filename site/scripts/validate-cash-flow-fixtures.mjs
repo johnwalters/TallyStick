@@ -191,7 +191,7 @@ assert.deepEqual([...representedYears].sort(), ['2025', '2026'], 'The oracle mus
 const scenario = id => oracle.scenarios.find(candidate => candidate.id === id);
 assert.equal(scenario('A3').checkpoints[0].netOperatingMinor, 0, 'The credit-card charge must be offset before payment.');
 assert.equal(scenario('A4').checkpoints[0].operatingAssetAdjustmentsMinor, -20000, 'Uncollected A/R must reduce Operating cash flow.');
-assert.deepEqual(scenario('A12').expectedWarnings, ['RESTRICTED_CASH_PRESENT', 'UNCLASSIFIED_CASH_ACTIVITY', 'CASH_FLOW_DIFFERENCE_NONZERO']);
+assert.deepEqual(scenario('A12').expectedWarnings, ['RESTRICTED_CASH_PRESENT', 'UNCLASSIFIED_CASH_ACTIVITY', 'CASH_RECONCILIATION_DIFFERENCE']);
 assert.equal(scenario('A13').expectedTotals.differenceMinor, -25000);
 assert.equal(scenario('A14').expectedTotals.unclassifiedCashActivityMinor, -3000);
 

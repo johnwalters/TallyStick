@@ -79,10 +79,9 @@ export class CashFlowReportService {
     const endingCashMinor = sumBalances(endingBalances, cashAccountIds);
     const restrictedCashBeginningMinor = sumBalances(beginningBalances, restrictedAccountIds);
     const restrictedCashEndingMinor = sumBalances(endingBalances, restrictedAccountIds);
-    const measuredNetChangeMinor = endingCashMinor - beginningCashMinor;
     let cashSide: CashSideActivity;
     try {
-      cashSide = buildCashSideActivity(query, snapshot, cashAccountIds, classifications);
+      cashSide = buildCashSideActivity(query, snapshot, cashAccountIds, restrictedAccountIds, classifications);
     } catch (error) {
       throw new CashFlowContractError({
         code: 'CASH_FLOW_REPORT_GENERATION_FAILED',
@@ -100,12 +99,18 @@ export class CashFlowReportService {
       activityFormulaContribution(netChangeDetailKey, investing.amountMinor, cashFlowSyntheticRowId('NET_INVESTING', query), 'Net investing activities'),
       activityFormulaContribution(netChangeDetailKey, financing.amountMinor, cashFlowSyntheticRowId('NET_FINANCING', query), 'Net financing activities'),
     ];
+    // Net Change is always derived from the three statement sections. Any
+    // included cash movement that could not be classified remains outside
+    // those sections and is exposed through Difference instead of being
+    // silently absorbed into the measured cash-boundary movement.
+    const calculatedEndingCashMinor = beginningCashMinor + netChangeMinor;
+    const differenceMinor = calculatedEndingCashMinor - endingCashMinor;
     const warnings = buildWarnings(snapshot.accounts, financialClassifications, cashAccountIds, restrictedAccountIds, query,
       beginningBalances, endingBalances,
       restrictedCashBeginningMinor, restrictedCashEndingMinor, beginningDate,
       beginningProjection.differenceMinor, endingProjection.differenceMinor,
       [...operating.hierarchyIssues, ...cashSide.hierarchyIssues], cashSide.unclassifiedCashActivityMinor, cashSide.unclassifiedReferences,
-      cashSide.excludedCashActivityMinor, cashSide.excludedReferences);
+      cashSide.excludedCashActivityMinor, cashSide.excludedReferences, differenceMinor, cashSide.transferWarningReferences);
     const netChangeRow: CashFlowRow = {
       rowId: netChangeRowId,
       rowType: 'TOTAL', section: 'CASH_RECONCILIATION', label: 'Net increase (decrease) in cash', depth: 0,
@@ -120,7 +125,49 @@ export class CashFlowReportService {
     };
     assertDetailAmount(netChangeRow, netChangeContributions);
     if (cashSide.unclassifiedDetailKey) detailIndex[cashSide.unclassifiedDetailKey] = cashSide.unclassifiedContributions;
-    const rows = [...operating.rows, ...investing.rows, ...financing.rows, netChangeRow, ...cashBalanceRows(query, beginningCashMinor, endingCashMinor)];
+    if (cashSide.transferDiagnosticContributions.length > 0) {
+      detailIndex[transferDiagnosticDetailKey(query)] = cashSide.transferDiagnosticContributions;
+    }
+    const restrictedDetailKey = restrictedCashDetailKey(query);
+    const restrictedContributions = restrictedCashBalanceContributions(query, endingBalances, restrictedAccountIds, restrictedDetailKey);
+    detailIndex[restrictedDetailKey] = restrictedContributions;
+    const beginningDetailKey = cashFlowDetailKey(cashFlowSyntheticRowId('BEGINNING_CASH', query));
+    const endingDetailKey = cashFlowDetailKey(cashFlowSyntheticRowId('ENDING_CASH', query));
+    detailIndex[beginningDetailKey] = cashBoundaryContributions(query, beginningBalances, cashAccountIds, beginningDetailKey, 'OPENING');
+    detailIndex[endingDetailKey] = cashBoundaryContributions(query, endingBalances, cashAccountIds, endingDetailKey, 'ENDING');
+    const differenceDetailKey = cashFlowDetailKey(cashFlowSyntheticRowId('DIFFERENCE', query));
+    const cashBoundaryTransactionIds = new Set(cashSide.cashBoundaryTransactionIds);
+    const differenceContributions: CashFlowContribution[] = [
+      ...cashSide.unclassifiedContributions,
+      ...cashSide.excludedContributions,
+    ].filter(contribution => Boolean(contribution.transactionId && cashBoundaryTransactionIds.has(contribution.transactionId)))
+      .map(contribution => ({
+      ...contribution,
+      contributionId: `${contribution.contributionId}:reconciliation`,
+      detailKey: differenceDetailKey,
+      contributionType: 'FORMULA' as const,
+      contributionMinor: -contribution.contributionMinor,
+      description: contribution.contributionType === 'UNCLASSIFIED'
+        ? 'Unclassified cash activity reconciliation difference'
+        : 'Excluded cash activity reconciliation difference',
+      formula: 'Calculated Ending Cash - Ending Cash',
+      }));
+    const differenceDetailTotal = differenceContributions.reduce((sum, contribution) => sum + contribution.contributionMinor, 0n);
+    if (differenceDetailTotal !== differenceMinor) {
+      differenceContributions.push({
+        contributionId: `difference:residual:${query.startDate}:${query.endDate}`,
+        detailKey: differenceDetailKey,
+        contributionType: 'FORMULA',
+        contributionMinor: differenceMinor - differenceDetailTotal,
+        description: 'Residual calculated ending cash difference',
+        formula: 'Calculated Ending Cash - Ending Cash',
+      });
+    }
+    detailIndex[differenceDetailKey] = differenceContributions;
+    const rows = [...operating.rows, ...investing.rows, ...financing.rows, netChangeRow,
+      ...cashBalanceRows(query, beginningCashMinor, endingCashMinor, restrictedCashEndingMinor, restrictedDetailKey, beginningDetailKey, endingDetailKey,
+        cashSide.unclassifiedCashActivityMinor, cashSide.unclassifiedDetailKey, differenceMinor, differenceDetailKey)];
+    rows.filter(row => row.amountMinor !== undefined).forEach(row => assertDetailAmount(row, row.detailKey ? detailIndex[row.detailKey] : undefined));
     const profile = snapshot.companyProfile ?? {
       companyId: snapshot.company.id,
       legalName: snapshot.company.name,
@@ -150,13 +197,11 @@ export class CashFlowReportService {
       netOperatingMinor: operating.netOperatingMinor,
       netInvestingMinor: investing.amountMinor,
       netFinancingMinor: financing.amountMinor,
-      // Keep the observed cash-boundary movement as the reconciliation input;
-      // the section-derived net change is also exposed as a deterministic row.
-      netChangeInCashMinor: measuredNetChangeMinor,
+      netChangeInCashMinor: netChangeMinor,
       beginningCashMinor,
-      calculatedEndingCashMinor: endingCashMinor,
+      calculatedEndingCashMinor,
       endingCashMinor,
-      differenceMinor: 0n,
+      differenceMinor,
       restrictedCashBeginningMinor,
       restrictedCashEndingMinor,
       unclassifiedCashActivityMinor: cashSide.unclassifiedCashActivityMinor,
@@ -209,6 +254,12 @@ interface CashSideActivity {
   readonly unclassifiedReferences: readonly string[];
   readonly unclassifiedDetailKey?: CashFlowContribution['detailKey'];
   readonly unclassifiedContributions: readonly CashFlowContribution[];
+  /** Transaction IDs that the Balance Sheet cash boundary actually includes. */
+  readonly cashBoundaryTransactionIds: readonly string[];
+  readonly excludedContributions: readonly CashFlowContribution[];
+  readonly transferDiagnosticContributions: readonly CashFlowContribution[];
+  readonly transferDiagnosticReferences: readonly string[];
+  readonly transferWarningReferences: readonly string[];
   readonly excludedCashActivityMinor: bigint;
   readonly excludedReferences: readonly string[];
   readonly hierarchyIssues: readonly CashFlowActivityHierarchyIssue[];
@@ -467,6 +518,7 @@ function buildCashSideActivity(
   query: CashFlowReport['query'],
   snapshot: BalanceSheetRepositorySnapshot,
   cashAccountIds: ReadonlySet<string>,
+  restrictedAccountIds: ReadonlySet<string>,
   classifications: readonly CashFlowClassificationRecord[],
 ): CashSideActivity {
   const chartById = new Map(snapshot.chartAccounts.map(account => [account.id, account]));
@@ -482,17 +534,36 @@ function buildCashSideActivity(
     ['FINANCING', new Map()],
   ]);
   const unclassifiedContributions: CashFlowContribution[] = [];
+  const transferDiagnosticContributions: CashFlowContribution[] = [];
   const unclassifiedReferences = new Set<string>();
+  const transferDiagnosticReferences = new Set<string>();
+  const transferWarningReferences = new Set<string>();
   const excludedReferences = new Set<string>();
+  const excludedContributions: CashFlowContribution[] = [];
+  const unclassifiedContributionKeys = new Set<string>();
+  const processedTransferCashTransactionIds = new Set<string>();
   let unclassifiedCashActivityMinor = 0n;
   let excludedCashActivityMinor = 0n;
   const periodTransactions = snapshot.transactions
     .filter(transaction => transaction.postingDate >= query.startDate && transaction.postingDate <= query.endDate)
-    .filter(transaction => transaction.state === 'POSTED' || transaction.state === 'MATCHED_TRANSFER')
+    .filter(transaction => transaction.state === 'POSTED')
     .slice().sort((left, right) => left.postingDate.localeCompare(right.postingDate) || left.id.localeCompare(right.id));
   const transactionsById = new Map(snapshot.transactions.map(transaction => [transaction.id, transaction]));
   const confirmedTransfers = new Map(snapshot.transfers.map(transfer => [transfer.id, transfer]));
-  const processedTransfers = new Set<string>();
+  // Balance Sheet cash boundaries include every Posted transaction and only
+  // the two endpoints of a confirmed matched transfer.  Keep this identity
+  // set separate from the unresolved-activity list: malformed/extra
+  // claimants can be diagnosable without contributing to the cash boundary
+  // reconciliation Difference.
+  const cashBoundaryTransactionIds = new Set(snapshot.transactions
+    .filter(transaction => transaction.state === 'POSTED' || (
+      transaction.state === 'MATCHED_TRANSFER'
+      && Boolean(transaction.transferMatchId)
+      && confirmedTransfers.has(transaction.transferMatchId!)
+      && [confirmedTransfers.get(transaction.transferMatchId!)!.leftTransactionId,
+        confirmedTransfers.get(transaction.transferMatchId!)!.rightTransactionId].includes(transaction.id)
+    ))
+    .map(transaction => transaction.id));
 
   const addUnclassified = (
     transaction: Transaction,
@@ -500,13 +571,17 @@ function buildCashSideActivity(
     amountMinor: bigint,
     chart?: ChartAccount,
     transfer?: TransferMatch,
+    counterparty?: Transaction,
+    sourceKeyOverride?: string,
   ): void => {
     if (amountMinor === 0n) return;
-    const sourceKey = transfer
+    const sourceKey = sourceKeyOverride ?? (transfer
       ? `transfer:${transfer.id}`
-      : `transaction:${transaction.id}:${split?.id ?? 'activity'}`;
-    if (unclassifiedReferences.has(sourceKey)) return;
-    unclassifiedReferences.add(sourceKey);
+      : `transaction:${transaction.id}:${split?.id ?? 'activity'}`);
+    if (unclassifiedContributionKeys.has(sourceKey)) return;
+    unclassifiedContributionKeys.add(sourceKey);
+    if (transfer) unclassifiedReferences.add(`transfer:${transfer.id}`);
+    else unclassifiedReferences.add(sourceKey);
     unclassifiedCashActivityMinor += amountMinor;
     unclassifiedContributions.push({
       contributionId: `unclassified:${sourceKey}`,
@@ -519,12 +594,44 @@ function buildCashSideActivity(
       accountName: sourceById.get(transaction.accountId)?.name,
       ...(chart ? { chartAccountId: chart.id, chartAccountPath: chartAccountPath(chart.id, chartById) } : {}),
       transactionId: transaction.id,
+      counterpartyTransactionId: counterparty?.id,
       splitId: split?.id,
       transferId: transfer?.id,
       sourceBatchId: transaction.sourceBatchId,
       payee: transaction.payee,
       description: transaction.description,
       memo: split?.memo ?? transaction.memo,
+    });
+  };
+
+  const addTransferDiagnostic = (
+    transfer: TransferMatch,
+    left: Transaction | undefined,
+    right: Transaction | undefined,
+    amountMinor: bigint,
+    description: string,
+  ): void => {
+    if (transferDiagnosticReferences.has(transfer.id)) return;
+    transferDiagnosticReferences.add(transfer.id);
+    const endpoints = [left, right].filter((candidate): candidate is Transaction => Boolean(candidate))
+      .slice().sort((a, b) => a.id.localeCompare(b.id));
+    const endpoint = endpoints.find(candidate => cashAccountIds.has(candidate.accountId)) ?? endpoints[0];
+    transferDiagnosticContributions.push({
+      contributionId: `transfer-diagnostic:${transfer.id}`,
+      detailKey: transferDiagnosticDetailKey(query),
+      contributionType: 'TRANSFER',
+      contributionMinor: amountMinor,
+      businessDate: endpoint?.postingDate,
+      accountRole: endpoint ? 'FINANCIAL_SOURCE' : undefined,
+      accountId: endpoint?.accountId,
+      accountName: endpoint ? sourceById.get(endpoint.accountId)?.name : undefined,
+      transactionId: endpoints[0]?.id,
+      counterpartyTransactionId: endpoints[1]?.id,
+      transferId: transfer.id,
+      sourceBatchId: endpoint?.sourceBatchId,
+      payee: endpoint?.payee,
+      description,
+      memo: endpoint?.memo,
     });
   };
 
@@ -567,54 +674,153 @@ function buildCashSideActivity(
     if (excludedReferences.has(reference)) return;
     excludedReferences.add(reference);
     excludedCashActivityMinor += split.amount.minorUnits;
+    excludedContributions.push({
+      contributionId: `excluded:${reference}`,
+      detailKey: cashFlowDetailKey(cashFlowSyntheticRowId('DIFFERENCE', query)),
+      contributionType: 'FORMULA',
+      contributionMinor: split.amount.minorUnits,
+      businessDate: transaction.postingDate,
+      accountRole: 'FINANCIAL_SOURCE',
+      accountId: transaction.accountId,
+      accountName: sourceById.get(transaction.accountId)?.name,
+      chartAccountId: split.chartAccountId,
+      chartAccountPath: chartAccountPath(split.chartAccountId, chartById),
+      transactionId: transaction.id,
+      splitId: split.id,
+      sourceBatchId: transaction.sourceBatchId,
+      payee: transaction.payee,
+      description: transaction.description,
+      memo: split.memo ?? transaction.memo,
+    });
   };
+
+  const isInPeriod = (transaction: Transaction | undefined): boolean => Boolean(transaction
+    && transaction.postingDate >= query.startDate && transaction.postingDate <= query.endDate);
+
+  const transferClaimants = new Map<string, readonly Transaction[]>();
+  const transferEndpointReferences = new Map<string, string[]>();
+  for (const transaction of snapshot.transactions) {
+    if (!['MATCHED_TRANSFER', 'POSTED'].includes(transaction.state) || !transaction.transferMatchId) continue;
+    transferClaimants.set(transaction.transferMatchId, [
+      ...(transferClaimants.get(transaction.transferMatchId) ?? []), transaction,
+    ]);
+  }
+  for (const transfer of confirmedTransfers.values()) {
+    for (const transactionId of [transfer.leftTransactionId, transfer.rightTransactionId]) {
+      transferEndpointReferences.set(transactionId, [
+        ...(transferEndpointReferences.get(transactionId) ?? []), transfer.id,
+      ]);
+    }
+  }
+
+  // Traverse confirmed transfers independently of transaction ordering. This
+  // guarantees that a transfer with one endpoint in the period is consumed at
+  // most once and that malformed endpoint structures remain diagnosable.
+  for (const transfer of [...confirmedTransfers.values()].sort((left, right) => left.id.localeCompare(right.id))) {
+    const left = transactionsById.get(transfer.leftTransactionId);
+    const right = transactionsById.get(transfer.rightTransactionId);
+    if (!isInPeriod(left) && !isInPeriod(right)) continue;
+    const endpointTransactions = [left, right].filter((value): value is Transaction => Boolean(value));
+    const cashEndpoints = endpointTransactions.filter(endpoint => cashAccountIds.has(endpoint.accountId));
+    const restrictedEndpoints = endpointTransactions.filter(endpoint => restrictedAccountIds.has(endpoint.accountId));
+    const expectedEndpointIds = new Set([transfer.leftTransactionId, transfer.rightTransactionId]);
+    const extraClaimants = (transferClaimants.get(transfer.id) ?? []).filter(candidate => !expectedEndpointIds.has(candidate.id));
+    const duplicateEndpointReference = [transfer.leftTransactionId, transfer.rightTransactionId]
+      .some(transactionId => (transferEndpointReferences.get(transactionId) ?? []).length > 1);
+    const malformed = !left || !right || left.id === right.id
+      || left.state !== 'MATCHED_TRANSFER' || right.state !== 'MATCHED_TRANSFER'
+      || left.transferMatchId !== transfer.id || right.transferMatchId !== transfer.id
+      || left.accountId === right.accountId
+      || (left && right && left.amount.minorUnits + right.amount.minorUnits !== 0n)
+      || (left && right && left.postingDate !== right.postingDate)
+      || extraClaimants.length > 0
+      || duplicateEndpointReference;
+    if (malformed) {
+      transferWarningReferences.add(transfer.id);
+      for (const endpoint of cashEndpoints) processedTransferCashTransactionIds.add(endpoint.id);
+      const lifecycleExcluded = endpointTransactions.some(endpoint => endpoint.state === 'PENDING' || endpoint.state === 'EXCLUDED');
+      const eligibleCashEndpoints = cashEndpoints
+        .filter(endpoint => endpoint.state !== 'PENDING' && endpoint.state !== 'EXCLUDED' && isInPeriod(endpoint));
+      // A confirmed transfer with a pending/excluded counterpart is still
+      // malformed, but an included cash endpoint has already moved the cash
+      // balance. Keep that signed movement as unresolved activity so the
+      // reconciliation Difference retains both the amount and provenance.
+      if (eligibleCashEndpoints.length > 0) {
+        for (const cashEndpoint of eligibleCashEndpoints.sort((a, b) => a.id.localeCompare(b.id))) {
+          processedTransferCashTransactionIds.add(cashEndpoint.id);
+          const other = cashEndpoint === left ? right : left;
+          addUnclassified(cashEndpoint, undefined, cashEndpoint.amount.minorUnits, undefined, transfer, other,
+            `transfer-cash:${cashEndpoint.id}`);
+        }
+      } else {
+        addTransferDiagnostic(transfer, left, right, 0n,
+          lifecycleExcluded ? 'Confirmed transfer has Pending or Excluded endpoint activity.' : 'Malformed or partial confirmed transfer.');
+      }
+      continue;
+    }
+    if (cashEndpoints.length === 0) {
+      addTransferDiagnostic(transfer, left, right, 0n, 'Confirmed transfer has no included cash endpoint.');
+      continue;
+    }
+    if (cashEndpoints.length > 1) {
+      // Cash-to-cash and cash-equivalent transfers change account composition
+      // only. Keep a zero diagnostic with both endpoint identities.
+      for (const endpoint of cashEndpoints) processedTransferCashTransactionIds.add(endpoint.id);
+      addTransferDiagnostic(transfer, left, right, 0n, 'Cash-to-cash transfer has no report activity.');
+      continue;
+    }
+    const cashEndpoint = cashEndpoints[0];
+    processedTransferCashTransactionIds.add(cashEndpoint.id);
+    const otherEndpoint = cashEndpoint === left ? right! : left!;
+    if (restrictedEndpoints.includes(otherEndpoint)) {
+      addUnclassified(cashEndpoint, undefined, cashEndpoint.amount.minorUnits, undefined, transfer, otherEndpoint,
+        `transfer-cash:${cashEndpoint.id}`);
+      continue;
+    }
+    const otherClassification = financialClassifications.get(otherEndpoint.accountId);
+    const otherAccount = sourceById.get(otherEndpoint.accountId);
+    const classificationMatchesSource = Boolean(otherAccount && otherClassification
+      && otherClassification.accountRole === 'FINANCIAL_SOURCE'
+      && otherClassification.accountId === otherAccount.id
+      && otherClassification.accountType === otherAccount.accountType
+      && otherClassification.detailType === otherAccount.detailType);
+    if (!otherAccount || !classificationMatchesSource || !otherClassification
+      || otherClassification.status === 'REVIEW_REQUIRED' || otherClassification.treatment === 'REVIEW_REQUIRED') {
+      addUnclassified(cashEndpoint, undefined, cashEndpoint.amount.minorUnits, undefined, transfer, otherEndpoint,
+        `transfer-cash:${cashEndpoint.id}`);
+      continue;
+    }
+    if (otherClassification.treatment === 'OPERATING_ASSET' || otherClassification.treatment === 'OPERATING_LIABILITY' || otherClassification.treatment === 'CASH_BALANCE' || otherClassification.treatment === 'NONCASH_DISCLOSURE') {
+      addTransferDiagnostic(transfer, left, right, 0n, 'Transfer is captured by the balance or disclosure path.');
+      continue;
+    }
+    if (otherClassification.treatment !== 'INVESTING' && otherClassification.treatment !== 'FINANCING') {
+      addUnclassified(cashEndpoint, undefined, cashEndpoint.amount.minorUnits, undefined, transfer, otherEndpoint,
+        `transfer-cash:${cashEndpoint.id}`);
+      continue;
+    }
+    const detailKey = cashFlowDetailKey(cashFlowAccountRowId(otherClassification.treatment, 'FINANCIAL_SOURCE', otherAccount.id));
+    addActivity(otherClassification.treatment, 'FINANCIAL_SOURCE', otherAccount, otherClassification, cashEndpoint.amount.minorUnits, {
+      contributionId: `transfer:${transfer.id}:${cashEndpoint.id}`,
+      detailKey,
+      contributionType: 'TRANSFER',
+      contributionMinor: cashEndpoint.amount.minorUnits,
+      businessDate: cashEndpoint.postingDate,
+      accountRole: 'FINANCIAL_SOURCE',
+      accountId: cashEndpoint.accountId,
+      accountName: sourceById.get(cashEndpoint.accountId)?.name,
+      transactionId: cashEndpoint.id,
+      counterpartyTransactionId: otherEndpoint.id,
+      transferId: transfer.id,
+      sourceBatchId: cashEndpoint.sourceBatchId,
+      payee: cashEndpoint.payee,
+      description: cashEndpoint.description,
+      memo: cashEndpoint.memo,
+    });
+  }
 
   for (const transaction of periodTransactions) {
     if (!cashAccountIds.has(transaction.accountId)) continue;
-    if (transaction.state === 'MATCHED_TRANSFER') {
-      const transferId = transaction.transferMatchId;
-      const transfer = transferId ? confirmedTransfers.get(transferId) : undefined;
-      if (!transfer || processedTransfers.has(transfer.id)) continue;
-      const left = transactionsById.get(transfer.leftTransactionId);
-      const right = transactionsById.get(transfer.rightTransactionId);
-      if (!left || !right) continue;
-      const cashEndpoint = cashAccountIds.has(left.accountId) ? left : cashAccountIds.has(right.accountId) ? right : undefined;
-      const otherEndpoint = cashEndpoint === left ? right : cashEndpoint === right ? left : undefined;
-      if (!cashEndpoint || !otherEndpoint) continue;
-      processedTransfers.add(transfer.id);
-      if (cashAccountIds.has(otherEndpoint.accountId)) continue;
-      const otherClassification = financialClassifications.get(otherEndpoint.accountId);
-      const otherAccount = sourceById.get(otherEndpoint.accountId);
-      const classificationMatchesSource = Boolean(otherAccount && otherClassification
-        && otherClassification.accountRole === 'FINANCIAL_SOURCE'
-        && otherClassification.accountId === otherAccount.id
-        && otherClassification.accountType === otherAccount.accountType
-        && otherClassification.detailType === otherAccount.detailType);
-      if (!otherAccount || !classificationMatchesSource || !otherClassification || otherClassification.status === 'REVIEW_REQUIRED' || otherClassification.treatment === 'REVIEW_REQUIRED') {
-        addUnclassified(cashEndpoint, undefined, cashEndpoint.amount.minorUnits, undefined, transfer);
-        continue;
-      }
-      if (otherClassification.treatment !== 'INVESTING' && otherClassification.treatment !== 'FINANCING') continue;
-      const detailKey = cashFlowDetailKey(cashFlowAccountRowId(otherClassification.treatment, 'FINANCIAL_SOURCE', otherAccount.id));
-      addActivity(otherClassification.treatment, 'FINANCIAL_SOURCE', otherAccount, otherClassification, cashEndpoint.amount.minorUnits, {
-        contributionId: `transfer:${transfer.id}:${cashEndpoint.id}`,
-        detailKey,
-        contributionType: 'TRANSFER',
-        contributionMinor: cashEndpoint.amount.minorUnits,
-        businessDate: cashEndpoint.postingDate,
-        accountRole: 'FINANCIAL_SOURCE',
-        accountId: cashEndpoint.accountId,
-        accountName: sourceById.get(cashEndpoint.accountId)?.name,
-        transactionId: cashEndpoint.id,
-        counterpartyTransactionId: otherEndpoint.id,
-        transferId: transfer.id,
-        sourceBatchId: cashEndpoint.sourceBatchId,
-        payee: cashEndpoint.payee,
-        description: cashEndpoint.description,
-        memo: cashEndpoint.memo,
-      });
-      continue;
-    }
     if (transaction.state === 'POSTED') {
       if (transaction.splits.length === 0) {
         if (transaction.amount.minorUnits !== 0n) {
@@ -626,6 +832,21 @@ function buildCashSideActivity(
       if (splitTotal !== transaction.amount.minorUnits) {
         throw new Error(`Posting splits for ${transaction.id} do not equal the cash transaction amount.`);
       }
+    }
+    if (transaction.transferMatchId) {
+      if (processedTransferCashTransactionIds.has(transaction.id)) continue;
+      transferWarningReferences.add(transaction.transferMatchId);
+      const transfer = confirmedTransfers.get(transaction.transferMatchId);
+      const counterparty = transfer
+        ? [transactionsById.get(transfer.leftTransactionId), transactionsById.get(transfer.rightTransactionId)]
+          .filter((candidate): candidate is Transaction => Boolean(candidate))
+          .slice().sort((left, right) => left.id.localeCompare(right.id))
+          .find(candidate => candidate.id !== transaction.id)
+        : undefined;
+      addUnclassified(transaction, undefined, transaction.amount.minorUnits, undefined, transfer, counterparty,
+        transfer ? `transfer-cash:${transaction.id}` : undefined);
+      processedTransferCashTransactionIds.add(transaction.id);
+      continue;
     }
     if (transaction.splits.length === 0) continue;
     const splitClassifications = transaction.splits.map(split => ({ split, chart: chartById.get(split.chartAccountId), classification: chartClassifications.get(split.chartAccountId) }));
@@ -666,6 +887,24 @@ function buildCashSideActivity(
     }
   }
 
+  // MATCHED_TRANSFER rows that point at no confirmed transfer are not allowed
+  // to disappear. Retain their signed cash amount as unclassified activity.
+  for (const transaction of snapshot.transactions
+    .filter(candidate => (candidate.state === 'MATCHED_TRANSFER' || (candidate.state === 'POSTED' && Boolean(candidate.transferMatchId))) && isInPeriod(candidate))
+    .slice().sort((left, right) => left.id.localeCompare(right.id))) {
+    if (!cashAccountIds.has(transaction.accountId) || processedTransferCashTransactionIds.has(transaction.id)) continue;
+    transferWarningReferences.add(transaction.transferMatchId ?? transaction.id);
+    const transfer = transaction.transferMatchId ? confirmedTransfers.get(transaction.transferMatchId) : undefined;
+    const counterparty = transfer
+      ? [transactionsById.get(transfer.leftTransactionId), transactionsById.get(transfer.rightTransactionId)]
+        .filter((candidate): candidate is Transaction => Boolean(candidate))
+        .slice().sort((left, right) => left.id.localeCompare(right.id))
+        .find(candidate => candidate.id !== transaction.id)
+      : undefined;
+    addUnclassified(transaction, undefined, transaction.amount.minorUnits, undefined, transfer, counterparty,
+      transfer ? `transfer-cash:${transaction.id}` : undefined);
+  }
+
   const allContributions = [...unclassifiedContributions].sort(compareCashFlowContributions);
   const investingCandidates = [...activity.get('INVESTING')!.values()].sort(compareCashFlowActivityAccounts);
   const financingCandidates = [...activity.get('FINANCING')!.values()].sort(compareCashFlowActivityAccounts);
@@ -680,6 +919,11 @@ function buildCashSideActivity(
     unclassifiedReferences: [...unclassifiedReferences].sort(),
     unclassifiedDetailKey: allContributions.length > 0 ? unclassifiedDetailKey(query) : undefined,
     unclassifiedContributions: allContributions,
+    cashBoundaryTransactionIds: [...cashBoundaryTransactionIds].sort(),
+    excludedContributions: Object.freeze(excludedContributions.sort(compareCashFlowContributions)),
+    transferDiagnosticContributions: transferDiagnosticContributions.sort(compareCashFlowContributions),
+    transferDiagnosticReferences: [...transferDiagnosticReferences].sort(),
+    transferWarningReferences: [...transferWarningReferences].sort(),
     excludedCashActivityMinor,
     excludedReferences: [...excludedReferences].sort(),
     hierarchyIssues,
@@ -1504,8 +1748,76 @@ function sumBalances(
   return balances.reduce((total, balance) => total + (accountIds.has(balance.account.id) ? balance.amountMinor : 0n), 0n);
 }
 
-function cashBalanceRows(query: CashFlowReport['query'], beginning: bigint, ending: bigint): readonly CashFlowRow[] {
-  return [
+function transferDiagnosticDetailKey(query: CashFlowReport['query']): CashFlowContribution['detailKey'] {
+  return `DETAIL:TRANSFER_DIAGNOSTICS:${query.startDate}:${query.endDate}` as CashFlowContribution['detailKey'];
+}
+
+function restrictedCashDetailKey(query: CashFlowReport['query']): CashFlowContribution['detailKey'] {
+  return `DETAIL:RESTRICTED_CASH_ENDING:${query.startDate}:${query.endDate}` as CashFlowContribution['detailKey'];
+}
+
+function restrictedCashBalanceContributions(
+  query: CashFlowReport['query'],
+  balances: ReturnType<typeof calculateFinancialSourceBalances>,
+  restrictedAccountIds: ReadonlySet<string>,
+  detailKey: CashFlowContribution['detailKey'],
+): readonly CashFlowContribution[] {
+  return balances
+    .filter(balance => restrictedAccountIds.has(balance.account.id) && balance.amountMinor !== 0n)
+    .slice().sort((left, right) => left.account.id.localeCompare(right.account.id))
+    .map(balance => ({
+      contributionId: `restricted-ending:${balance.account.id}`,
+      detailKey,
+      contributionType: 'FORMULA' as const,
+      contributionMinor: balance.amountMinor,
+      businessDate: query.endDate,
+      accountRole: 'FINANCIAL_SOURCE' as const,
+      accountId: balance.account.id,
+      accountName: balance.account.name,
+      description: 'Restricted cash ending balance',
+      formula: 'Ending restricted cash balance',
+    }));
+}
+
+function cashBoundaryContributions(
+  query: CashFlowReport['query'],
+  balances: ReturnType<typeof calculateFinancialSourceBalances>,
+  cashAccountIds: ReadonlySet<string>,
+  detailKey: CashFlowContribution['detailKey'],
+  side: 'OPENING' | 'ENDING',
+): readonly CashFlowContribution[] {
+  const businessDate = side === 'OPENING' ? dayBeforeBusinessDate(query.startDate) : query.endDate;
+  return balances
+    .filter(balance => cashAccountIds.has(balance.account.id) && balance.amountMinor !== 0n)
+    .slice().sort((left, right) => left.account.id.localeCompare(right.account.id))
+    .map(balance => ({
+      contributionId: `cash-boundary:${side.toLowerCase()}:${balance.account.id}`,
+      detailKey,
+      contributionType: 'FORMULA' as const,
+      contributionMinor: balance.amountMinor,
+      businessDate,
+      accountRole: 'FINANCIAL_SOURCE' as const,
+      accountId: balance.account.id,
+      accountName: balance.account.name,
+      description: side === 'OPENING' ? 'Beginning cash composition' : 'Ending cash composition',
+      formula: side === 'OPENING' ? 'Balance Sheet opening snapshot' : 'Balance Sheet ending snapshot',
+    }));
+}
+
+function cashBalanceRows(
+  query: CashFlowReport['query'],
+  beginning: bigint,
+  ending: bigint,
+  restrictedEnding: bigint,
+  restrictedDetailKey: CashFlowContribution['detailKey'],
+  beginningDetailKey: CashFlowContribution['detailKey'],
+  endingDetailKey: CashFlowContribution['detailKey'],
+  unclassifiedMinor: bigint,
+  unclassifiedDetailKey: CashFlowContribution['detailKey'] | undefined,
+  differenceMinor: bigint,
+  differenceDetailKey: CashFlowContribution['detailKey'],
+): readonly CashFlowRow[] {
+  const rows: CashFlowRow[] = [
     {
       rowId: cashFlowSyntheticRowId('SECTION_CASH_RECONCILIATION', query),
       rowType: 'SECTION_HEADER', section: 'CASH_RECONCILIATION', label: 'Cash reconciliation', depth: 0,
@@ -1514,14 +1826,39 @@ function cashBalanceRows(query: CashFlowReport['query'], beginning: bigint, endi
     {
       rowId: cashFlowSyntheticRowId('BEGINNING_CASH', query),
       rowType: 'CASH_BALANCE', section: 'CASH_RECONCILIATION', label: 'Beginning cash and cash equivalents', depth: 1,
-      amountMinor: beginning, bold: false, derived: true, archived: false, reviewRequired: false,
+      amountMinor: beginning, detailKey: beginningDetailKey, bold: false, derived: true, archived: false, reviewRequired: false,
     },
     {
       rowId: cashFlowSyntheticRowId('ENDING_CASH', query),
       rowType: 'CASH_BALANCE', section: 'CASH_RECONCILIATION', label: 'Ending cash and cash equivalents', depth: 1,
-      amountMinor: ending, bold: true, derived: true, archived: false, reviewRequired: false,
+      amountMinor: ending, detailKey: endingDetailKey, bold: true, derived: true, archived: false, reviewRequired: false,
     },
   ];
+  if (query.includeZeroRows || restrictedEnding !== 0n) {
+    rows.push({
+      rowId: `SYNTHETIC:RESTRICTED_CASH_ENDING:${query.startDate}:${query.endDate}` as CashFlowRow['rowId'],
+      rowType: 'CASH_BALANCE', section: 'CASH_RECONCILIATION', label: 'Restricted cash ending balance', depth: 1,
+      amountMinor: restrictedEnding, detailKey: restrictedDetailKey, bold: false, derived: true, archived: false,
+      reviewRequired: restrictedEnding !== 0n,
+    });
+  }
+  if (unclassifiedDetailKey && (query.includeZeroRows || unclassifiedMinor !== 0n)) {
+    rows.push({
+      rowId: `SYNTHETIC:UNCLASSIFIED_CASH_ACTIVITY:${query.startDate}:${query.endDate}` as CashFlowRow['rowId'],
+      rowType: 'DIFFERENCE', section: 'CASH_RECONCILIATION', label: 'Unclassified cash activity', depth: 1,
+      amountMinor: unclassifiedMinor, detailKey: unclassifiedDetailKey, bold: false, derived: true, archived: false,
+      reviewRequired: true,
+    });
+  }
+  if (query.includeZeroRows || differenceMinor !== 0n) {
+    rows.push({
+      rowId: cashFlowSyntheticRowId('DIFFERENCE', query),
+      rowType: 'DIFFERENCE', section: 'CASH_RECONCILIATION', label: 'Difference', depth: 1,
+      amountMinor: differenceMinor, detailKey: differenceDetailKey, bold: true, derived: true, archived: false,
+      reviewRequired: differenceMinor !== 0n,
+    });
+  }
+  return rows;
 }
 
 function buildWarnings(
@@ -1542,6 +1879,8 @@ function buildWarnings(
   unclassifiedReferences: readonly string[],
   excludedCashActivityMinor: bigint,
   excludedReferences: readonly string[],
+  differenceMinor: bigint,
+  transferWarningReferences: readonly string[],
 ): readonly CashFlowWarning[] {
   const warnings: CashFlowWarning[] = [];
   const beginningByAccount = new Map(beginningBalances.map(balance => [balance.account.id, balance]));
@@ -1615,6 +1954,23 @@ function buildWarnings(
       code: 'RESTRICTED_CASH_PRESENT',
       message: 'Restricted cash is reported separately from cash and cash equivalents.',
       references: [...restrictedAccountIds].sort(),
+    });
+  }
+  if (differenceMinor !== 0n) {
+    const differenceReferences = [...new Set([...unclassifiedReferences, ...excludedReferences, ...transferWarningReferences])].sort();
+    warnings.push({
+      warningId: cashFlowWarningId('CASH_RECONCILIATION_DIFFERENCE', [differenceMinor.toString(), ...differenceReferences], query),
+      code: 'CASH_RECONCILIATION_DIFFERENCE',
+      message: 'Calculated Ending Cash differs from Ending Cash after classified activity.',
+      references: differenceReferences,
+    });
+  }
+  if (transferWarningReferences.length > 0) {
+    warnings.push({
+      warningId: cashFlowWarningId('UNMATCHED_CASH_TRANSFER_CANDIDATE', transferWarningReferences, query),
+      code: 'UNMATCHED_CASH_TRANSFER_CANDIDATE',
+      message: 'One or more confirmed transfer structures require review before Cash Flow classification.',
+      references: transferWarningReferences,
     });
   }
   const outOfBalanceDates = [
