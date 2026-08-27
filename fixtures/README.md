@@ -16,4 +16,4 @@ No fixture requires network access, a live bank connection, or a real company fi
 
 Run `cd site && npm run test:balance-sheet-fixtures` to validate the Balance Sheet oracle independently. The same validator runs as part of `npm run test:ci`.
 
-Run `cd site && npm run test:cash-flow-fixtures` to validate the Statement of Cash Flows baseline oracle independently. It is also part of `npm run test:ci` and does not call future production Cash Flow calculation code.
+Run `cd site && npm run test:cash-flow-fixtures` to validate the Statement of Cash Flows baseline oracle and execute the production Slice 10 acceptance harness against that same machine-readable oracle. It is also part of `npm run test:ci`.

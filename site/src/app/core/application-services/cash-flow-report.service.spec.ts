@@ -1,7 +1,7 @@
 import { TestBed } from '@angular/core/testing';
-import { FinancialAccount, Transaction, money } from '../domain-model/accounting.types';
+import { ChartAccount, FinancialAccount, Transaction, money } from '../domain-model/accounting.types';
 import { CashFlowClassification } from '../domain-model/cash-flow-classification';
-import { CashFlowContractError } from '../domain-model/cash-flow.types';
+import { CashFlowContribution, CashFlowContractError } from '../domain-model/cash-flow.types';
 import { ACCOUNTING_REPOSITORY, CashFlowClassificationRecord } from '../repository-gateways/accounting.repository';
 import { InMemoryAccountingRepository } from '../repository-gateways/in-memory-accounting.repository';
 import { BalanceSheetReportService } from './balance-sheet-report.service';
@@ -165,7 +165,7 @@ describe('CashFlowReportService query and cash balances', () => {
     const withZeroRows = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
     expect(withZeroRows.rows.find(row => row.accountId === depreciation.id && row.rowType === 'ADJUSTMENT')?.amountMinor).toBe(0n);
     expect(withZeroRows.rows.filter(row => row.rowType === 'ADJUSTMENT').map(row => row.accountId)).toEqual([depreciation.id, active.id]);
-    expect(withZeroRows.reportId).not.toBe(report.reportId);
+    expect(withZeroRows.reportId).toBe(report.reportId);
   });
 
   it('keeps offsetting posted noncash provenance when zero-valued rows are hidden', () => {
@@ -216,6 +216,229 @@ describe('CashFlowReportService query and cash balances', () => {
     expect(sumDetail(shown, shownAdjustment.detailKey)).toBe(shownAdjustment.amountMinor!);
   });
 
+  it('calculates operating asset and liability changes from natural-sign Balance Sheet amounts', () => {
+    addAccount('cash', 'Main cash', 10_000n, '2025-12-01', 'CASH');
+    addAccount('clearing', 'Unusual source name', 500n, '2025-12-01', 'NOT_CASH', false, 'ENTITY', 'OTHER_CURRENT_ASSET', 'Marketplace clearing');
+    const receivable = addChartAccount('ar', 'Receivables control', 'ACCOUNTS_RECEIVABLE', 'Accounts receivable');
+    const payable = addChartAccount('ap', 'Supplier obligations', 'ACCOUNTS_PAYABLE', 'Accounts payable');
+    addChartClassification(receivable.id, receivable.accountType, receivable.detailType, 'OPERATING_ASSET');
+    addChartClassification(payable.id, payable.accountType, payable.detailType, 'OPERATING_LIABILITY');
+    const clearingClassification = repository.cashFlowClassifications.get('FINANCIAL_SOURCE:clearing')!;
+    repository.cashFlowClassifications.set('FINANCIAL_SOURCE:clearing', { ...clearingClassification, treatment: 'OPERATING_ASSET', cashRole: 'NOT_CASH' });
+    addTransaction('clearing-decrease', 'clearing', '2026-01-04', -100n, 'POSTED');
+    addTransaction('ar-increase', 'cash', '2026-01-05', 0n, 'POSTED', undefined, [{ chartAccountId: receivable.id, amountMinor: -200n }]);
+    addTransaction('ap-increase', 'cash', '2026-01-06', 0n, 'POSTED', undefined, [{ chartAccountId: payable.id, amountMinor: 300n }]);
+
+    const report = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
+    const arRow = report.rows.find(row => row.accountId === receivable.id && row.rowType === 'ACCOUNT_ACTIVITY')!;
+    const apRow = report.rows.find(row => row.accountId === payable.id && row.rowType === 'ACCOUNT_ACTIVITY')!;
+    const clearingRow = report.rows.find(row => row.accountId === 'clearing' && row.rowType === 'ACCOUNT_ACTIVITY')!;
+    expect(clearingRow.accountRole).toBe('FINANCIAL_SOURCE');
+    expect(clearingRow.amountMinor).toBe(100n);
+    expect(arRow.amountMinor).toBe(-200n);
+    expect(apRow.amountMinor).toBe(300n);
+    expect(report.netOperatingMinor).toBe(200n);
+    expect(report.rows.map(row => row.label)).toContain('Operating assets');
+    expect(report.rows.map(row => row.label)).toContain('Operating liabilities');
+    expect(report.detailIndex[arRow.detailKey!].map(item => [item.transactionId, item.contributionMinor])).toEqual([['ar-increase', -200n]]);
+    expect(report.detailIndex[apRow.detailKey!].map(item => [item.transactionId, item.contributionMinor])).toEqual([['ap-increase', 300n]]);
+    expect(report.detailIndex[arRow.detailKey!][0].openingAmountMinor).toBe(0n);
+    expect(report.detailIndex[arRow.detailKey!][0].endingAmountMinor).toBe(200n);
+    expect(report.detailIndex[arRow.detailKey!][0].rawChangeMinor).toBe(200n);
+    expect(report.detailIndex[arRow.detailKey!][0].formula).toBe('Opening - Ending');
+    expect(sumDetail(report, arRow.detailKey)).toBe(arRow.amountMinor!);
+    expect(sumDetail(report, apRow.detailKey)).toBe(apRow.amountMinor!);
+    expect(sumDetail(report, clearingRow.detailKey)).toBe(clearingRow.amountMinor!);
+    expect(report.detailIndex[clearingRow.detailKey!].map(item => [item.transactionId, item.contributionMinor])).toEqual([
+      [undefined, 500n], [undefined, -500n], ['clearing-decrease', 100n],
+    ]);
+  });
+
+  it('preserves parent direct activity and child hierarchy without double counting', () => {
+    addAccount('cash', 'Main cash', 0n, '2026-01-01', 'CASH');
+    const parent = addChartAccount('current-assets', 'Current assets', 'OTHER_CURRENT_ASSET', 'Other current assets');
+    const child = addChartAccount('inventory', 'Warehouse inventory', 'OTHER_CURRENT_ASSET', 'Inventory', { parentId: parent.id });
+    addChartClassification(parent.id, parent.accountType, parent.detailType, 'OPERATING_ASSET');
+    addChartClassification(child.id, child.accountType, child.detailType, 'OPERATING_ASSET');
+    addTransaction('parent-activity', 'cash', '2026-01-02', 0n, 'POSTED', undefined, [{ chartAccountId: parent.id, amountMinor: -50n }]);
+    addTransaction('child-activity', 'cash', '2026-01-03', 0n, 'POSTED', undefined, [{ chartAccountId: child.id, amountMinor: -75n }]);
+
+    const report = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
+    const parentRow = report.rows.find(row => row.rowType === 'ACCOUNT_ACTIVITY' && row.accountId === parent.id)!;
+    const childRow = report.rows.find(row => row.rowType === 'ACCOUNT_ACTIVITY' && row.accountId === child.id)!;
+    const subtotal = report.rows.find(row => row.rowType === 'SUBTOTAL' && row.accountId === parent.id)!;
+    expect(parentRow.amountMinor).toBe(-50n);
+    expect(childRow.amountMinor).toBe(-75n);
+    expect(childRow.parentRowId).toBe(parentRow.rowId);
+    expect(subtotal.amountMinor).toBe(-125n);
+    expect(sumDetail(report, subtotal.detailKey)).toBe(-125n);
+    expect(report.detailIndex[subtotal.detailKey!].map(item => item.transactionId)).toEqual(['parent-activity', 'child-activity']);
+    const operatingDetails = report.detailIndex[report.rows.find(row => row.rowType === 'TOTAL' && row.section === 'OPERATING')!.detailKey!];
+    expect(operatingDetails.filter(item => item.contributionType === 'BALANCE_CHANGE').map(item => item.transactionId)).toEqual(['parent-activity', 'child-activity']);
+  });
+
+  it('uses credit-card operating liabilities for charge and payment timing', () => {
+    addAccount('cash', 'Main cash', 5_000n, '2025-12-01', 'CASH');
+    addAccount('card', 'Business card', 0n, '2025-12-01', 'NOT_CASH', false, 'CREDIT_CARD');
+    const expense = addChartAccount('expense', 'Office expense', 'EXPENSE', 'Office expenses');
+    const cardClassification = repository.cashFlowClassifications.get('FINANCIAL_SOURCE:card')!;
+    repository.cashFlowClassifications.set('FINANCIAL_SOURCE:card', { ...cardClassification, cashRole: 'NOT_CASH', treatment: 'OPERATING_LIABILITY', accountType: 'CREDIT_CARD', detailType: 'Credit Card' });
+    addTransaction('card-charge', 'card', '2026-01-02', -100n, 'POSTED', undefined, [{ chartAccountId: expense.id, amountMinor: -100n }]);
+    addTransaction('card-payment', 'card', '2026-01-20', 100n, 'MATCHED_TRANSFER', 'card-payment-transfer');
+    addTransaction('cash-payment', 'cash', '2026-01-20', -100n, 'MATCHED_TRANSFER', 'card-payment-transfer');
+    repository.transfers.set('card-payment-transfer', {
+      id: 'card-payment-transfer', leftTransactionId: 'card-payment', rightTransactionId: 'cash-payment', confidence: 1,
+      rationale: 'Confirmed card payment.', confirmedAtUtc: '2026-01-20T00:00:00.000Z',
+    });
+
+    const report = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
+    const cardRow = report.rows.find(row => row.rowType === 'ACCOUNT_ACTIVITY' && row.accountId === 'card')!;
+    expect(cardRow.amountMinor).toBe(0n);
+    expect(report.rows.find(row => row.rowType === 'NET_PROFIT')?.amountMinor).toBe(-100n);
+    expect(report.netOperatingMinor).toBe(-100n);
+    expect(report.netChangeInCashMinor).toBe(-100n);
+    expect(sumDetail(report, cardRow.detailKey)).toBe(0n);
+    expect(report.detailIndex[cardRow.detailKey!].map(item => [item.transactionId, item.contributionMinor])).toEqual([
+      ['card-charge', 100n], ['card-payment', -100n],
+    ]);
+  });
+
+  it('keeps zero-row working-capital detail and report identity invariant', () => {
+    addAccount('cash', 'Main cash', 0n, '2026-01-01', 'CASH');
+    const receivable = addChartAccount('zero-ar', 'Zero receivable', 'ACCOUNTS_RECEIVABLE', 'Accounts receivable');
+    const zeroChild = addChartAccount('zero-ar-child', 'Zero receivable detail', 'OTHER_CURRENT_ASSET', 'Other current assets', { parentId: receivable.id });
+    addChartClassification(receivable.id, receivable.accountType, receivable.detailType, 'OPERATING_ASSET');
+    addChartClassification(zeroChild.id, zeroChild.accountType, zeroChild.detailType, 'OPERATING_ASSET');
+    addTransaction('ar-plus', 'cash', '2026-01-02', 0n, 'POSTED', undefined, [{ chartAccountId: receivable.id, amountMinor: -100n }]);
+    addTransaction('ar-minus', 'cash', '2026-01-03', 0n, 'POSTED', undefined, [{ chartAccountId: receivable.id, amountMinor: 100n }]);
+    addTransaction('ar-child-plus', 'cash', '2026-01-04', 0n, 'POSTED', undefined, [{ chartAccountId: zeroChild.id, amountMinor: -50n }]);
+    addTransaction('ar-child-minus', 'cash', '2026-01-05', 0n, 'POSTED', undefined, [{ chartAccountId: zeroChild.id, amountMinor: 50n }]);
+
+    const hidden = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: false });
+    const shown = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
+    const shownRow = shown.rows.find(row => row.accountId === receivable.id && row.rowType === 'ACCOUNT_ACTIVITY')!;
+    const hiddenOperating = hidden.rows.find(row => row.rowType === 'TOTAL' && row.section === 'OPERATING')!;
+    const shownOperating = shown.rows.find(row => row.rowType === 'TOTAL' && row.section === 'OPERATING')!;
+    expect(hidden.rows.find(row => row.accountId === receivable.id && row.rowType === 'ACCOUNT_ACTIVITY')).toBeUndefined();
+    expect(shownRow.amountMinor).toBe(0n);
+    expect(hidden.reportId).toBe(shown.reportId);
+    expect(hidden.netOperatingMinor).toBe(shown.netOperatingMinor);
+    expect(hidden.status).toBe(shown.status);
+    expect(hidden.detailIndex[shownRow.detailKey!]).toEqual(shown.detailIndex[shownRow.detailKey!]);
+    expect(Object.keys(hidden.detailIndex).sort()).toEqual(Object.keys(shown.detailIndex).sort());
+    Object.keys(shown.detailIndex).forEach(key => expect(hidden.detailIndex[key]).toEqual(shown.detailIndex[key]));
+    expect(hidden.detailIndex[shownRow.detailKey!].map(item => [item.transactionId, item.contributionMinor])).toEqual([
+      ['ar-plus', -100n], ['ar-minus', 100n],
+    ]);
+    expect(sumDetail(hidden, hiddenOperating.detailKey)).toBe(hiddenOperating.amountMinor!);
+    expect(sumDetail(shown, shownOperating.detailKey)).toBe(shownOperating.amountMinor!);
+  });
+
+  it('retains archived and negative working-capital balances using generic account names', () => {
+    addAccount('cash', 'Main cash', 0n, '2026-01-01', 'CASH');
+    const archivedInventory = addChartAccount('archived-stock', 'Legacy balance', 'OTHER_CURRENT_ASSET', 'Inventory', { archived: true });
+    const negativePayable = addChartAccount('negative-ap', 'Vendor credit', 'ACCOUNTS_PAYABLE', 'Accounts payable');
+    addChartClassification(archivedInventory.id, archivedInventory.accountType, archivedInventory.detailType, 'OPERATING_ASSET');
+    addChartClassification(negativePayable.id, negativePayable.accountType, negativePayable.detailType, 'OPERATING_LIABILITY');
+    addTransaction('inventory-credit', 'cash', '2026-01-02', 0n, 'POSTED', undefined, [{ chartAccountId: archivedInventory.id, amountMinor: 25n }]);
+    addTransaction('payable-debit', 'cash', '2026-01-03', 0n, 'POSTED', undefined, [{ chartAccountId: negativePayable.id, amountMinor: -40n }]);
+
+    const report = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: false });
+    const inventoryRow = report.rows.find(row => row.accountId === archivedInventory.id && row.rowType === 'ACCOUNT_ACTIVITY')!;
+    const payableRow = report.rows.find(row => row.accountId === negativePayable.id && row.rowType === 'ACCOUNT_ACTIVITY')!;
+    expect(inventoryRow.amountMinor).toBe(25n);
+    expect(payableRow.amountMinor).toBe(-40n);
+    expect(inventoryRow.archived).toBeTrue();
+    expect(report.rows.find(row => row.rowType === 'GROUP_HEADER' && row.label === 'Operating assets')).toBeDefined();
+    expect(sumDetail(report, inventoryRow.detailKey)).toBe(25n);
+    expect(sumDetail(report, payableRow.detailKey)).toBe(-40n);
+  });
+
+  it('isolates missing parents and cyclic hierarchies in a deterministic review group', () => {
+    addAccount('cash', 'Main cash', 0n, '2026-01-01', 'CASH');
+    addAccount('source-parent', 'Unclassified source parent', 0n, '2026-01-01', 'NOT_CASH');
+    const missingSource = addAccount('missing-source', 'Clearing source', 0n, '2026-01-01', 'NOT_CASH', false, 'ENTITY', 'OTHER_CURRENT_ASSET', 'Clearing account', 'source-parent');
+    const sourceCycleA = addAccount('source-cycle-a', 'Source cycle A', 0n, '2026-01-01', 'NOT_CASH', false, 'ENTITY', 'OTHER_CURRENT_ASSET', 'Clearing account', 'source-cycle-b');
+    const sourceCycleB = addAccount('source-cycle-b', 'Source cycle B', 0n, '2026-01-01', 'NOT_CASH', false, 'ENTITY', 'OTHER_CURRENT_ASSET', 'Clearing account', 'source-cycle-a');
+    for (const id of [missingSource.id, sourceCycleA.id, sourceCycleB.id]) {
+      const key = `FINANCIAL_SOURCE:${id}`;
+      const classification = repository.cashFlowClassifications.get(key)!;
+      repository.cashFlowClassifications.set(key, { ...classification, treatment: 'OPERATING_ASSET', cashRole: 'NOT_CASH' });
+    }
+    addTransaction('missing-source-activity', 'missing-source', '2026-01-02', 40n, 'POSTED');
+    addTransaction('source-cycle-a-activity', 'source-cycle-a', '2026-01-03', 20n, 'POSTED');
+    addTransaction('source-cycle-b-activity', 'source-cycle-b', '2026-01-04', 30n, 'POSTED');
+
+    const missingChart = addChartAccount('missing-chart', 'Receivables control', 'ACCOUNTS_RECEIVABLE', 'Accounts receivable', { parentId: 'missing-chart-parent' });
+    const chartCycleA = addChartAccount('chart-cycle-a', 'Inventory cycle A', 'OTHER_CURRENT_ASSET', 'Inventory', { parentId: 'chart-cycle-b' });
+    const chartCycleB = addChartAccount('chart-cycle-b', 'Inventory cycle B', 'OTHER_CURRENT_ASSET', 'Inventory', { parentId: 'chart-cycle-c' });
+    const chartCycleC = addChartAccount('chart-cycle-c', 'Inventory cycle C', 'OTHER_CURRENT_ASSET', 'Inventory', { parentId: 'chart-cycle-a' });
+    for (const account of [missingChart, chartCycleA, chartCycleB, chartCycleC]) addChartClassification(account.id, account.accountType, account.detailType, 'OPERATING_ASSET');
+    addTransaction('missing-chart-activity', 'cash', '2026-01-05', 0n, 'POSTED', undefined, [{ chartAccountId: missingChart.id, amountMinor: -40n }]);
+    addTransaction('chart-cycle-a-activity', 'cash', '2026-01-06', 0n, 'POSTED', undefined, [{ chartAccountId: chartCycleA.id, amountMinor: -20n }]);
+    addTransaction('chart-cycle-b-activity', 'cash', '2026-01-07', 0n, 'POSTED', undefined, [{ chartAccountId: chartCycleB.id, amountMinor: -30n }]);
+    addTransaction('chart-cycle-c-activity', 'cash', '2026-01-08', 0n, 'POSTED', undefined, [{ chartAccountId: chartCycleC.id, amountMinor: -50n }]);
+
+    const report = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: false });
+    const second = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: false });
+    const invalidIds = ['missing-source', 'source-cycle-a', 'source-cycle-b', 'missing-chart', 'chart-cycle-a', 'chart-cycle-b', 'chart-cycle-c'];
+    const invalidRows = report.rows.filter(row => row.rowType === 'ACCOUNT_ACTIVITY' && invalidIds.includes(row.accountId ?? ''));
+    expect(invalidRows.map(row => row.accountId).sort()).toEqual([
+      'missing-source', 'source-cycle-a', 'source-cycle-b', 'missing-chart', 'chart-cycle-a', 'chart-cycle-b', 'chart-cycle-c',
+    ].sort());
+    expect(invalidRows.every(row => row.parentRowId === undefined && row.reviewRequired)).toBeTrue();
+    expect(report.rows.filter(row => row.label.includes('hierarchy review')).map(row => row.rowId)).toEqual([
+      'GROUP:OPERATING:HIERARCHY_REVIEW:OPERATING_ASSET:2026-01-01:2026-01-31' as never,
+    ]);
+    const hierarchyWarnings = report.warnings.filter(warning => warning.code === 'ACCOUNT_HIERARCHY_INVALID');
+    expect(hierarchyWarnings.map(warning => `${warning.accountRole}:${warning.accountId}`).sort()).toEqual([
+      'CHART:chart-cycle-a', 'CHART:chart-cycle-b', 'CHART:chart-cycle-c', 'CHART:missing-chart',
+      'FINANCIAL_SOURCE:missing-source', 'FINANCIAL_SOURCE:source-cycle-a', 'FINANCIAL_SOURCE:source-cycle-b',
+    ].sort());
+    expect(hierarchyWarnings.find(warning => warning.accountId === 'missing-source')?.message).toContain('nonparticipating parent');
+    expect(hierarchyWarnings.find(warning => warning.accountId === 'missing-chart')?.message).toContain('missing parent');
+    const rowById = new Map(report.rows.map(row => [row.rowId, row]));
+    report.rows.forEach(row => {
+      const seen = new Set<string>();
+      let parent = row.parentRowId;
+      while (parent) {
+        expect(seen.has(parent)).toBeFalse();
+        seen.add(parent);
+        parent = rowById.get(parent)?.parentRowId;
+      }
+      if (row.amountMinor !== undefined && row.detailKey) expect(sumDetail(report, row.detailKey)).toBe(row.amountMinor);
+    });
+    expect(report.netOperatingMinor).toBe(second.netOperatingMinor);
+    expect(report.rows.map(row => row.rowId)).toEqual(second.rows.map(row => row.rowId));
+    expect(report.warnings.map(warning => warning.warningId)).toEqual(second.warnings.map(warning => warning.warningId));
+  });
+
+  it('explains empty zero-valued working-capital rows in both account namespaces', () => {
+    addAccount('cash', 'Main cash', 0n, '2026-01-01', 'CASH');
+    const financial = addAccount('zero-source', 'Empty clearing', 0n, '2026-01-01', 'NOT_CASH', false, 'ENTITY', 'OTHER_CURRENT_ASSET', 'Clearing account');
+    const sourceClassification = repository.cashFlowClassifications.get(`FINANCIAL_SOURCE:${financial.id}`)!;
+    repository.cashFlowClassifications.set(`FINANCIAL_SOURCE:${financial.id}`, { ...sourceClassification, treatment: 'OPERATING_ASSET', cashRole: 'NOT_CASH' });
+    const chart = addChartAccount('zero-chart', 'Empty payable', 'OTHER_CURRENT_LIABILITY', 'Other current liabilities');
+    addChartClassification(chart.id, chart.accountType, chart.detailType, 'OPERATING_LIABILITY');
+
+    const hidden = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: false });
+    const shown = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
+    const rows = [
+      shown.rows.find(row => row.accountRole === 'FINANCIAL_SOURCE' && row.accountId === financial.id && row.rowType === 'ACCOUNT_ACTIVITY')!,
+      shown.rows.find(row => row.accountRole === 'CHART' && row.accountId === chart.id && row.rowType === 'ACCOUNT_ACTIVITY')!,
+    ];
+    expect(rows.every(row => row.amountMinor === 0n)).toBeTrue();
+    expect(rows.map(row => shown.detailIndex[row.detailKey!])).toEqual([
+      [jasmine.objectContaining({ contributionType: 'FORMULA', openingAmountMinor: 0n, endingAmountMinor: 0n, rawChangeMinor: 0n, formula: 'Opening - Ending', contributionMinor: 0n })],
+      [jasmine.objectContaining({ contributionType: 'FORMULA', openingAmountMinor: 0n, endingAmountMinor: 0n, rawChangeMinor: 0n, formula: 'Ending - Opening', contributionMinor: 0n })],
+    ]);
+    rows.forEach(row => expect(sumDetail(shown, row.detailKey)).toBe(0n));
+    expect(hidden.rows.find(row => row.accountId === financial.id && row.rowType === 'ACCOUNT_ACTIVITY')).toBeUndefined();
+    expect(hidden.rows.find(row => row.accountId === chart.id && row.rowType === 'ACCOUNT_ACTIVITY')).toBeUndefined();
+    expect(Object.keys(hidden.detailIndex).sort()).toEqual(Object.keys(shown.detailIndex).sort());
+    Object.keys(shown.detailIndex).forEach(key => expect(hidden.detailIndex[key]).toEqual(shown.detailIndex[key]));
+  });
+
   it('fails report generation when P/L detail cannot reconcile to the shared Net Profit identity', () => {
     addAccount('cash', 'Operating Checking', 0n, '2026-01-01', 'CASH');
     const malformed = addChartAccount('malformed', 'Malformed P/L account', 'EXPENSE', 'Other expense');
@@ -239,6 +462,121 @@ describe('CashFlowReportService query and cash balances', () => {
     expect(dayBeforeBusinessDate('2024-03-01')).toBe('2024-02-29');
     expect(report.beginningCashMinor).toBe(0n);
     expect(report.endingCashMinor).toBe(400n);
+  });
+
+  it('runs the production service against the Slice 10 acceptance oracle for A1-A5, A7, and A13-A17', async () => {
+    type OracleScenario = {
+      id: string;
+      companyId: string;
+      period: { startDate: string; endDate: string };
+      expectedTotals: Record<string, number>;
+      expectedRows: Record<string, number>;
+      detailGroups: Record<string, readonly { sourceId: string; amountMinor: number }[]>;
+      checkpoints?: readonly { endDate: string; netProfitMinor: number; operatingAssetAdjustmentsMinor?: number; operatingLiabilityAdjustmentsMinor?: number; netOperatingMinor: number; endingCashMinor: number }[];
+    };
+    type OracleDocument = { scenarios: readonly OracleScenario[] };
+    const oracleDocument = await fetch('fixtures/cash-flow/baseline-oracle.json').then(response => {
+      if (!response.ok) throw new Error(`Unable to load Cash Flow acceptance oracle (${response.status}).`);
+      return response.json() as Promise<OracleDocument>;
+    });
+    const scenarios = new Map(oracleDocument.scenarios.map(scenario => [scenario.id, scenario]));
+    const caseIds = ['A1', 'A2', 'A3', 'A4', 'A5', 'A7', 'A13', 'A15', 'A16', 'A17'];
+    expect(caseIds.every(id => scenarios.has(id))).toBeTrue();
+    for (const id of caseIds) {
+      const expected = scenarios.get(id)!;
+      const expectedCompany = expected.companyId === 'company-copper-kettle' ? 'COPPER' : 'NORTHWIND';
+      prepareProductionFixture(expectedCompany);
+      addProductionFixtureScenario(id);
+      const report = service.getCashFlowReport({ startDate: expected.period.startDate, endDate: expected.period.endDate, includeZeroRows: true });
+      const repeat = service.getCashFlowReport({ startDate: expected.period.startDate, endDate: expected.period.endDate, includeZeroRows: true });
+      const accountRows = report.rows.filter(row => row.rowType === 'ACCOUNT_ACTIVITY');
+      const amount = (rows: readonly { amountMinor?: bigint }[]) => rows.reduce((sum, row) => sum + (row.amountMinor ?? 0n), 0n);
+      const totals = expected.expectedTotals;
+      expect(report.rows.find(row => row.rowType === 'NET_PROFIT')!.amountMinor).toBe(BigInt(totals['netProfitMinor']));
+      expect(amount(report.rows.filter(row => row.rowType === 'ADJUSTMENT' && row.treatment === 'NONCASH_PNL_ADJUSTMENT'))).toBe(BigInt(totals['noncashAdjustmentsMinor']));
+      expect(amount(accountRows.filter(row => row.treatment === 'OPERATING_ASSET'))).toBe(BigInt(totals['operatingAssetAdjustmentsMinor']));
+      expect(amount(accountRows.filter(row => row.treatment === 'OPERATING_LIABILITY'))).toBe(BigInt(totals['operatingLiabilityAdjustmentsMinor']));
+      expect(report.netOperatingMinor).toBe(BigInt(totals['netOperatingMinor']));
+      expect(report.beginningCashMinor).toBe(BigInt(totals['beginningCashMinor']));
+      expect(report.endingCashMinor).toBe(BigInt(totals['endingCashMinor']));
+      expect(report.databaseRevision).toBe(repository.getDatabaseRevision());
+      const netProfitRow = report.rows.find(row => row.rowType === 'NET_PROFIT')!;
+      const oracleSourceId = (item: CashFlowContribution, phase: 'NONCASH' | 'BALANCE'): string => {
+        if (!item.transactionId) return '';
+        if (phase === 'NONCASH') return `${item.transactionId}:reversal`;
+        return `${item.transactionId}:${item.splitId?.split(':').slice(1).join(':') ?? 'balance'}`;
+      };
+      expect(report.detailIndex[netProfitRow.detailKey!].map(item => ({
+        sourceId: item.transactionId ?? '', contributionMinor: item.contributionMinor,
+      }))).toEqual((expected.detailGroups['NET_PROFIT'] ?? []).map(item => ({ sourceId: item.sourceId.split(':')[0], contributionMinor: BigInt(item.amountMinor) })));
+      const expectedRows = Object.keys(expected.expectedRows)
+        .filter(key => key.startsWith('WORKING_CAPITAL:') || key.startsWith('NONCASH:'))
+        .map(key => {
+          const accountId = key.slice(key.indexOf(':') + 1);
+          const isNoncash = key.startsWith('NONCASH:');
+          const isLiability = accountId === 'copper-card' || accountId === 'accounts-payable';
+          return {
+            accountRole: accountId === 'copper-card' ? 'FINANCIAL_SOURCE' as const : 'CHART' as const,
+            accountId,
+            treatment: isNoncash ? 'NONCASH_PNL_ADJUSTMENT' as const : isLiability ? 'OPERATING_LIABILITY' as const : 'OPERATING_ASSET' as const,
+            amountMinor: BigInt(expected.expectedRows[key]),
+            detail: (expected.detailGroups[key] ?? []).map(item => ({
+              sourceId: item.sourceId,
+              contributionType: isNoncash ? 'NONCASH_REVERSAL' as const : 'BALANCE_CHANGE' as const,
+              contributionMinor: BigInt(item.amountMinor),
+            })),
+          };
+        });
+      const expectedKeys = expectedRows.map(row => `${row.accountRole}:${row.accountId}:${row.treatment}`).sort();
+      const actualRows = report.rows.filter(row => row.rowType === 'ACCOUNT_ACTIVITY' || row.rowType === 'ADJUSTMENT');
+      const actualExpectedRows = actualRows.filter(row => row.treatment === 'OPERATING_ASSET' || row.treatment === 'OPERATING_LIABILITY' || row.treatment === 'NONCASH_PNL_ADJUSTMENT');
+      expect(actualExpectedRows.map(row => `${row.accountRole}:${row.accountId}:${row.treatment}`).sort()).toEqual(expectedKeys);
+      for (const expectedRow of expectedRows) {
+        const actualRow = actualExpectedRows.find(row => row.accountRole === expectedRow.accountRole && row.accountId === expectedRow.accountId && row.treatment === expectedRow.treatment)!;
+        expect(actualRow.amountMinor).toBe(expectedRow.amountMinor);
+        expect(actualRow.rowId).toBe(`ACCOUNT:OPERATING:${expectedRow.accountRole}:${encodeURIComponent(expectedRow.accountId)}`);
+        expect(report.detailIndex[actualRow.detailKey!].map(item => ({
+          sourceId: oracleSourceId(item, expectedRow.treatment === 'NONCASH_PNL_ADJUSTMENT' ? 'NONCASH' : 'BALANCE'),
+          contributionType: item.contributionType,
+          contributionMinor: item.contributionMinor,
+        }))).toEqual(expectedRow.detail);
+      }
+      const expectedOperatingDetail = expected.detailGroups['NET_OPERATING'] ?? [];
+      const actualNetProfitAmount = sumDetail(report, netProfitRow.detailKey);
+      const actualChildAmount = (sourceId: string): bigint => {
+        const accountId = sourceId.includes(':') ? sourceId.slice(sourceId.indexOf(':') + 1) : '';
+        const row = actualExpectedRows.find(candidate => candidate.accountId === accountId);
+        return row ? sumDetail(report, row.detailKey) : 0n;
+      };
+      expect(expectedOperatingDetail.map(item => ({
+        sourceId: item.sourceId,
+        contributionMinor: item.sourceId === 'NET_PROFIT' ? actualNetProfitAmount : actualChildAmount(item.sourceId),
+      }))).toEqual(expectedOperatingDetail.map(item => ({ sourceId: item.sourceId, contributionMinor: BigInt(item.amountMinor) })));
+      expect(report.reportId).toBe(repeat.reportId);
+      expect(report.rows.map(row => row.rowId)).toEqual(repeat.rows.map(row => row.rowId));
+      expect(Object.keys(report.detailIndex).sort()).toEqual(Object.keys(repeat.detailIndex).sort());
+      expect(new Set(report.rows.map(row => row.rowId)).size).toBe(report.rows.length);
+      const rowById = new Map(report.rows.map(row => [row.rowId, row]));
+      report.rows.filter(row => row.section === 'OPERATING').forEach(row => {
+        if (row.amountMinor !== undefined && row.detailKey) expect(sumDetail(report, row.detailKey)).toBe(row.amountMinor);
+        const seen = new Set<string>();
+        let parent = row.parentRowId;
+        while (parent) {
+          expect(seen.has(parent)).toBeFalse();
+          seen.add(parent);
+          parent = rowById.get(parent)?.parentRowId;
+        }
+      });
+      if (expected.checkpoints?.length) {
+        const checkpoint = service.getCashFlowReport({ startDate: expected.period.startDate, endDate: expected.checkpoints[0].endDate, includeZeroRows: true });
+        const checkpointAccounts = checkpoint.rows.filter(row => row.rowType === 'ACCOUNT_ACTIVITY');
+        expect(checkpoint.rows.find(row => row.rowType === 'NET_PROFIT')?.amountMinor).toBe(BigInt(expected.checkpoints[0].netProfitMinor));
+        expect(amount(checkpointAccounts.filter(row => row.treatment === 'OPERATING_ASSET'))).toBe(BigInt(expected.checkpoints[0].operatingAssetAdjustmentsMinor ?? 0));
+        expect(amount(checkpointAccounts.filter(row => row.treatment === 'OPERATING_LIABILITY'))).toBe(BigInt(expected.checkpoints[0].operatingLiabilityAdjustmentsMinor ?? 0));
+        expect(checkpoint.netOperatingMinor).toBe(BigInt(expected.checkpoints[0].netOperatingMinor));
+        expect(checkpoint.endingCashMinor).toBe(BigInt(expected.checkpoints[0].endingCashMinor));
+      }
+    }
   });
 
   it('includes only confirmed matched transfers and keeps archived participating accounts visible', () => {
@@ -282,20 +620,100 @@ describe('CashFlowReportService query and cash balances', () => {
     }
   });
 
-  function addAccount(id: string, name: string, opening: bigint, openingDate: string, cashRole: CashFlowClassification['cashRole'], archived = false, accountType: 'BANK' | 'CREDIT_CARD' = 'BANK'): void {
+  function prepareProductionFixture(company: 'COPPER' | 'NORTHWIND'): void {
+    repository.company = {
+      id: company === 'COPPER' ? 'company-copper-kettle' : 'company-northwind-repair',
+      name: company === 'COPPER' ? 'Copper Kettle Studio LLC' : 'Northwind Repair Cooperative',
+      currency: 'USD', fiscalYearStartMonth: company === 'COPPER' ? 1 : 7, accountingBasis: repository.company.accountingBasis, activeTaxYear: 2026,
+    };
+    repository.accounts.clear();
+    repository.chartAccounts.clear();
+    repository.transactions.clear();
+    repository.transfers.clear();
+    repository.cashFlowClassifications.clear();
+    repository.audit.length = 0;
+  }
+
+  function addProductionFixtureScenario(id: string): void {
+    const copper = !['A13', 'A15', 'A16', 'A17'].includes(id);
+    const cashId = copper ? 'copper-cash-a' : 'northwind-cash-a';
+    const opening = ({ A1: 0n, A2: 10_000n, A3: 20_000n, A4: 0n, A5: 30_000n, A7: 10_000n, A13: 25_000n, A15: 10_000n, A16: 50_000n, A17: 0n } as Record<string, bigint>)[id];
+    const openingDate = id === 'A13' ? '2026-02-10' : id === 'A16' ? '2025-06-01' : '2025-12-01';
+    addAccount(cashId, copper ? 'Daily funds' : 'Workshop till', opening, openingDate, 'CASH');
+    const income = addChartAccount(`${id.toLowerCase()}-income`, 'Operating income', 'INCOME', 'Sales of product income');
+    const expense = addChartAccount(`${id.toLowerCase()}-expense`, 'Operating expense', 'EXPENSE', 'Other business expenses');
+    if (id === 'A1') addTransaction('a1-sale', cashId, '2026-01-05', 10_000n, 'POSTED', undefined, [{ chartAccountId: income.id, amountMinor: 10_000n }]);
+    if (id === 'A2') addTransaction('a2-expense', cashId, '2026-02-05', -4_000n, 'POSTED', undefined, [{ chartAccountId: expense.id, amountMinor: -4_000n }]);
+    if (id === 'A3') {
+      addAccount('copper-card', 'Studio charge line', 0n, '2025-12-01', 'NOT_CASH', false, 'CREDIT_CARD');
+      updateFinancialTreatment('copper-card', 'OPERATING_LIABILITY', 'NOT_CASH');
+      addTransaction('a3-card-charge', 'copper-card', '2026-03-10', -10_000n, 'POSTED', undefined, [{ chartAccountId: expense.id, amountMinor: -10_000n }]);
+      addTransaction('a3-card-payment', 'copper-card', '2026-03-25', 10_000n, 'MATCHED_TRANSFER', 'a3-transfer');
+      addTransaction('a3-cash-payment', cashId, '2026-03-25', -10_000n, 'MATCHED_TRANSFER', 'a3-transfer');
+      repository.transfers.set('a3-transfer', { id: 'a3-transfer', leftTransactionId: 'a3-card-payment', rightTransactionId: 'a3-cash-payment', confidence: 1, rationale: 'Fixture card payment.', confirmedAtUtc: '2026-03-25T00:00:00.000Z' });
+    }
+    if (id === 'A4') {
+      const receivable = addChartAccount('receivables', 'Trade receivables', 'ACCOUNTS_RECEIVABLE', 'Accounts receivable');
+      addChartClassification(receivable.id, receivable.accountType, receivable.detailType, 'OPERATING_ASSET');
+      addTransaction('a4-invoice', cashId, '2026-04-05', 0n, 'POSTED', undefined, [{ chartAccountId: income.id, amountMinor: 20_000n }, { chartAccountId: receivable.id, amountMinor: -20_000n }]);
+      addTransaction('a4-collection', cashId, '2026-04-20', 20_000n, 'POSTED', undefined, [{ chartAccountId: receivable.id, amountMinor: 20_000n }]);
+    }
+    if (id === 'A5') {
+      const inventory = addChartAccount('inventory', 'Materials on hand', 'OTHER_CURRENT_ASSET', 'Inventory');
+      const payable = addChartAccount('accounts-payable', 'Supplier balances', 'ACCOUNTS_PAYABLE', 'Accounts payable');
+      addChartClassification(inventory.id, inventory.accountType, inventory.detailType, 'OPERATING_ASSET');
+      addChartClassification(payable.id, payable.accountType, payable.detailType, 'OPERATING_LIABILITY');
+      addTransaction('a5-inventory-credit', cashId, '2026-05-05', 0n, 'POSTED', undefined, [{ chartAccountId: inventory.id, amountMinor: -12_000n }, { chartAccountId: payable.id, amountMinor: 12_000n }]);
+      addTransaction('a5-supplier-payment', cashId, '2026-05-20', -7_000n, 'POSTED', undefined, [{ chartAccountId: payable.id, amountMinor: -7_000n }]);
+    }
+    if (id === 'A7') {
+      const depreciation = addChartAccount('depreciation', 'Depreciation', 'OTHER_EXPENSE', 'Depreciation');
+      addChartClassification(depreciation.id, depreciation.accountType, depreciation.detailType, 'NONCASH_PNL_ADJUSTMENT');
+      addTransaction('a7-depreciation', cashId, '2026-07-05', 0n, 'POSTED', undefined, [{ chartAccountId: depreciation.id, amountMinor: -6_000n }]);
+    }
+    if (id === 'A15') {
+      addTransaction('a15-pending', cashId, '2026-04-05', 5_000n, 'PENDING');
+      addTransaction('a15-excluded', cashId, '2026-04-06', -2_000n, 'EXCLUDED');
+      addTransaction('a15-undone', cashId, '2026-04-07', 3_000n, 'PENDING');
+    }
+    if (id === 'A16') {
+      addTransaction('a16-income', cashId, '2025-09-15', 25_000n, 'POSTED', undefined, [{ chartAccountId: income.id, amountMinor: 25_000n }]);
+      addTransaction('a16-expense', cashId, '2026-05-20', -10_000n, 'POSTED', undefined, [{ chartAccountId: expense.id, amountMinor: -10_000n }]);
+    }
+  }
+
+  function updateFinancialTreatment(accountId: string, treatment: CashFlowClassification['treatment'], cashRole: CashFlowClassification['cashRole']): void {
+    const key = `FINANCIAL_SOURCE:${accountId}`;
+    const classification = repository.cashFlowClassifications.get(key)!;
+    repository.cashFlowClassifications.set(key, { ...classification, treatment, cashRole });
+  }
+
+  function addAccount(
+    id: string,
+    name: string,
+    opening: bigint,
+    openingDate: string,
+    cashRole: CashFlowClassification['cashRole'],
+    archived = false,
+    accountType: 'BANK' | 'CREDIT_CARD' | 'ENTITY' = 'BANK',
+    taxonomyType: FinancialAccount['accountType'] = accountType === 'CREDIT_CARD' ? 'CREDIT_CARD' : accountType === 'ENTITY' ? 'OTHER_CURRENT_ASSET' : 'BANK',
+    detailType = accountType === 'CREDIT_CARD' ? 'Credit Card' : taxonomyType === 'ACCOUNTS_RECEIVABLE' ? 'Accounts receivable' : taxonomyType === 'OTHER_CURRENT_ASSET' ? 'Other current assets' : 'Checking',
+    parentAccountId?: string,
+  ): FinancialAccount {
     const account: FinancialAccount = {
-      id, type: accountType, accountType, classificationStatus: 'CONFIRMED', importEnabled: true,
-      supportedSourceKinds: ['CSV'], openingBalanceSource: 'DERIVED_EQUITY', detailType: accountType === 'CREDIT_CARD' ? 'Credit Card' : 'Checking', name,
+      id, type: accountType, accountType: taxonomyType, classificationStatus: 'CONFIRMED', importEnabled: true,
+      supportedSourceKinds: ['CSV'], openingBalanceSource: 'DERIVED_EQUITY', detailType, name,
       institutionOrEntity: 'Example Bank', openingBalance: money(opening), openingBalanceDate: openingDate,
-      archived, locked: false,
+      parentAccountId, archived, locked: false,
     };
     repository.accounts.set(id, account);
     const classification: CashFlowClassificationRecord = {
-      accountRole: 'FINANCIAL_SOURCE', accountId: id, accountType: 'BANK', detailType: 'Checking', cashRole,
+      accountRole: 'FINANCIAL_SOURCE', accountId: id, accountType: taxonomyType, detailType, cashRole,
       treatment: 'CASH_BALANCE', status: 'CONFIRMED', source: 'USER', rationale: 'Explicit test cash role.',
       modifiedAtUtc: '2026-01-01T00:00:00.000Z',
     };
     repository.cashFlowClassifications.set(`FINANCIAL_SOURCE:${id}`, classification);
+    return account;
   }
 
   function addTransaction(
@@ -315,8 +733,15 @@ describe('CashFlowReportService query and cash balances', () => {
     });
   }
 
-  function addChartAccount(id: string, name: string, accountType: import('../domain-model/accounting.types').ChartAccount['accountType'], detailType: string): import('../domain-model/accounting.types').ChartAccount {
-    const account = { id, name, type: accountType === 'INCOME' || accountType === 'OTHER_INCOME' ? accountType : accountType === 'COGS' ? 'COGS' : accountType === 'OTHER_EXPENSE' ? 'OTHER_EXPENSE' : accountType === 'EXPENSE' ? 'EXPENSE' : accountType, accountType, detailType, displayOrder: repository.chartAccounts.size + 1, archived: false, locked: false } as import('../domain-model/accounting.types').ChartAccount;
+  function addChartAccount(
+    id: string,
+    name: string,
+    accountType: ChartAccount['accountType'],
+    detailType: string,
+    options: Partial<Pick<ChartAccount, 'parentId' | 'archived' | 'displayOrder'>> = {},
+  ): ChartAccount {
+    const reportingType: ChartAccount['type'] = ['INCOME', 'OTHER_INCOME', 'COGS', 'EXPENSE', 'OTHER_EXPENSE'].includes(accountType) ? accountType as ChartAccount['type'] : accountType === 'EQUITY' ? 'EQUITY' : accountType === 'CREDIT_CARD' || accountType === 'ACCOUNTS_PAYABLE' || accountType === 'OTHER_CURRENT_LIABILITY' || accountType === 'LONG_TERM_LIABILITY' ? 'LIABILITY' : 'ASSET';
+    const account: ChartAccount = { id, name, type: reportingType, accountType, detailType, displayOrder: options.displayOrder ?? repository.chartAccounts.size + 1, archived: options.archived ?? false, locked: false, parentId: options.parentId };
     repository.chartAccounts.set(id, account);
     return account;
   }

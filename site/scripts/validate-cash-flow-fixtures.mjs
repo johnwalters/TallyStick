@@ -4,17 +4,28 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const repositoryRoot = fileURLToPath(new URL('../../', import.meta.url));
-const readText = relativePath => readFile(path.join(repositoryRoot, relativePath), 'utf8');
-const readJson = async relativePath => JSON.parse(await readText(relativePath));
+const resolvePath = location => path.isAbsolute(location) ? location : path.join(repositoryRoot, location);
+const readText = location => readFile(resolvePath(location), 'utf8');
+const readJson = async location => JSON.parse(await readText(location));
 const csvRowCount = async relativePath => (await readText(relativePath)).trim().split(/\r?\n/).length - 1;
 
-const [oracle, companies, expectedResults, schemaSource, recoverySuite] = await Promise.all([
-  readJson('fixtures/cash-flow/baseline-oracle.json'),
+const oraclePath = process.env.CASH_FLOW_ORACLE_PATH ?? 'fixtures/cash-flow/baseline-oracle.json';
+const publicOraclePath = process.env.CASH_FLOW_PUBLIC_ORACLE_PATH ?? 'site/src/test-fixtures/cash-flow/baseline-oracle.json';
+const [oracle, companies, expectedResults, schemaSource, recoverySuite, publicOracleText, oracleText] = await Promise.all([
+  readJson(oraclePath),
   readJson('fixtures/cash-flow/company-fixtures.json'),
   readJson('sample-data/expected/expected-results.json'),
   readText('site/src/shared/schema-version.ts'),
   readText('site/src/desktop-host/database-lifecycle.node-test.ts'),
+  readText(publicOraclePath),
+  readText(oraclePath),
 ]);
+
+// The browser acceptance harness consumes the same canonical machine-readable
+// oracle through the public test asset. Require byte-for-byte synchronization so
+// a stale browser fixture cannot let production expectations drift from the
+// independent baseline-oracle.json.
+assert.equal(publicOracleText, oracleText, 'The browser acceptance oracle asset is stale; synchronize it with fixtures/cash-flow/baseline-oracle.json.');
 
 assert.equal(oracle.moneyUnit, 'INTEGER_MINOR_UNITS');
 assert.equal(oracle.method, 'INDIRECT');
@@ -212,4 +223,4 @@ for (const forbidden of ['john walters', 'annette', 'left shoulder', 'accounting
   assert.equal(fixtureText.includes(forbidden), false, `Cash Flow fixture contains private-looking text: ${forbidden}`);
 }
 
-console.log(`Cash Flow fixture oracle passed: ${companies.profiles.length} companies, ${oracle.scenarios.length} scenarios, schema-${currentSchemaVersion} baseline, 2025-2026 coverage.`);
+console.log(`Cash Flow fixture oracle passed: ${companies.profiles.length} companies, ${oracle.scenarios.length} scenarios, schema-${currentSchemaVersion} baseline, 2025-2026 coverage; browser production acceptance gate follows.`);

@@ -101,6 +101,11 @@
                 "input": "public"
               },
               {
+                "glob": "**/*",
+                "input": "src/test-fixtures",
+                "output": "fixtures"
+              },
+              {
                 "glob": "sql-wasm*.wasm",
                 "input": "node_modules/sql.js/dist",
                 "output": "assets"

@@ -115,8 +115,8 @@ describe('Cash Flow public contracts', () => {
     expect(account).toBe('ACCOUNT:OPERATING:FINANCIAL_SOURCE:account%2Fid');
     expect(synthetic).toBe('SYNTHETIC:NET_OPERATING:2026-01-01:2026-12-31');
     expect(cashFlowDetailKey(account)).toBe('DETAIL:ACCOUNT:OPERATING:FINANCIAL_SOURCE:account%2Fid');
-    expect(cashFlowReportId(revision, query)).toBe('CASH_FLOW:sqlite-change-42:2026-01-01:2026-12-31:NONZERO:INDIRECT:v1');
-    expect(cashFlowReportId(revision, { ...query, includeZeroRows: true })).not.toBe(cashFlowReportId(revision, query));
+    expect(cashFlowReportId(revision, query)).toBe('CASH_FLOW:sqlite-change-42:2026-01-01:2026-12-31:INDIRECT:v1');
+    expect(cashFlowReportId(revision, { ...query, includeZeroRows: true })).toBe(cashFlowReportId(revision, query));
     expect(cashFlowWarningId('UNCLASSIFIED_CASH_ACTIVITY', ['z', 'a'], query)).toBe(cashFlowWarningId('UNCLASSIFIED_CASH_ACTIVITY', ['a', 'z'], query));
   });
 

@@ -136,6 +136,8 @@ export interface CashFlowContribution {
   readonly memo?: string;
   readonly openingAmountMinor?: bigint;
   readonly endingAmountMinor?: bigint;
+  /** Raw Balance Sheet change before applying the working-capital sign rule. */
+  readonly rawChangeMinor?: bigint;
   readonly formula?: string;
   readonly childRowId?: CashFlowRowId;
 }
@@ -555,7 +557,10 @@ export function normalizeCashFlowQuery(
 }
 
 export function cashFlowReportId(revision: DatabaseRevision, query: CashFlowQuery): CashFlowReportId {
-  return `CASH_FLOW:${revision}:${query.startDate}:${query.endDate}:${query.includeZeroRows ? 'WITH_ZERO' : 'NONZERO'}:INDIRECT:v${CASH_FLOW_CONTRACT_VERSION}` as CashFlowReportId;
+  // Row visibility is presentation-only. Both views must share one stable
+  // report identity so detail/revision checks cannot be bypassed by toggling
+  // the zero-row filter.
+  return `CASH_FLOW:${revision}:${query.startDate}:${query.endDate}:INDIRECT:v${CASH_FLOW_CONTRACT_VERSION}` as CashFlowReportId;
 }
 
 export function cashFlowAccountRowId(section: CashFlowSection, role: AccountRole, accountId: string): CashFlowRowId {

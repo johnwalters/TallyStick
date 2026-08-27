@@ -16,18 +16,18 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Phase 4 query normalization, cash-balance projections, Net Profit, and noncash Operating adjustments complete; working-capital Operating calculations remain |
-| Current phase | Phase 4 — Cash balances and indirect Operating activities |
-| Next task | Begin `CF-SLICE-10-WORKING-CAPITAL` / `CF4-007–CF4-010` and the still-open `CF4-GATE`; do not implement this slice until it is explicitly authorized |
+| Overall status | Phase 4 cash balances and indirect Operating activities complete; Phase 5 Investing, Financing, transfers, and disclosures is in progress |
+| Current phase | Phase 5 — Investing, Financing, transfers, and disclosures |
+| Next task | Begin authorized `CF-SLICE-11-INVESTING-FINANCING` / `CF5-001–CF5-004` plus relevant `CF5-009–CF5-010` cases; do not implement later Phase 5 work until explicitly authorized |
 | Current branch | `cash-flow` |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Cash Flow test | Focused report service: 11/11; `npm run test:ci`: 249 browser/unit tests plus dependency boundaries and both fixture oracles (Balance Sheet 2 companies/19 scenarios; Cash Flow 2 companies/20 scenarios); `npm run build` (1.36 MB, no warnings); app/spec type checks passed. |
-| Last tracker update | August 26, 2026 — `CF-SLICE-09-NET-PROFIT-NONCASH` independently approved |
-| Known blocker | None for Slice 09. Phase 4 `CF4-GATE` remains open for CF4-007–CF4-010 and the remaining indirect Operating acceptance work. |
+| Last verified Cash Flow test | Fixture gate: 20 static scenarios plus 19 production acceptance scenarios; `npm run test:ci`: 257/257 browser/unit tests plus dependency boundaries and both fixture oracles (Balance Sheet 2 companies/19 scenarios; Cash Flow 2 companies/20 scenarios); `npm run build` (1.37 MB, no warnings); app/spec type checks and scoped diff checks passed. |
+| Last tracker update | August 26, 2026 — `CF-SLICE-10-WORKING-CAPITAL` independently approved; Phase 4 complete |
+| Known blocker | None for Slice 10 or Phase 4. Phase 5 remains open; CF5-001–CF5-004 and relevant CF5-009–CF5-010 work are the next authorized scope. |
 
 ## Tracker use
 
@@ -70,8 +70,8 @@ Execution is divided into token-conscious, independently testable units in the [
 | 1 | Cash Flow classification domain and public contracts | Complete |
 | 2 | Schema 7 migration, persistence, revision, and recovery compatibility | Complete |
 | 3 | Classification services, chart exchange, and review UI | Complete |
-| 4 | Cash balances and indirect Operating activities | In progress — Slice 09 independently approved; CF4-GATE remains open for working-capital and remaining indirect Operating work |
-| 5 | Investing, Financing, transfers, restricted cash, and disclosures | Not started |
+| 4 | Cash balances and indirect Operating activities | Complete — Slice 10 independently approved and CF4-GATE closed |
+| 5 | Investing, Financing, transfers, restricted cash, and disclosures | In progress — Slice 11 is the next authorized work; Phase 5 gate remains open |
 | 6 | Reconciliation, warnings, detail, revision, and cache behavior | Not started |
 | 7 | Statement of Cash Flows workspace | Not started |
 | 8 | CSV, XLSX, print preview, and PDF parity | Not started |
@@ -167,11 +167,11 @@ Execution is divided into token-conscious, independently testable units in the [
 - [x] **CF4-004** Separate unrestricted cash/cash equivalents from restricted cash according to explicit roles, including Review-required classifications and participation-gated warnings.
 - [x] **CF4-005** Reuse unadjusted P/L Net Profit for the exact period and same database revision.
 - [x] **CF4-006** Reverse classified noncash and reclassification P/L contributions once in Operating activities.
-- [ ] **CF4-007** Calculate operating-asset changes as Opening minus Ending balance.
-- [ ] **CF4-008** Calculate operating-liability changes as Ending minus Opening balance.
-- [ ] **CF4-009** Build deterministic Operating row hierarchy, sign rules, zero handling, subtotals, and Net Cash from Operating Activities.
-- [ ] **CF4-010** Test cash sales/expenses, receivables, inventory/payables, depreciation, opening balances, empty books, fiscal years, and state exclusion.
-- [ ] **CF4-GATE** Exit gate: indirect Operating totals and cash balances match exact A1–A5, A7, A13, and A15–A17 fixture expectations.
+- [x] **CF4-007** Calculate operating-asset changes as Opening minus Ending balance.
+- [x] **CF4-008** Calculate operating-liability changes as Ending minus Opening balance.
+- [x] **CF4-009** Build deterministic Operating row hierarchy, sign rules, zero handling, subtotals, and Net Cash from Operating Activities.
+- [x] **CF4-010** Test cash sales/expenses, receivables, inventory/payables, depreciation, opening balances, empty books, fiscal years, and state exclusion.
+- [x] **CF4-GATE** Exit gate: indirect Operating totals and cash balances match exact A1–A5, A7, A13, and A15–A17 fixture expectations.
 
 ## Phase 5 — Investing, Financing, transfers, and disclosures
 
@@ -258,6 +258,7 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Date | Slice or gate | Evidence | Result |
 | --- | --- | --- | --- |
+| August 26, 2026 | `CF-SLICE-10-WORKING-CAPITAL` / CF4-007–CF4-010 / CF4-GATE | Independent review approved the hierarchy validation, deterministic review grouping, zero-row balance-change explanations, and executable production acceptance gate. The fixture gate validates 20 static scenarios and executes 19 production acceptance scenarios against the canonical machine-readable oracle; negative controls for disabled harness, missing scenario, and oracle drift fail as required. `npm run test:ci` passed 257/257 with dependency boundaries and both fixture oracles; build passed at 1.37 MB with no warnings; app/spec type checks and scoped diff checks passed. | Complete |
 | 2026-08-25 | Documentation setup | PRD, Product Specification, Task Tracker, and Implementation Slices created and cross-referenced | Complete |
 | 2026-08-25 | `CF-SLICE-01-BASELINE-ORACLE` | Fixture oracle, 181 browser/unit tests, production build, all 8 desktop-host tests, and isolated Electron smoke | Complete |
 | 2026-08-25 | `CF-SLICE-02-CLASSIFICATION-CORE` | Corrected Loan payable to Financing, routed custom and ambiguous details to Review required, changed ambiguous financial cash role to Review required, separated default seeding from preservation/reclassification, and added exhaustive taxonomy/failure-path tests; `npm run test:ci` (192 browser/unit tests plus boundaries and fixture oracles) and `npm run build` passed | Complete |
