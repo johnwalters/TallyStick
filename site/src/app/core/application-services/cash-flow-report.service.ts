@@ -1,5 +1,5 @@
 import { Injectable, inject } from '@angular/core';
-import { ChartAccount, FinancialAccount } from '../domain-model/accounting.types';
+import { ChartAccount, FinancialAccount, PostingSplit, Transaction, TransferMatch } from '../domain-model/accounting.types';
 import { getAccountTypeDefinition } from '../domain-model/account-taxonomy';
 import { reportCompanyIdentity } from '../domain-model/balance-sheet.types';
 import {
@@ -80,12 +80,47 @@ export class CashFlowReportService {
     const restrictedCashBeginningMinor = sumBalances(beginningBalances, restrictedAccountIds);
     const restrictedCashEndingMinor = sumBalances(endingBalances, restrictedAccountIds);
     const measuredNetChangeMinor = endingCashMinor - beginningCashMinor;
+    let cashSide: CashSideActivity;
+    try {
+      cashSide = buildCashSideActivity(query, snapshot, cashAccountIds, classifications);
+    } catch (error) {
+      throw new CashFlowContractError({
+        code: 'CASH_FLOW_REPORT_GENERATION_FAILED',
+        message: error instanceof Error ? error.message : 'Cash-side posting could not be reconciled for this Cash Flow period.',
+        retryable: false,
+      });
+    }
+    const investing = renderCashFlowActivitySection(query, 'INVESTING', cashSide.investing, cashSide.hierarchyIssues);
+    const financing = renderCashFlowActivitySection(query, 'FINANCING', cashSide.financing, cashSide.hierarchyIssues);
+    const netChangeMinor = operating.netOperatingMinor + investing.amountMinor + financing.amountMinor;
+    const netChangeRowId = cashFlowSyntheticRowId('NET_CHANGE_IN_CASH', query);
+    const netChangeDetailKey = cashFlowDetailKey(netChangeRowId);
+    const netChangeContributions = [
+      activityFormulaContribution(netChangeDetailKey, operating.netOperatingMinor, cashFlowSyntheticRowId('NET_OPERATING', query), 'Net operating activities'),
+      activityFormulaContribution(netChangeDetailKey, investing.amountMinor, cashFlowSyntheticRowId('NET_INVESTING', query), 'Net investing activities'),
+      activityFormulaContribution(netChangeDetailKey, financing.amountMinor, cashFlowSyntheticRowId('NET_FINANCING', query), 'Net financing activities'),
+    ];
     const warnings = buildWarnings(snapshot.accounts, financialClassifications, cashAccountIds, restrictedAccountIds, query,
       beginningBalances, endingBalances,
       restrictedCashBeginningMinor, restrictedCashEndingMinor, beginningDate,
       beginningProjection.differenceMinor, endingProjection.differenceMinor,
-      operating.hierarchyIssues);
-    const rows = [...operating.rows, ...cashBalanceRows(query, beginningCashMinor, endingCashMinor)];
+      [...operating.hierarchyIssues, ...cashSide.hierarchyIssues], cashSide.unclassifiedCashActivityMinor, cashSide.unclassifiedReferences,
+      cashSide.excludedCashActivityMinor, cashSide.excludedReferences);
+    const netChangeRow: CashFlowRow = {
+      rowId: netChangeRowId,
+      rowType: 'TOTAL', section: 'CASH_RECONCILIATION', label: 'Net increase (decrease) in cash', depth: 0,
+      amountMinor: netChangeMinor, detailKey: netChangeDetailKey,
+      bold: true, derived: true, archived: false, reviewRequired: false,
+    };
+    const detailIndex: Record<string, readonly CashFlowContribution[]> = {
+      ...operating.detailIndex,
+      ...investing.detailIndex,
+      ...financing.detailIndex,
+      [netChangeDetailKey]: netChangeContributions,
+    };
+    assertDetailAmount(netChangeRow, netChangeContributions);
+    if (cashSide.unclassifiedDetailKey) detailIndex[cashSide.unclassifiedDetailKey] = cashSide.unclassifiedContributions;
+    const rows = [...operating.rows, ...investing.rows, ...financing.rows, netChangeRow, ...cashBalanceRows(query, beginningCashMinor, endingCashMinor)];
     const profile = snapshot.companyProfile ?? {
       companyId: snapshot.company.id,
       legalName: snapshot.company.name,
@@ -98,8 +133,9 @@ export class CashFlowReportService {
       modifiedAt: '',
     };
 
-    // Slice 10 extends the indirect Net Profit/noncash rows with working-capital
-    // adjustments. Investing and Financing remain outside this slice.
+    // Slice 11 adds actual cash-side Investing and Financing activity to the
+    // indirect Operating calculation. Later reconciliation/disclosure slices
+    // may consume the same immutable result without recalculating it.
     return freezeCashFlowReport({
       reportId: cashFlowReportId(snapshot.databaseRevision, query),
       databaseRevision: snapshot.databaseRevision,
@@ -112,8 +148,10 @@ export class CashFlowReportService {
       status: 'REVIEW_REQUIRED',
       rows,
       netOperatingMinor: operating.netOperatingMinor,
-      netInvestingMinor: 0n,
-      netFinancingMinor: 0n,
+      netInvestingMinor: investing.amountMinor,
+      netFinancingMinor: financing.amountMinor,
+      // Keep the observed cash-boundary movement as the reconciliation input;
+      // the section-derived net change is also exposed as a deterministic row.
       netChangeInCashMinor: measuredNetChangeMinor,
       beginningCashMinor,
       calculatedEndingCashMinor: endingCashMinor,
@@ -121,9 +159,9 @@ export class CashFlowReportService {
       differenceMinor: 0n,
       restrictedCashBeginningMinor,
       restrictedCashEndingMinor,
-      unclassifiedCashActivityMinor: 0n,
+      unclassifiedCashActivityMinor: cashSide.unclassifiedCashActivityMinor,
       warnings,
-      detailIndex: operating.detailIndex,
+      detailIndex,
     });
   }
 }
@@ -141,6 +179,47 @@ interface WorkingCapitalRows {
   readonly contributions: readonly CashFlowContribution[];
   readonly netOperatingMinor: bigint;
   readonly hierarchyIssues: readonly WorkingCapitalHierarchyIssue[];
+}
+
+interface CashFlowActivityAccount {
+  readonly accountRole: 'FINANCIAL_SOURCE' | 'CHART';
+  readonly account: FinancialAccount | ChartAccount;
+  readonly classification: CashFlowClassificationRecord;
+  readonly parentId?: string;
+  readonly accountPath: string;
+  readonly amountMinor: bigint;
+  readonly rowId: CashFlowRow['rowId'];
+  readonly detailKey: NonNullable<CashFlowRow['detailKey']>;
+  readonly contributions: readonly CashFlowContribution[];
+}
+
+interface CashFlowActivitySection {
+  readonly section: 'INVESTING' | 'FINANCING';
+  readonly candidates: readonly CashFlowActivityAccount[];
+  readonly hierarchyIssues: readonly CashFlowActivityHierarchyIssue[];
+  readonly amountMinor: bigint;
+  readonly rows: readonly CashFlowRow[];
+  readonly detailIndex: Readonly<Record<string, readonly CashFlowContribution[]>>;
+}
+
+interface CashSideActivity {
+  readonly investing: readonly CashFlowActivityAccount[];
+  readonly financing: readonly CashFlowActivityAccount[];
+  readonly unclassifiedCashActivityMinor: bigint;
+  readonly unclassifiedReferences: readonly string[];
+  readonly unclassifiedDetailKey?: CashFlowContribution['detailKey'];
+  readonly unclassifiedContributions: readonly CashFlowContribution[];
+  readonly excludedCashActivityMinor: bigint;
+  readonly excludedReferences: readonly string[];
+  readonly hierarchyIssues: readonly CashFlowActivityHierarchyIssue[];
+}
+
+interface CashFlowActivityHierarchyIssue {
+  readonly accountRole: 'FINANCIAL_SOURCE' | 'CHART';
+  readonly accountId: string;
+  readonly treatment: 'INVESTING' | 'FINANCING';
+  readonly parentId?: string;
+  readonly reason: 'MISSING_PARENT' | 'NONPARTICIPATING_PARENT' | 'CROSS_TREATMENT' | 'CYCLE' | 'INVALID_ANCESTOR';
 }
 
 interface WorkingCapitalAccount {
@@ -375,6 +454,520 @@ function buildWorkingCapitalRows(
     contributions: Object.freeze(orderedContributions),
     netOperatingMinor,
     hierarchyIssues: Object.freeze(hierarchyIssues),
+  };
+}
+
+/**
+ * Project actual cash-side activity into Investing and Financing. The cash
+ * account is the source of the transaction; Chart split classifications are
+ * the only section assignment. This keeps Operating in the indirect
+ * calculation and avoids guessing from descriptions or account names.
+ */
+function buildCashSideActivity(
+  query: CashFlowReport['query'],
+  snapshot: BalanceSheetRepositorySnapshot,
+  cashAccountIds: ReadonlySet<string>,
+  classifications: readonly CashFlowClassificationRecord[],
+): CashSideActivity {
+  const chartById = new Map(snapshot.chartAccounts.map(account => [account.id, account]));
+  const sourceById = new Map(snapshot.accounts.map(account => [account.id, account]));
+  const chartClassifications = new Map(classifications
+    .filter(classification => classification.accountRole === 'CHART')
+    .map(classification => [classification.accountId, classification]));
+  const financialClassifications = new Map(classifications
+    .filter(classification => classification.accountRole === 'FINANCIAL_SOURCE')
+    .map(classification => [classification.accountId, classification]));
+  const activity = new Map<'INVESTING' | 'FINANCING', Map<string, CashFlowActivityAccount>>([
+    ['INVESTING', new Map()],
+    ['FINANCING', new Map()],
+  ]);
+  const unclassifiedContributions: CashFlowContribution[] = [];
+  const unclassifiedReferences = new Set<string>();
+  const excludedReferences = new Set<string>();
+  let unclassifiedCashActivityMinor = 0n;
+  let excludedCashActivityMinor = 0n;
+  const periodTransactions = snapshot.transactions
+    .filter(transaction => transaction.postingDate >= query.startDate && transaction.postingDate <= query.endDate)
+    .filter(transaction => transaction.state === 'POSTED' || transaction.state === 'MATCHED_TRANSFER')
+    .slice().sort((left, right) => left.postingDate.localeCompare(right.postingDate) || left.id.localeCompare(right.id));
+  const transactionsById = new Map(snapshot.transactions.map(transaction => [transaction.id, transaction]));
+  const confirmedTransfers = new Map(snapshot.transfers.map(transfer => [transfer.id, transfer]));
+  const processedTransfers = new Set<string>();
+
+  const addUnclassified = (
+    transaction: Transaction,
+    split: PostingSplit | undefined,
+    amountMinor: bigint,
+    chart?: ChartAccount,
+    transfer?: TransferMatch,
+  ): void => {
+    if (amountMinor === 0n) return;
+    const sourceKey = transfer
+      ? `transfer:${transfer.id}`
+      : `transaction:${transaction.id}:${split?.id ?? 'activity'}`;
+    if (unclassifiedReferences.has(sourceKey)) return;
+    unclassifiedReferences.add(sourceKey);
+    unclassifiedCashActivityMinor += amountMinor;
+    unclassifiedContributions.push({
+      contributionId: `unclassified:${sourceKey}`,
+      detailKey: unclassifiedDetailKey(query),
+      contributionType: 'UNCLASSIFIED',
+      contributionMinor: amountMinor,
+      businessDate: transaction.postingDate,
+      accountRole: 'FINANCIAL_SOURCE',
+      accountId: transaction.accountId,
+      accountName: sourceById.get(transaction.accountId)?.name,
+      ...(chart ? { chartAccountId: chart.id, chartAccountPath: chartAccountPath(chart.id, chartById) } : {}),
+      transactionId: transaction.id,
+      splitId: split?.id,
+      transferId: transfer?.id,
+      sourceBatchId: transaction.sourceBatchId,
+      payee: transaction.payee,
+      description: transaction.description,
+      memo: split?.memo ?? transaction.memo,
+    });
+  };
+
+  const addActivity = (
+    section: 'INVESTING' | 'FINANCING',
+    accountRole: 'FINANCIAL_SOURCE' | 'CHART',
+    account: FinancialAccount | ChartAccount,
+    classification: CashFlowClassificationRecord,
+    amountMinor: bigint,
+    contribution: CashFlowContribution,
+  ): void => {
+    const key = `${accountRole}:${account.id}`;
+    const sectionAccounts = activity.get(section)!;
+    const existing = sectionAccounts.get(key);
+    if (existing) {
+      sectionAccounts.set(key, {
+        ...existing,
+        amountMinor: existing.amountMinor + amountMinor,
+        contributions: [...existing.contributions, contribution],
+      });
+      return;
+    }
+    const rowId = cashFlowAccountRowId(section, accountRole, account.id);
+    sectionAccounts.set(key, {
+      accountRole,
+      account,
+      classification,
+      parentId: accountRole === 'CHART' ? (account as ChartAccount).parentId : (account as FinancialAccount).parentAccountId,
+      accountPath: accountRole === 'CHART' ? chartAccountPath(account.id, chartById) : financialAccountPath(account.id, sourceById),
+      amountMinor,
+      rowId,
+      detailKey: cashFlowDetailKey(rowId),
+      contributions: [contribution],
+    });
+  };
+
+  const addExcluded = (transaction: Transaction, split: PostingSplit): void => {
+    if (split.amount.minorUnits === 0n) return;
+    const reference = `transaction:${transaction.id}:${split.id}`;
+    if (excludedReferences.has(reference)) return;
+    excludedReferences.add(reference);
+    excludedCashActivityMinor += split.amount.minorUnits;
+  };
+
+  for (const transaction of periodTransactions) {
+    if (!cashAccountIds.has(transaction.accountId)) continue;
+    if (transaction.state === 'MATCHED_TRANSFER') {
+      const transferId = transaction.transferMatchId;
+      const transfer = transferId ? confirmedTransfers.get(transferId) : undefined;
+      if (!transfer || processedTransfers.has(transfer.id)) continue;
+      const left = transactionsById.get(transfer.leftTransactionId);
+      const right = transactionsById.get(transfer.rightTransactionId);
+      if (!left || !right) continue;
+      const cashEndpoint = cashAccountIds.has(left.accountId) ? left : cashAccountIds.has(right.accountId) ? right : undefined;
+      const otherEndpoint = cashEndpoint === left ? right : cashEndpoint === right ? left : undefined;
+      if (!cashEndpoint || !otherEndpoint) continue;
+      processedTransfers.add(transfer.id);
+      if (cashAccountIds.has(otherEndpoint.accountId)) continue;
+      const otherClassification = financialClassifications.get(otherEndpoint.accountId);
+      const otherAccount = sourceById.get(otherEndpoint.accountId);
+      const classificationMatchesSource = Boolean(otherAccount && otherClassification
+        && otherClassification.accountRole === 'FINANCIAL_SOURCE'
+        && otherClassification.accountId === otherAccount.id
+        && otherClassification.accountType === otherAccount.accountType
+        && otherClassification.detailType === otherAccount.detailType);
+      if (!otherAccount || !classificationMatchesSource || !otherClassification || otherClassification.status === 'REVIEW_REQUIRED' || otherClassification.treatment === 'REVIEW_REQUIRED') {
+        addUnclassified(cashEndpoint, undefined, cashEndpoint.amount.minorUnits, undefined, transfer);
+        continue;
+      }
+      if (otherClassification.treatment !== 'INVESTING' && otherClassification.treatment !== 'FINANCING') continue;
+      const detailKey = cashFlowDetailKey(cashFlowAccountRowId(otherClassification.treatment, 'FINANCIAL_SOURCE', otherAccount.id));
+      addActivity(otherClassification.treatment, 'FINANCIAL_SOURCE', otherAccount, otherClassification, cashEndpoint.amount.minorUnits, {
+        contributionId: `transfer:${transfer.id}:${cashEndpoint.id}`,
+        detailKey,
+        contributionType: 'TRANSFER',
+        contributionMinor: cashEndpoint.amount.minorUnits,
+        businessDate: cashEndpoint.postingDate,
+        accountRole: 'FINANCIAL_SOURCE',
+        accountId: cashEndpoint.accountId,
+        accountName: sourceById.get(cashEndpoint.accountId)?.name,
+        transactionId: cashEndpoint.id,
+        counterpartyTransactionId: otherEndpoint.id,
+        transferId: transfer.id,
+        sourceBatchId: cashEndpoint.sourceBatchId,
+        payee: cashEndpoint.payee,
+        description: cashEndpoint.description,
+        memo: cashEndpoint.memo,
+      });
+      continue;
+    }
+    if (transaction.state === 'POSTED') {
+      if (transaction.splits.length === 0) {
+        if (transaction.amount.minorUnits !== 0n) {
+          throw new Error(`Posted cash transaction ${transaction.id} has no posting splits.`);
+        }
+        continue;
+      }
+      const splitTotal = transaction.splits.reduce((total, split) => total + split.amount.minorUnits, 0n);
+      if (splitTotal !== transaction.amount.minorUnits) {
+        throw new Error(`Posting splits for ${transaction.id} do not equal the cash transaction amount.`);
+      }
+    }
+    if (transaction.splits.length === 0) continue;
+    const splitClassifications = transaction.splits.map(split => ({ split, chart: chartById.get(split.chartAccountId), classification: chartClassifications.get(split.chartAccountId) }));
+    for (const item of splitClassifications.slice().sort((left, right) => left.split.id.localeCompare(right.split.id))) {
+      const { split, chart, classification } = item;
+      const classificationMatchesChart = Boolean(chart && classification
+        && classification.accountRole === 'CHART'
+        && classification.accountId === chart.id
+        && classification.accountType === chart.accountType
+        && classification.detailType === chart.detailType);
+      if (!chart || !classificationMatchesChart || !classification || classification.status !== 'CONFIRMED' || classification.treatment === 'REVIEW_REQUIRED') {
+        addUnclassified(transaction, split, split.amount.minorUnits, chart);
+      } else if (classification.treatment === 'INVESTING' || classification.treatment === 'FINANCING') {
+        const detailKey = cashFlowDetailKey(cashFlowAccountRowId(classification.treatment, 'CHART', chart.id));
+        addActivity(classification.treatment, 'CHART', chart, classification, split.amount.minorUnits, {
+          contributionId: `cash:${transaction.id}:${split.id}`,
+          detailKey,
+          contributionType: 'CASH_TRANSACTION',
+          contributionMinor: split.amount.minorUnits,
+          businessDate: transaction.postingDate,
+          accountRole: 'FINANCIAL_SOURCE',
+          accountId: transaction.accountId,
+          accountName: sourceById.get(transaction.accountId)?.name,
+          chartAccountId: chart.id,
+          chartAccountPath: chartAccountPath(chart.id, chartById),
+          transactionId: transaction.id,
+          splitId: split.id,
+          sourceBatchId: transaction.sourceBatchId,
+          payee: transaction.payee,
+          description: transaction.description,
+          memo: split.memo ?? transaction.memo,
+        });
+      } else if (classification.treatment === 'EXCLUDED') {
+        addExcluded(transaction, split);
+      } else if (!['CASH_BALANCE', 'OPERATING_REVENUE_EXPENSE', 'OPERATING_ASSET', 'OPERATING_LIABILITY', 'NONCASH_PNL_ADJUSTMENT', 'NONCASH_DISCLOSURE'].includes(classification.treatment)) {
+        addUnclassified(transaction, split, split.amount.minorUnits, chart);
+      }
+    }
+  }
+
+  const allContributions = [...unclassifiedContributions].sort(compareCashFlowContributions);
+  const investingCandidates = [...activity.get('INVESTING')!.values()].sort(compareCashFlowActivityAccounts);
+  const financingCandidates = [...activity.get('FINANCING')!.values()].sort(compareCashFlowActivityAccounts);
+  const hierarchyIssues = [
+    ...detectCashFlowActivityHierarchyIssues('INVESTING', investingCandidates, chartById, sourceById, chartClassifications, financialClassifications),
+    ...detectCashFlowActivityHierarchyIssues('FINANCING', financingCandidates, chartById, sourceById, chartClassifications, financialClassifications),
+  ];
+  return {
+    investing: investingCandidates,
+    financing: financingCandidates,
+    unclassifiedCashActivityMinor,
+    unclassifiedReferences: [...unclassifiedReferences].sort(),
+    unclassifiedDetailKey: allContributions.length > 0 ? unclassifiedDetailKey(query) : undefined,
+    unclassifiedContributions: allContributions,
+    excludedCashActivityMinor,
+    excludedReferences: [...excludedReferences].sort(),
+    hierarchyIssues,
+  };
+}
+
+function detectCashFlowActivityHierarchyIssues(
+  treatment: 'INVESTING' | 'FINANCING',
+  candidates: readonly CashFlowActivityAccount[],
+  chartById: ReadonlyMap<string, ChartAccount>,
+  sourceById: ReadonlyMap<string, FinancialAccount>,
+  chartClassifications: ReadonlyMap<string, CashFlowClassificationRecord>,
+  financialClassifications: ReadonlyMap<string, CashFlowClassificationRecord>,
+): readonly CashFlowActivityHierarchyIssue[] {
+  const byKey = new Map(candidates.map(candidate => [cashFlowActivityCandidateKey(candidate.accountRole, candidate.account.id), candidate]));
+  const issues = new Map<string, CashFlowActivityHierarchyIssue>();
+  const accountExists = (candidate: CashFlowActivityAccount): boolean => candidate.accountRole === 'CHART'
+    ? chartById.has(candidate.parentId ?? '')
+    : sourceById.has(candidate.parentId ?? '');
+  const parentClassification = (candidate: CashFlowActivityAccount): CashFlowClassificationRecord | undefined => candidate.accountRole === 'CHART'
+    ? chartClassifications.get(candidate.parentId ?? '')
+    : financialClassifications.get(candidate.parentId ?? '');
+  const parentFor = (candidate: CashFlowActivityAccount): CashFlowActivityAccount | undefined => candidate.parentId
+    ? byKey.get(cashFlowActivityCandidateKey(candidate.accountRole, candidate.parentId))
+    : undefined;
+  const addIssue = (candidate: CashFlowActivityAccount, reason: CashFlowActivityHierarchyIssue['reason']): void => {
+    const key = cashFlowActivityCandidateKey(candidate.accountRole, candidate.account.id);
+    if (issues.has(key)) return;
+    issues.set(key, {
+      accountRole: candidate.accountRole,
+      accountId: candidate.account.id,
+      treatment,
+      parentId: candidate.parentId,
+      reason,
+    });
+  };
+
+  for (const candidate of candidates) {
+    if (!candidate.parentId) continue;
+    const parent = parentFor(candidate);
+    if (!accountExists(candidate)) addIssue(candidate, 'MISSING_PARENT');
+    else if (!parent) {
+      const classification = parentClassification(candidate);
+      addIssue(candidate, classification && classification.treatment !== treatment ? 'CROSS_TREATMENT' : 'NONPARTICIPATING_PARENT');
+    } else if (parent.classification.treatment !== treatment) {
+      addIssue(candidate, 'CROSS_TREATMENT');
+    }
+  }
+
+  for (const candidate of candidates) {
+    const path: string[] = [];
+    const pathIndexes = new Map<string, number>();
+    let current: CashFlowActivityAccount | undefined = candidate;
+    while (current) {
+      const currentKey = cashFlowActivityCandidateKey(current.accountRole, current.account.id);
+      const previousIndex = pathIndexes.get(currentKey);
+      if (previousIndex !== undefined) {
+        for (const cycleKey of path.slice(previousIndex)) {
+          const cycleCandidate = byKey.get(cycleKey);
+          if (cycleCandidate) addIssue(cycleCandidate, 'CYCLE');
+        }
+        break;
+      }
+      if (issues.has(currentKey)) break;
+      pathIndexes.set(currentKey, path.length);
+      path.push(currentKey);
+      current = parentFor(current);
+    }
+  }
+
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const candidate of candidates) {
+      if (!candidate.parentId) continue;
+      const key = cashFlowActivityCandidateKey(candidate.accountRole, candidate.account.id);
+      if (issues.has(key)) continue;
+      const parentKey = cashFlowActivityCandidateKey(candidate.accountRole, candidate.parentId);
+      if (issues.has(parentKey)) {
+        addIssue(candidate, 'INVALID_ANCESTOR');
+        changed = true;
+      }
+    }
+  }
+
+  return [...issues.values()].sort((left, right) =>
+    left.accountRole.localeCompare(right.accountRole)
+    || left.treatment.localeCompare(right.treatment)
+    || left.accountId.localeCompare(right.accountId));
+}
+
+function renderCashFlowActivitySection(
+  query: CashFlowReport['query'],
+  section: 'INVESTING' | 'FINANCING',
+  candidates: readonly CashFlowActivityAccount[],
+  allHierarchyIssues: readonly CashFlowActivityHierarchyIssue[],
+): CashFlowActivitySection {
+  const detailIndex: Record<string, readonly CashFlowContribution[]> = {};
+  candidates.forEach(candidate => { detailIndex[candidate.detailKey] = candidate.contributions; });
+  const hierarchyIssues = allHierarchyIssues.filter(issue => issue.treatment === section);
+  const invalidKeys = new Set(hierarchyIssues.map(issue => cashFlowActivityCandidateKey(issue.accountRole, issue.accountId)));
+  const validCandidates = candidates.filter(candidate => !invalidKeys.has(cashFlowActivityCandidateKey(candidate.accountRole, candidate.account.id)));
+  const reviewCandidates = candidates.filter(candidate => invalidKeys.has(cashFlowActivityCandidateKey(candidate.accountRole, candidate.account.id)));
+  const byKey = new Map(validCandidates.map(candidate => [cashFlowActivityCandidateKey(candidate.accountRole, candidate.account.id), candidate]));
+  const children = new Map<string, CashFlowActivityAccount[]>();
+  const roots: CashFlowActivityAccount[] = [];
+  validCandidates.forEach(candidate => {
+    const parentKey = candidate.parentId ? cashFlowActivityCandidateKey(candidate.accountRole, candidate.parentId) : undefined;
+    if (parentKey && byKey.has(parentKey) && activityParentChainIsAcyclic(candidate, byKey)) {
+      children.set(parentKey, [...(children.get(parentKey) ?? []), candidate]);
+    } else {
+      roots.push(candidate);
+    }
+  });
+  const rows: CashFlowRow[] = [{
+    rowId: cashFlowSyntheticRowId(section === 'INVESTING' ? 'SECTION_INVESTING' : 'SECTION_FINANCING', query),
+    rowType: 'SECTION_HEADER', section, label: section === 'INVESTING' ? 'Investing activities' : 'Financing activities', depth: 0,
+    bold: true, derived: true, archived: false, reviewRequired: false,
+  }];
+  rows.push(...roots.sort(compareCashFlowActivityAccounts).flatMap(root => renderCashFlowActivityNode(query, section, root, children, byKey, detailIndex).rows));
+  const visibleReviewCandidates = reviewCandidates
+    .filter(candidate => query.includeZeroRows || candidate.amountMinor !== 0n)
+    .slice().sort(compareCashFlowActivityAccounts);
+  if (visibleReviewCandidates.length > 0) {
+    rows.push({
+      rowId: cashFlowActivityReviewGroupRowId(section, query),
+      rowType: 'GROUP_HEADER', section, label: `${section === 'INVESTING' ? 'Investing activities' : 'Financing activities'} — hierarchy review`, depth: 1,
+      bold: true, derived: true, archived: false, reviewRequired: true,
+    }, ...visibleReviewCandidates.map(candidate => cashFlowActivityReviewRow(candidate)));
+  }
+  const amountMinor = candidates.reduce((total, candidate) => total + candidate.amountMinor, 0n);
+  const totalRowId = cashFlowSyntheticRowId(section === 'INVESTING' ? 'NET_INVESTING' : 'NET_FINANCING', query);
+  const totalDetailKey = cashFlowDetailKey(totalRowId);
+  const totalContributions = candidates.map(candidate => ({
+    ...candidate.contributions[0],
+    contributionId: `section:${section}:${candidate.rowId}`,
+    detailKey: totalDetailKey,
+    contributionType: 'FORMULA' as const,
+    contributionMinor: candidate.amountMinor,
+    childRowId: candidate.rowId,
+    description: section === 'INVESTING' ? 'Investing activity row total' : 'Financing activity row total',
+  }));
+  detailIndex[totalDetailKey] = totalContributions;
+  const totalRow: CashFlowRow = {
+    rowId: totalRowId,
+    rowType: 'TOTAL', section, label: section === 'INVESTING' ? 'Net cash from investing activities' : 'Net cash from financing activities', depth: 0,
+    amountMinor, detailKey: totalDetailKey, bold: true, derived: true, archived: false,
+    reviewRequired: candidates.some(candidate => candidate.classification.status === 'REVIEW_REQUIRED'),
+  };
+  assertDetailAmount(totalRow, totalContributions);
+  rows.push(totalRow);
+  return { section, candidates, hierarchyIssues, amountMinor, rows: Object.freeze(rows), detailIndex: Object.freeze(detailIndex) };
+}
+
+function cashFlowActivityReviewGroupRowId(section: 'INVESTING' | 'FINANCING', query: CashFlowReport['query']): CashFlowRow['rowId'] {
+  return `GROUP:${section}:HIERARCHY_REVIEW:${query.startDate}:${query.endDate}` as CashFlowRow['rowId'];
+}
+
+function cashFlowActivityReviewRow(candidate: CashFlowActivityAccount): CashFlowRow {
+  return {
+    rowId: candidate.rowId,
+    rowType: 'ACCOUNT_ACTIVITY', section: candidate.classification.treatment as 'INVESTING' | 'FINANCING', treatment: candidate.classification.treatment,
+    accountRole: candidate.accountRole, accountId: candidate.account.id,
+    label: leafAccountName(candidate.account.name), fullPath: candidate.accountPath, depth: 2,
+    amountMinor: candidate.amountMinor, detailKey: candidate.detailKey,
+    bold: false, derived: true, archived: candidate.account.archived, reviewRequired: true,
+  };
+}
+
+function renderCashFlowActivityNode(
+  query: CashFlowReport['query'],
+  section: 'INVESTING' | 'FINANCING',
+  node: CashFlowActivityAccount,
+  children: ReadonlyMap<string, readonly CashFlowActivityAccount[]>,
+  byKey: ReadonlyMap<string, CashFlowActivityAccount>,
+  detailIndex: Record<string, readonly CashFlowContribution[]>,
+): { readonly rows: readonly CashFlowRow[]; readonly totalMinor: bigint; readonly rendered: boolean } {
+  const childResults = (children.get(cashFlowActivityCandidateKey(node.accountRole, node.account.id)) ?? [])
+    .slice().sort(compareCashFlowActivityAccounts).map(child => renderCashFlowActivityNode(query, section, child, children, byKey, detailIndex));
+  const childTotal = childResults.reduce((total, child) => total + child.totalMinor, 0n);
+  const totalMinor = node.amountMinor + childTotal;
+  const visibleChildren = childResults.filter(result => result.rendered);
+  const rendered = query.includeZeroRows || node.amountMinor !== 0n || visibleChildren.length > 0;
+  const row: CashFlowRow = {
+    rowId: node.rowId,
+    rowType: 'ACCOUNT_ACTIVITY', section, treatment: section,
+    accountRole: node.accountRole, accountId: node.account.id,
+    parentRowId: node.parentId && byKey.has(cashFlowActivityCandidateKey(node.accountRole, node.parentId))
+      ? cashFlowAccountRowId(section, node.accountRole, node.parentId) : undefined,
+    label: leafAccountName(node.account.name), fullPath: node.accountPath, depth: activityAccountDepth(node, byKey), amountMinor: node.amountMinor,
+    detailKey: node.detailKey, bold: false, derived: true, archived: node.account.archived,
+    reviewRequired: node.classification.status === 'REVIEW_REQUIRED',
+  };
+  const rows: CashFlowRow[] = rendered ? [row, ...visibleChildren.flatMap(child => child.rows)] : [];
+  if (childResults.length > 0 && (query.includeZeroRows || visibleChildren.length > 0)) {
+    const subtotalRowId = cashFlowActivitySubtotalRowId(section, node, query);
+    const subtotalDetailKey = cashFlowDetailKey(subtotalRowId);
+    const subtree = collectCashFlowActivitySubtree(node, children);
+    const subtotalContributions = subtree.flatMap(candidate => candidate.contributions.map(contribution => ({
+      ...contribution,
+      contributionId: `subtotal:${subtotalRowId}:${contribution.contributionId}`,
+      detailKey: subtotalDetailKey,
+      childRowId: candidate.rowId,
+    })));
+    detailIndex[subtotalDetailKey] = subtotalContributions;
+    const subtotal: CashFlowRow = {
+      rowId: subtotalRowId,
+      rowType: 'SUBTOTAL', section, treatment: section,
+      accountRole: node.accountRole, accountId: node.account.id, parentRowId: node.rowId,
+      label: `Total for ${leafAccountName(node.account.name)}`, fullPath: node.accountPath, depth: activityAccountDepth(node, byKey),
+      amountMinor: totalMinor, detailKey: subtotalDetailKey, bold: true, derived: true, archived: node.account.archived,
+      reviewRequired: subtree.some(candidate => candidate.classification.status === 'REVIEW_REQUIRED'),
+    };
+    assertDetailAmount(subtotal, subtotalContributions);
+    if (rendered) rows.push(subtotal);
+  }
+  return { rows, totalMinor, rendered };
+}
+
+function cashFlowActivityCandidateKey(accountRole: 'FINANCIAL_SOURCE' | 'CHART', accountId: string): string {
+  return `${accountRole}:${accountId}`;
+}
+
+function activityParentChainIsAcyclic(node: CashFlowActivityAccount, accounts: ReadonlyMap<string, CashFlowActivityAccount>): boolean {
+  const visited = new Set<string>([cashFlowActivityCandidateKey(node.accountRole, node.account.id)]);
+  let parentKey = node.parentId ? cashFlowActivityCandidateKey(node.accountRole, node.parentId) : undefined;
+  while (parentKey) {
+    if (visited.has(parentKey)) return false;
+    visited.add(parentKey);
+    const parent = accounts.get(parentKey);
+    if (!parent) return true;
+    parentKey = parent.parentId ? cashFlowActivityCandidateKey(parent.accountRole, parent.parentId) : undefined;
+  }
+  return true;
+}
+
+function activityAccountDepth(node: CashFlowActivityAccount, accounts: ReadonlyMap<string, CashFlowActivityAccount>): number {
+  let depth = 1;
+  const visited = new Set<string>();
+  let parent = node.parentId;
+  while (parent && !visited.has(parent)) {
+    visited.add(parent);
+    depth += 1;
+    parent = accounts.get(cashFlowActivityCandidateKey(node.accountRole, parent))?.parentId;
+  }
+  return depth;
+}
+
+function collectCashFlowActivitySubtree(node: CashFlowActivityAccount, children: ReadonlyMap<string, readonly CashFlowActivityAccount[]>): readonly CashFlowActivityAccount[] {
+  return [node, ...(children.get(cashFlowActivityCandidateKey(node.accountRole, node.account.id)) ?? []).slice().sort(compareCashFlowActivityAccounts).flatMap(child => collectCashFlowActivitySubtree(child, children))];
+}
+
+function compareCashFlowActivityAccounts(left: CashFlowActivityAccount, right: CashFlowActivityAccount): number {
+  const leftOrder = left.accountRole === 'CHART' ? (left.account as ChartAccount).displayOrder : Number.MAX_SAFE_INTEGER;
+  const rightOrder = right.accountRole === 'CHART' ? (right.account as ChartAccount).displayOrder : Number.MAX_SAFE_INTEGER;
+  return leftOrder - rightOrder || left.accountPath.localeCompare(right.accountPath) || left.account.id.localeCompare(right.account.id);
+}
+
+function compareCashFlowContributions(left: CashFlowContribution, right: CashFlowContribution): number {
+  return (left.businessDate ?? '').localeCompare(right.businessDate ?? '')
+    || (left.transactionId ?? '').localeCompare(right.transactionId ?? '')
+    || (left.counterpartyTransactionId ?? '').localeCompare(right.counterpartyTransactionId ?? '')
+    || (left.splitId ?? '').localeCompare(right.splitId ?? '')
+    || left.contributionId.localeCompare(right.contributionId);
+}
+
+function cashFlowActivitySubtotalRowId(section: 'INVESTING' | 'FINANCING', node: CashFlowActivityAccount, query: CashFlowReport['query']): CashFlowRow['rowId'] {
+  return `SUBTOTAL:${section}:${node.accountRole}:${encodeURIComponent(node.account.id)}:${query.startDate}:${query.endDate}` as CashFlowRow['rowId'];
+}
+
+function unclassifiedDetailKey(query: CashFlowReport['query']): CashFlowContribution['detailKey'] {
+  return `DETAIL:UNCLASSIFIED_CASH_ACTIVITY:${query.startDate}:${query.endDate}` as CashFlowContribution['detailKey'];
+}
+
+function activityFormulaContribution(
+  detailKey: CashFlowContribution['detailKey'],
+  amountMinor: bigint,
+  childRowId: CashFlowRow['rowId'],
+  description: string,
+): CashFlowContribution {
+  return {
+    contributionId: `formula:${childRowId}`,
+    detailKey,
+    contributionType: 'FORMULA',
+    contributionMinor: amountMinor,
+    childRowId,
+    description,
+    formula: 'Sum of section totals',
   };
 }
 
@@ -944,7 +1537,11 @@ function buildWarnings(
   beginningDate: string,
   beginningDifference: bigint,
   endingDifference: bigint,
-  hierarchyIssues: readonly WorkingCapitalHierarchyIssue[],
+  hierarchyIssues: readonly (WorkingCapitalHierarchyIssue | CashFlowActivityHierarchyIssue)[],
+  unclassifiedCashActivityMinor: bigint,
+  unclassifiedReferences: readonly string[],
+  excludedCashActivityMinor: bigint,
+  excludedReferences: readonly string[],
 ): readonly CashFlowWarning[] {
   const warnings: CashFlowWarning[] = [];
   const beginningByAccount = new Map(beginningBalances.map(balance => [balance.account.id, balance]));
@@ -994,6 +1591,22 @@ function buildWarnings(
       accountRole: issue.accountRole,
       accountId: issue.accountId,
       references,
+    });
+  }
+  if (unclassifiedCashActivityMinor !== 0n) {
+    warnings.push({
+      warningId: cashFlowWarningId('UNCLASSIFIED_CASH_ACTIVITY', unclassifiedReferences, query),
+      code: 'UNCLASSIFIED_CASH_ACTIVITY',
+      message: 'Cash-side Investing or Financing activity includes a Review-required or invalid Chart classification.',
+      references: unclassifiedReferences,
+    });
+  }
+  if (excludedCashActivityMinor !== 0n) {
+    warnings.push({
+      warningId: cashFlowWarningId('EXCLUDED_MATERIAL_CASH_ACTIVITY', excludedReferences, query),
+      code: 'EXCLUDED_MATERIAL_CASH_ACTIVITY',
+      message: 'Cash-side Investing or Financing activity was explicitly excluded from the statement.',
+      references: excludedReferences,
     });
   }
   if (restrictedBeginning !== 0n || restrictedEnding !== 0n) {

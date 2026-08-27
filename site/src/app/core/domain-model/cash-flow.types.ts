@@ -128,6 +128,8 @@ export interface CashFlowContribution {
   readonly chartAccountId?: string;
   readonly chartAccountPath?: string;
   readonly transactionId?: string;
+  /** The other endpoint transaction for a matched transfer contribution. */
+  readonly counterpartyTransactionId?: string;
   readonly splitId?: string;
   readonly transferId?: string;
   readonly sourceBatchId?: string;
