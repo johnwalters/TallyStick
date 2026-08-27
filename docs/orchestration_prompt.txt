@@ -1,8 +1,9 @@
-/goal Coordinate the implementation and independent review of the remaining TallyStick Statement of Cash Flows slices until every slice 
-itemized here and gate is complete, documented, and committed locally, or until a genuine user decision or external approval is required.
+/goal Coordinate the implementation and independent review of the  TallyStick Statement of Cash Flows slices until every slice 
+itemized here and the gate is complete, documented, and committed locally, or until a genuine user decision or external approval is required.
 
 Slices to process:
-CF-SLICE-09-NET-PROFIT-NONCASH
+CF-SLICE-12-TRANSFERS-RESTRICTED-CASH
+CF-SLICE-13-OPENING-NONCASH
 
 You are the orchestration task. You coordinate two existing Codex tasks:
 
