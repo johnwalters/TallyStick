@@ -6,11 +6,15 @@ import { reportCompanyIdentity } from '../domain-model/balance-sheet.types';
 import {
   CashFlowContractError,
   CashFlowContribution,
+  CashFlowDetail,
   CashFlowDisclosure,
+  CASH_FLOW_CONTRACT_VERSION,
+  CashFlowReportIdentity,
   CashFlowQueryInput,
   CashFlowReport,
   CashFlowRow,
   CashFlowWarning,
+  GetCashFlowDetailCommand,
   cashFlowAccountRowId,
   cashFlowDetailKey,
   cashFlowReportId,
@@ -18,6 +22,7 @@ import {
   cashFlowWarningId,
   freezeCashFlowReport,
   normalizeCashFlowQuery,
+  validateCashFlowDetail,
 } from '../domain-model/cash-flow.types';
 import { ACCOUNTING_REPOSITORY, AccountingRepository, BalanceSheetRepositorySnapshot, CashFlowClassificationRecord } from '../repository-gateways/accounting.repository';
 import { BalanceSheetProjection, ChartBalance, FinancialSourceBalance, calculateBalanceSheetProjection, calculateFinancialSourceBalances } from './balance-sheet-report.service';
@@ -26,11 +31,31 @@ import { calculateUnadjustedProfitLoss, UnadjustedProfitLossContribution, Unadju
 @Injectable({ providedIn: 'root' })
 export class CashFlowReportService {
   private readonly repository = inject(ACCOUNTING_REPOSITORY) as AccountingRepository;
+  /**
+   * Reports are immutable values. Keep one value per normalized query and
+   * revision so repeated reads do not recalculate (or observe a second
+   * snapshot), while a repository revision change invalidates every cached
+   * value. The report id intentionally omits the presentation-only zero-row
+   * flag, so the cache key includes it separately.
+   */
+  private readonly reportCache = new Map<string, CashFlowReport>();
+  /**
+   * Detail commands carry only report identity. Retain the most complete
+   * presentation for each identity so a detail request for a zero-valued row
+   * still works when the first report read used the hidden-zero view.
+   */
+  private readonly reportsById = new Map<string, CashFlowReport>();
+  private cachedRevision?: string;
 
   getCashFlowReport(input: CashFlowQueryInput): CashFlowReport {
     const normalized = normalizeCashFlowQuery(input, this.repository.company);
     if (!normalized.ok) throw new CashFlowContractError(normalized.error);
     const query = normalized.value;
+    const currentRevision = this.repository.getDatabaseRevision();
+    this.invalidateIfRevisionChanged(currentRevision);
+    const cacheKey = cashFlowReportCacheKey(currentRevision, query);
+    const cached = this.reportCache.get(cacheKey);
+    if (cached) return cached;
     const snapshot = this.repository.readCashFlowSnapshot(query.endDate);
     if (snapshot.company.currency !== 'USD') {
       throw new CashFlowContractError({
@@ -63,7 +88,8 @@ export class CashFlowReportService {
         .map(classification => [classification.accountId, classification]));
       const workingCapital = buildWorkingCapitalRows(query, snapshot, beginningProjection, endingProjection, classifications);
       operating = buildNetProfitAndNoncashRows(query, snapshot.chartAccounts, chartClassifications, profitAndLoss, workingCapital);
-    } catch {
+    } catch (error) {
+      if (error instanceof CashFlowContractError) throw error;
       throw new CashFlowContractError({
         code: 'CASH_FLOW_REPORT_GENERATION_FAILED',
         message: 'Profit and Loss sections do not reconcile to transaction detail for this Cash Flow period.',
@@ -85,6 +111,7 @@ export class CashFlowReportService {
     try {
       cashSide = buildCashSideActivity(query, snapshot, cashAccountIds, restrictedAccountIds, classifications);
     } catch (error) {
+      if (error instanceof CashFlowContractError) throw error;
       throw new CashFlowContractError({
         code: 'CASH_FLOW_REPORT_GENERATION_FAILED',
         message: error instanceof Error ? error.message : 'Cash-side posting could not be reconciled for this Cash Flow period.',
@@ -97,6 +124,7 @@ export class CashFlowReportService {
     try {
       noncash = buildNoncashDisclosures(query, snapshot, classifications, cashAccountIds, restrictedAccountIds);
     } catch (error) {
+      if (error instanceof CashFlowContractError) throw error;
       throw new CashFlowContractError({
         code: 'CASH_FLOW_REPORT_GENERATION_FAILED',
         message: error instanceof Error ? error.message : 'Recorded noncash activity could not be validated for this Cash Flow period.',
@@ -146,7 +174,11 @@ export class CashFlowReportService {
       ...financing.detailIndex,
       [netChangeDetailKey]: netChangeContributions,
     };
-    assertDetailAmount(netChangeRow, netChangeContributions);
+    const reportIdentity = {
+      reportId: cashFlowReportId(snapshot.databaseRevision, query),
+      databaseRevision: snapshot.databaseRevision,
+    } satisfies CashFlowReportIdentity;
+    assertCashFlowDetailAmount(netChangeRow, netChangeContributions, reportIdentity);
     if (cashSide.unclassifiedDetailKey) detailIndex[cashSide.unclassifiedDetailKey] = cashSide.unclassifiedContributions;
     if (cashSide.transferDiagnosticContributions.length > 0) {
       detailIndex[transferDiagnosticDetailKey(query)] = cashSide.transferDiagnosticContributions;
@@ -212,7 +244,11 @@ export class CashFlowReportService {
       cashSide.unclassifiedCashActivityMinor, cashSide.unclassifiedDetailKey, differenceMinor, differenceDetailKey)];
     rows.push(...noncash.rows);
     Object.entries(noncash.detailIndex).forEach(([key, contributions]) => { detailIndex[key] = contributions; });
-    rows.filter(row => row.amountMinor !== undefined).forEach(row => assertDetailAmount(row, row.detailKey ? detailIndex[row.detailKey] : undefined));
+    rows.filter(row => row.amountMinor !== undefined).forEach(row => assertCashFlowDetailAmount(
+      row,
+      row.detailKey ? detailIndex[row.detailKey] : undefined,
+      reportIdentity,
+    ));
     const profile = snapshot.companyProfile ?? {
       companyId: snapshot.company.id,
       legalName: snapshot.company.name,
@@ -232,7 +268,7 @@ export class CashFlowReportService {
     // indirect Operating calculation. Slice 13 appends recorded-only
     // noncash disclosures after reconciliation without changing any cash
     // section total or boundary projection.
-    return freezeCashFlowReport({
+    const report = freezeCashFlowReport({
       reportId: cashFlowReportId(snapshot.databaseRevision, query),
       databaseRevision: snapshot.databaseRevision,
       generatedAt: new Date().toISOString(),
@@ -258,7 +294,102 @@ export class CashFlowReportService {
       warnings,
       detailIndex,
     });
+    // A repository snapshot is immutable for the duration of this
+    // calculation. If a host mutation raced the initial revision check, do
+    // not publish a value under the wrong cache key.
+    if (snapshot.databaseRevision !== currentRevision) {
+      this.reportCache.clear();
+      this.reportsById.clear();
+      this.cachedRevision = snapshot.databaseRevision;
+    }
+    const finalCacheKey = cashFlowReportCacheKey(snapshot.databaseRevision, query);
+    this.reportCache.set(finalCacheKey, report);
+    const existing = this.reportsById.get(report.reportId);
+    if (!existing || (!existing.query.includeZeroRows && query.includeZeroRows)) {
+      this.reportsById.set(report.reportId, report);
+    }
+    return report;
   }
+
+  /**
+   * Resolve one immutable row detail from a previously generated report.
+   * Detail is deliberately revision-bound: callers must regenerate after any
+   * report-affecting write instead of reading a stale contribution list.
+   */
+  getCashFlowDetail(command: GetCashFlowDetailCommand): CashFlowDetail {
+    const currentRevision = this.repository.getDatabaseRevision();
+    this.invalidateIfRevisionChanged(currentRevision);
+    const report = this.reportsById.get(command.reportId);
+    if (!report || report.databaseRevision !== command.databaseRevision || currentRevision !== command.databaseRevision) {
+      throw new CashFlowContractError({
+        code: 'CASH_FLOW_REPORT_REVISION_STALE',
+        message: 'The Statement of Cash Flows report is stale. Regenerate the report before reading detail.',
+        reportId: command.reportId,
+        databaseRevision: command.databaseRevision,
+        retryable: true,
+      });
+    }
+    const row = report.rows.find(candidate => candidate.detailKey === command.detailKey);
+    const contributions = report.detailIndex[command.detailKey];
+    if (!row || row.amountMinor === undefined || !contributions) {
+      throw new CashFlowContractError({
+        code: 'CASH_FLOW_DETAIL_NOT_FOUND',
+        message: 'Cash Flow detail was not found for the selected report row.',
+        reportId: command.reportId,
+        databaseRevision: command.databaseRevision,
+        detailKey: command.detailKey,
+        retryable: false,
+      });
+    }
+    // Aggregate/formula rows intentionally retain each child contribution's
+    // source detail key in the report index.  The public detail contract is
+    // row-scoped, so normalize that key at the boundary while preserving the
+    // immutable contribution identity and provenance.
+    const normalizedContributions = contributions.every(contribution => contribution.detailKey === command.detailKey)
+      ? contributions
+      : Object.freeze(contributions.map(contribution => Object.freeze({ ...contribution, detailKey: command.detailKey })));
+    const detail = Object.freeze({
+      ...command,
+      rowId: row.rowId,
+      amountMinor: row.amountMinor,
+      contributions: normalizedContributions,
+    });
+    const validation = validateCashFlowDetail(detail);
+    if (!validation.ok) throw new CashFlowContractError(validation.error);
+    return validation.value;
+  }
+
+  /**
+   * Output operations are still implemented by a later slice, but their
+   * public boundary must reject a report that no longer matches the books.
+   * Unknown current-revision identities are left to the deferred operation
+   * so existing callers receive the contract's not-implemented response.
+   */
+  assertCashFlowReportCurrent(identity: CashFlowReportIdentity): void {
+    const currentRevision = this.repository.getDatabaseRevision();
+    this.invalidateIfRevisionChanged(currentRevision);
+    const report = this.reportsById.get(identity.reportId);
+    if (currentRevision !== identity.databaseRevision || (report && report.databaseRevision !== currentRevision)) {
+      throw new CashFlowContractError({
+        code: 'CASH_FLOW_REPORT_REVISION_STALE',
+        message: 'The Statement of Cash Flows report is stale. Regenerate it before exporting or printing.',
+        reportId: identity.reportId,
+        databaseRevision: identity.databaseRevision,
+        retryable: true,
+      });
+    }
+  }
+
+  private invalidateIfRevisionChanged(revision: string): void {
+    if (this.cachedRevision === revision) return;
+    this.reportCache.clear();
+    this.reportsById.clear();
+    this.cachedRevision = revision;
+  }
+}
+
+function cashFlowReportCacheKey(revision: string, query: { readonly startDate: string; readonly endDate: string; readonly includeZeroRows: boolean }): string {
+  return `${revision}|${query.startDate}|${query.endDate}|${query.includeZeroRows ? 'WITH_ZERO' : 'NONZERO'}|INDIRECT:v${CASH_FLOW_CONTRACT_VERSION}`;
 }
 
 interface OperatingRows {
@@ -491,10 +622,10 @@ function buildNetProfitAndNoncashRows(
     details[adjustment.detailKey] = adjustment.contributions;
   });
   Object.entries(workingCapital.detailIndex).forEach(([key, contributions]) => { details[key] = contributions; });
-  assertDetailAmount(netProfitRow, details[netProfitDetailKey]);
-  adjustmentRows.forEach(row => assertDetailAmount(row, details[row.detailKey!]));
-  workingCapital.rows.filter(row => row.amountMinor !== undefined).forEach(row => assertDetailAmount(row, details[row.detailKey!]));
-  assertDetailAmount(netOperatingRow, details[netOperatingDetailKey]);
+  assertCashFlowDetailAmount(netProfitRow, details[netProfitDetailKey]);
+  adjustmentRows.forEach(row => assertCashFlowDetailAmount(row, details[row.detailKey!]));
+  workingCapital.rows.filter(row => row.amountMinor !== undefined).forEach(row => assertCashFlowDetailAmount(row, details[row.detailKey!]));
+  assertCashFlowDetailAmount(netOperatingRow, details[netOperatingDetailKey]);
   return {
     rows: Object.freeze([sectionRow, netProfitRow, ...adjustmentRows, ...workingCapital.rows, netOperatingRow]),
     detailIndex: Object.freeze(details),
@@ -554,9 +685,22 @@ function buildWorkingCapitalRows(
         rawChangeMinor,
         detailKey,
       );
-      if (contributions.reduce((sum, contribution) => sum + contribution.contributionMinor, 0n) !== amountMinor) {
-        throw new Error(`Working-capital detail does not reconcile for ${classification.accountRole}/${account.id}.`);
-      }
+      assertCashFlowDetailAmount({
+        rowId,
+        rowType: 'ACCOUNT_ACTIVITY',
+        section: 'OPERATING',
+        treatment: classification.treatment,
+        accountRole: classification.accountRole,
+        accountId: account.id,
+        label: account.name,
+        depth: 0,
+        amountMinor,
+        detailKey,
+        bold: false,
+        derived: true,
+        archived: account.archived,
+        reviewRequired: classification.status === 'REVIEW_REQUIRED',
+      }, contributions);
       return {
         accountRole: classification.accountRole,
         account,
@@ -1482,7 +1626,7 @@ function renderNoncashDisclosureRows(
       parentRowId: groupRowId, amountMinor: groupTotal, detailKey: groupTotalDetailKey,
       bold: true, derived: true, archived: group.some(candidate => candidate.archived), reviewRequired: reviewCandidates.length > 0,
     };
-    assertDetailAmount(groupTotalRow, groupContributions);
+    assertCashFlowDetailAmount(groupTotalRow, groupContributions);
     if (groupRows.length > 0) {
       groupRows.push(groupTotalRow);
       visibleGroups.push(...groupRows);
@@ -1544,7 +1688,7 @@ function renderNoncashDisclosureNode(
       amountMinor: totalMinor, detailKey: subtotalDetailKey, bold: true, derived: true,
       archived: node.archived, reviewRequired: false,
     };
-    assertDetailAmount(subtotal, subtotalContributions);
+    assertCashFlowDetailAmount(subtotal, subtotalContributions);
     if (rendered && (query.includeZeroRows || visibleChildren.length > 0)) rows.push(subtotal);
   }
   return { rows, totalMinor, rendered };
@@ -1769,7 +1913,7 @@ function renderCashFlowActivitySection(
     amountMinor, detailKey: totalDetailKey, bold: true, derived: true, archived: false,
     reviewRequired: candidates.some(candidate => candidate.classification.status === 'REVIEW_REQUIRED'),
   };
-  assertDetailAmount(totalRow, totalContributions);
+  assertCashFlowDetailAmount(totalRow, totalContributions);
   rows.push(totalRow);
   return { section, candidates, hierarchyIssues, amountMinor, rows: Object.freeze(rows), detailIndex: Object.freeze(detailIndex) };
 }
@@ -1833,7 +1977,7 @@ function renderCashFlowActivityNode(
       amountMinor: totalMinor, detailKey: subtotalDetailKey, bold: true, derived: true, archived: node.account.archived,
       reviewRequired: subtree.some(candidate => candidate.classification.status === 'REVIEW_REQUIRED'),
     };
-    assertDetailAmount(subtotal, subtotalContributions);
+    assertCashFlowDetailAmount(subtotal, subtotalContributions);
     if (rendered) rows.push(subtotal);
   }
   return { rows, totalMinor, rendered };
@@ -2111,7 +2255,7 @@ function renderWorkingCapitalNode(
       detailKey: subtotalDetailKey,
     })));
     detailIndex[subtotalDetailKey] = subtotalContributions;
-    assertDetailAmount({ rowId: subtotalRowId, rowType: 'SUBTOTAL', section: 'OPERATING', label: '', depth, bold: true, derived: true, archived: false, reviewRequired: false, amountMinor: totalMinor }, subtotalContributions);
+    assertCashFlowDetailAmount({ rowId: subtotalRowId, rowType: 'SUBTOTAL', section: 'OPERATING', label: '', depth, bold: true, derived: true, archived: false, reviewRequired: false, amountMinor: totalMinor }, subtotalContributions);
     if (query.includeZeroRows || visibleChildren.length > 0) {
       rows.push({
         rowId: subtotalRowId,
@@ -2401,10 +2545,23 @@ function noncashReversalContribution(contribution: UnadjustedProfitLossContribut
   };
 }
 
-function assertDetailAmount(row: CashFlowRow, contributions: readonly CashFlowContribution[] | undefined): void {
+export function assertCashFlowDetailAmount(
+  row: CashFlowRow,
+  contributions: readonly CashFlowContribution[] | undefined,
+  identity?: CashFlowReportIdentity,
+): void {
   if (row.amountMinor === undefined) return;
   const total = (contributions ?? []).reduce((sum, contribution) => sum + contribution.contributionMinor, 0n);
-  if (total !== row.amountMinor) throw new Error(`Cash Flow detail does not reconcile for ${row.rowId}.`);
+  if (total !== row.amountMinor) {
+    throw new CashFlowContractError({
+      code: 'CASH_FLOW_DETAIL_RECONCILIATION_FAILED',
+      message: `Cash Flow detail ${row.detailKey ?? row.rowId} does not reconcile for report ${identity?.reportId ?? 'unidentified'}.`,
+      reportId: identity?.reportId,
+      databaseRevision: identity?.databaseRevision,
+      detailKey: row.detailKey,
+      retryable: false,
+    });
+  }
 }
 
 function accountOrder(left: { displayOrder: number; name: string; id: string }, right: { displayOrder: number; name: string; id: string }): number {

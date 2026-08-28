@@ -5,7 +5,7 @@ import { CashFlowContribution, CashFlowContractError } from '../domain-model/cas
 import { ACCOUNTING_REPOSITORY, CashFlowClassificationRecord } from '../repository-gateways/accounting.repository';
 import { InMemoryAccountingRepository } from '../repository-gateways/in-memory-accounting.repository';
 import { BalanceSheetReportService } from './balance-sheet-report.service';
-import { CashFlowReportService, dayBeforeBusinessDate } from './cash-flow-report.service';
+import { assertCashFlowDetailAmount, CashFlowReportService, dayBeforeBusinessDate } from './cash-flow-report.service';
 import { calculateUnadjustedNetProfit } from './profit-loss-calculation';
 
 describe('CashFlowReportService query and cash balances', () => {
@@ -51,6 +51,100 @@ describe('CashFlowReportService query and cash balances', () => {
     expect(Object.isFrozen(report)).toBeTrue();
     expect(Object.isFrozen(report.rows)).toBeTrue();
     expect(Object.isFrozen(report.query)).toBeTrue();
+  });
+
+  it('returns the cached immutable report for an unchanged query and invalidates it on revision change', () => {
+    const read = spyOn(repository, 'readCashFlowSnapshot').and.callThrough();
+    const query = { startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: false };
+    const first = service.getCashFlowReport(query);
+    const repeated = service.getCashFlowReport({ ...query });
+    expect(repeated).toBe(first);
+    expect(read).toHaveBeenCalledTimes(1);
+
+    const withZeroRows = service.getCashFlowReport({ ...query, includeZeroRows: true });
+    expect(withZeroRows).not.toBe(first);
+    expect(withZeroRows.reportId).toBe(first.reportId);
+    expect(read).toHaveBeenCalledTimes(2);
+
+    repository.company = { ...repository.company, name: 'Revision changed' };
+    const refreshed = service.getCashFlowReport(query);
+    expect(refreshed).not.toBe(first);
+    expect(refreshed.databaseRevision).not.toBe(first.databaseRevision);
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(first.company.displayName).not.toBe(refreshed.company.displayName);
+  });
+
+  it('returns exact row detail and rejects it after the report revision becomes stale', () => {
+    const report = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
+    const row = report.rows.find(candidate => candidate.amountMinor !== undefined && candidate.detailKey)!;
+    const detail = service.getCashFlowDetail({ reportId: report.reportId, databaseRevision: report.databaseRevision, detailKey: row.detailKey! });
+    expect(detail.rowId).toBe(row.rowId);
+    expect(detail.amountMinor).toBe(row.amountMinor!);
+    expect(detail.contributions).toEqual(report.detailIndex[row.detailKey!]);
+    expect(detail.contributions.reduce((sum, item) => sum + item.contributionMinor, 0n)).toBe(detail.amountMinor);
+    expect(Object.isFrozen(detail)).toBeTrue();
+
+    repository.company = { ...repository.company, name: 'Changed after detail read' };
+    expect(() => service.getCashFlowDetail({ reportId: report.reportId, databaseRevision: report.databaseRevision, detailKey: row.detailKey! }))
+      .toThrowError(CashFlowContractError);
+    try {
+      service.getCashFlowDetail({ reportId: report.reportId, databaseRevision: report.databaseRevision, detailKey: row.detailKey! });
+    } catch (error) {
+      expect((error as CashFlowContractError).failure.code).toBe('CASH_FLOW_REPORT_REVISION_STALE');
+      expect((error as CashFlowContractError).failure.retryable).toBeTrue();
+    }
+  });
+
+  it('raises the typed reconciliation failure with report and detail identity for mismatched detail', () => {
+    addAccount('cash', 'Operating Checking', 0n, '2025-12-01', 'CASH');
+    const income = addChartAccount('detail-income', 'Detail Income', 'INCOME', 'Sales of product income');
+    addTransaction('detail-guard-transaction', 'cash', '2026-01-02', 25n, 'POSTED', undefined, [{ chartAccountId: income.id, amountMinor: 25n }]);
+    const report = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
+    const row = report.rows.find(candidate => candidate.rowType === 'NET_PROFIT')!;
+    const original = report.detailIndex[row.detailKey!]!;
+    const mismatched = original.map((contribution, index) => index === 0
+      ? { ...contribution, contributionMinor: contribution.contributionMinor + 1n }
+      : contribution);
+
+    expect(() => assertCashFlowDetailAmount(row, mismatched, { reportId: report.reportId, databaseRevision: report.databaseRevision }))
+      .toThrowError(CashFlowContractError);
+    try {
+      assertCashFlowDetailAmount(row, mismatched, { reportId: report.reportId, databaseRevision: report.databaseRevision });
+      fail('Expected a typed Cash Flow detail reconciliation failure.');
+    } catch (error) {
+      const failure = (error as CashFlowContractError).failure;
+      expect(failure.code).toBe('CASH_FLOW_DETAIL_RECONCILIATION_FAILED');
+      expect(failure.reportId).toBe(report.reportId);
+      expect(failure.databaseRevision).toBe(report.databaseRevision);
+      expect(failure.detailKey).toBe(row.detailKey);
+      expect(failure.retryable).toBeFalse();
+    }
+
+    // Corrupt the cached detail through the service boundary as a second
+    // guard: callers must receive the typed failure and never a partial list.
+    const cachedReports = (service as unknown as {
+      reportsById: Map<string, typeof report>;
+    }).reportsById;
+    const corruptedReport = Object.freeze({
+      ...report,
+      detailIndex: Object.freeze({ ...report.detailIndex, [row.detailKey!]: Object.freeze(mismatched) }),
+    }) as typeof report;
+    cachedReports.set(report.reportId, corruptedReport);
+    expect(() => service.getCashFlowDetail({
+      reportId: report.reportId,
+      databaseRevision: report.databaseRevision,
+      detailKey: row.detailKey!,
+    })).toThrowError(CashFlowContractError);
+    try {
+      service.getCashFlowDetail({ reportId: report.reportId, databaseRevision: report.databaseRevision, detailKey: row.detailKey! });
+      fail('Expected corrupted detail to be rejected.');
+    } catch (error) {
+      const failure = (error as CashFlowContractError).failure;
+      expect(failure.code).toBe('CASH_FLOW_DETAIL_RECONCILIATION_FAILED');
+      expect(failure.reportId).toBe(report.reportId);
+      expect(failure.detailKey).toBe(row.detailKey);
+      expect(failure.retryable).toBeFalse();
+    }
   });
 
   it('matches Balance Sheet source balances while excluding Pending and Excluded activity', () => {

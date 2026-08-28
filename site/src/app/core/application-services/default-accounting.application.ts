@@ -291,14 +291,16 @@ export class DefaultAccountingApplication implements AccountingApplication {
   }
 
   getCashFlowDetail(command: GetCashFlowDetailCommand): CashFlowDetail {
-    return this.cashFlowNotImplemented(`Read Cash Flow detail ${command.detailKey}`);
+    return this.cashFlowReports.getCashFlowDetail(command);
   }
 
   async exportCashFlow(command: ExportCashFlowCommand): Promise<CashFlowExportResult> {
+    this.cashFlowReports.assertCashFlowReportCurrent(command);
     return this.cashFlowNotImplemented(`Export Cash Flow report ${command.reportId} as ${command.format}`);
   }
 
   async openCashFlowPrintPreview(command: OpenCashFlowPrintPreviewCommand): Promise<CashFlowPrintPreviewResult> {
+    this.cashFlowReports.assertCashFlowReportCurrent(command);
     return this.cashFlowNotImplemented(`Open Cash Flow print preview ${command.reportId}`);
   }
 
