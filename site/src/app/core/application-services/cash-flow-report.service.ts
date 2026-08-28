@@ -1,6 +1,7 @@
 import { Injectable, inject } from '@angular/core';
 import { ChartAccount, FinancialAccount, PostingSplit, Transaction, TransferMatch } from '../domain-model/accounting.types';
 import { getAccountTypeDefinition } from '../domain-model/account-taxonomy';
+import { validateCashFlowClassification } from '../domain-model/cash-flow-classification';
 import { reportCompanyIdentity } from '../domain-model/balance-sheet.types';
 import {
   CashFlowContractError,
@@ -116,12 +117,17 @@ export class CashFlowReportService {
     // silently absorbed into the measured cash-boundary movement.
     const calculatedEndingCashMinor = beginningCashMinor + netChangeMinor;
     const differenceMinor = calculatedEndingCashMinor - endingCashMinor;
-    const warnings = buildWarnings(snapshot.accounts, financialClassifications, cashAccountIds, restrictedAccountIds, query,
+    const chartClassifications = new Map(classifications
+      .filter(classification => classification.accountRole === 'CHART')
+      .map(classification => [classification.accountId, classification]));
+    const warnings = buildWarnings(snapshot.accounts, snapshot.chartAccounts, snapshot.transactions, classifications,
+      financialClassifications, chartClassifications, cashAccountIds, restrictedAccountIds, query,
       beginningBalances, endingBalances,
+      beginningProjection.chartBalances, endingProjection.chartBalances,
       restrictedCashBeginningMinor, restrictedCashEndingMinor, beginningDate,
       beginningProjection.differenceMinor, endingProjection.differenceMinor,
-      [...operating.hierarchyIssues, ...cashSide.hierarchyIssues, ...noncash.hierarchyIssues], cashSide.unclassifiedCashActivityMinor, cashSide.unclassifiedReferences,
-      cashSide.excludedCashActivityMinor, cashSide.excludedReferences, differenceMinor, cashSide.transferWarningReferences,
+      [...operating.hierarchyIssues, ...cashSide.hierarchyIssues, ...noncash.hierarchyIssues], cashSide.unclassifiedReferences,
+      cashSide.excludedReferences, differenceMinor, cashSide.transferWarningReferences,
       noncash.disclosures.flatMap(disclosure => [
         disclosure.disclosureId,
         disclosure.transactionId,
@@ -219,6 +225,9 @@ export class CashFlowReportService {
       modifiedAt: '',
     };
 
+    const status = warnings.some(warning => isBlockingCashFlowWarning(warning.code))
+      ? 'REVIEW_REQUIRED' as const
+      : 'COMPLETE' as const;
     // Slice 11 adds actual cash-side Investing and Financing activity to the
     // indirect Operating calculation. Slice 13 appends recorded-only
     // noncash disclosures after reconciliation without changing any cash
@@ -232,7 +241,7 @@ export class CashFlowReportService {
       currencyCode: snapshot.company.currency,
       accountingBasis: snapshot.company.accountingBasis,
       method: 'INDIRECT',
-      status: 'REVIEW_REQUIRED',
+      status,
       rows,
       disclosures: noncash.disclosures,
       netOperatingMinor: operating.netOperatingMinor,
@@ -2537,34 +2546,36 @@ function cashBalanceRows(
       reviewRequired: true,
     });
   }
-  if (query.includeZeroRows || differenceMinor !== 0n) {
-    rows.push({
-      rowId: cashFlowSyntheticRowId('DIFFERENCE', query),
-      rowType: 'DIFFERENCE', section: 'CASH_RECONCILIATION', label: 'Difference', depth: 1,
-      amountMinor: differenceMinor, detailKey: differenceDetailKey, bold: true, derived: true, archived: false,
-      reviewRequired: differenceMinor !== 0n,
-    });
-  }
+  rows.push({
+    rowId: cashFlowSyntheticRowId('DIFFERENCE', query),
+    rowType: 'DIFFERENCE', section: 'CASH_RECONCILIATION', label: 'Difference', depth: 1,
+    amountMinor: differenceMinor, detailKey: differenceDetailKey, bold: true, derived: true, archived: false,
+    reviewRequired: differenceMinor !== 0n,
+  });
   return rows;
 }
 
 function buildWarnings(
-  accounts: readonly { id: string; name: string; archived: boolean }[],
+  accounts: readonly FinancialAccount[],
+  chartAccounts: readonly ChartAccount[],
+  transactions: readonly Transaction[],
+  allClassifications: readonly CashFlowClassificationRecord[],
   classifications: ReadonlyMap<string, CashFlowClassificationRecord>,
+  chartClassifications: ReadonlyMap<string, CashFlowClassificationRecord>,
   cashAccountIds: ReadonlySet<string>,
   restrictedAccountIds: ReadonlySet<string>,
   query: CashFlowReport['query'],
   beginningBalances: ReturnType<typeof calculateFinancialSourceBalances>,
   endingBalances: ReturnType<typeof calculateFinancialSourceBalances>,
+  beginningChartBalances: readonly ChartBalance[],
+  endingChartBalances: readonly ChartBalance[],
   restrictedBeginning: bigint,
   restrictedEnding: bigint,
   beginningDate: string,
   beginningDifference: bigint,
   endingDifference: bigint,
   hierarchyIssues: readonly (WorkingCapitalHierarchyIssue | CashFlowActivityHierarchyIssue | NoncashDisclosureHierarchyIssue)[],
-  unclassifiedCashActivityMinor: bigint,
   unclassifiedReferences: readonly string[],
-  excludedCashActivityMinor: bigint,
   excludedReferences: readonly string[],
   differenceMinor: bigint,
   transferWarningReferences: readonly string[],
@@ -2573,6 +2584,13 @@ function buildWarnings(
   const warnings: CashFlowWarning[] = [];
   const beginningByAccount = new Map(beginningBalances.map(balance => [balance.account.id, balance]));
   const endingByAccount = new Map(endingBalances.map(balance => [balance.account.id, balance]));
+  const beginningChartByAccount = new Map(beginningChartBalances.map(balance => [balance.account.id, balance]));
+  const endingChartByAccount = new Map(endingChartBalances.map(balance => [balance.account.id, balance]));
+  const chartById = new Map(chartAccounts.map(account => [account.id, account]));
+  const includedPeriodTransactions = transactions.filter(transaction =>
+    transaction.state === 'POSTED'
+    && transaction.postingDate >= query.startDate
+    && transaction.postingDate <= query.endDate);
   const contributesToPeriod = (accountId: string): boolean => {
     const beginning = beginningByAccount.get(accountId);
     const ending = endingByAccount.get(accountId);
@@ -2581,6 +2599,13 @@ function buildWarnings(
       transaction.postingDate >= query.startDate
       && transaction.postingDate <= query.endDate
       && transaction.amount.minorUnits !== 0n));
+  };
+  const contributesToChartPeriod = (accountId: string): boolean => {
+    const beginning = beginningChartByAccount.get(accountId);
+    const ending = endingChartByAccount.get(accountId);
+    if ((beginning?.amountMinor ?? 0n) !== 0n || (ending?.amountMinor ?? 0n) !== 0n) return true;
+    return includedPeriodTransactions.some(transaction => transaction.splits.some(split =>
+      split.chartAccountId === accountId && split.amount.minorUnits !== 0n));
   };
   if (cashAccountIds.size === 0) {
     warnings.push({
@@ -2600,14 +2625,84 @@ function buildWarnings(
         accountRole: 'FINANCIAL_SOURCE', accountId: account.id, references: [account.id],
       });
     }
-    if (account.archived && contributes && (cashAccountIds.has(account.id) || restrictedAccountIds.has(account.id))) {
+    if (account.archived && contributes) {
       warnings.push({
-        warningId: cashFlowWarningId('ARCHIVED_PARTICIPATING_ACCOUNT', [account.id], query),
+        warningId: cashFlowWarningId('ARCHIVED_PARTICIPATING_ACCOUNT', ['FINANCIAL_SOURCE', account.id], query),
         code: 'ARCHIVED_PARTICIPATING_ACCOUNT',
         message: `${account.name} is archived but remains part of Cash Flow balances.`,
-        accountRole: 'FINANCIAL_SOURCE', accountId: account.id, references: [account.id],
+        accountRole: 'FINANCIAL_SOURCE', accountId: account.id, references: ['FINANCIAL_SOURCE', account.id],
       });
     }
+  }
+  for (const classification of allClassifications.slice().sort((left, right) =>
+    `${left.accountRole}:${left.accountId}`.localeCompare(`${right.accountRole}:${right.accountId}`))) {
+    const account = classification.accountRole === 'FINANCIAL_SOURCE'
+      ? accounts.find(candidate => candidate.id === classification.accountId)
+      : chartById.get(classification.accountId);
+    const classificationAccount = account as FinancialAccount | ChartAccount | undefined;
+    const matchesStructure = Boolean(classificationAccount
+      && classificationMatchesAccount(classification, classificationAccount));
+    const validation = matchesStructure && classificationAccount
+      ? validateCashFlowClassification({
+        accountRole: classification.accountRole,
+        accountType: classificationAccount.accountType,
+        detailType: classificationAccount.detailType,
+        classification,
+      })
+      : undefined;
+    if (!matchesStructure || !validation?.ok) {
+      warnings.push({
+        warningId: cashFlowWarningId('CASH_FLOW_CLASSIFICATION_INVALID', [classification.accountRole, classification.accountId], query),
+        code: 'CASH_FLOW_CLASSIFICATION_INVALID',
+        message: `${classification.accountRole === 'CHART' ? 'Chart' : 'Financial'} account ${classification.accountId} has an invalid Cash Flow classification.`,
+        accountRole: classification.accountRole,
+        accountId: classification.accountId,
+        references: [classification.accountRole, classification.accountId],
+      });
+      continue;
+    }
+    const contributes = classification.accountRole === 'FINANCIAL_SOURCE'
+      ? contributesToPeriod(classification.accountId)
+      : contributesToChartPeriod(classification.accountId);
+    if (!contributes) continue;
+    const isCashBoundaryReview = classification.accountRole === 'FINANCIAL_SOURCE'
+      && (classification.cashRole === 'CASH' || classification.cashRole === 'CASH_EQUIVALENT' || classification.cashRole === 'RESTRICTED_CASH')
+      && classification.treatment === 'CASH_BALANCE';
+    if (classification.status === 'REVIEW_REQUIRED' || classification.treatment === 'REVIEW_REQUIRED') {
+      if (isCashBoundaryReview) continue;
+      warnings.push({
+        warningId: cashFlowWarningId('CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED', [classification.accountRole, classification.accountId], query),
+        code: 'CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED',
+        message: `${classification.accountRole === 'CHART' ? 'Chart' : 'Financial'} account ${classification.accountId} requires Cash Flow treatment review.`,
+        accountRole: classification.accountRole,
+        accountId: classification.accountId,
+        references: [classification.accountRole, classification.accountId],
+      });
+    }
+  }
+  // Chart accounts participate independently from financial-source accounts.
+  // A missing Chart classification cannot be treated as an implicit default:
+  // the account may still affect P/L, Balance Sheet, or a cash-side split, so
+  // surface the unresolved classification whenever it has nonzero period or
+  // projected balance activity.
+  const classifiedChartIds = new Set(chartClassifications.keys());
+  for (const account of chartAccounts.slice().sort((left, right) =>
+    left.displayOrder - right.displayOrder || left.name.localeCompare(right.name) || left.id.localeCompare(right.id))) {
+    if (account.archived && contributesToChartPeriod(account.id)) {
+      warnings.push({
+        warningId: cashFlowWarningId('ARCHIVED_PARTICIPATING_ACCOUNT', ['CHART', account.id], query),
+        code: 'ARCHIVED_PARTICIPATING_ACCOUNT',
+        message: `${account.name} is archived but remains part of Cash Flow balances.`,
+        accountRole: 'CHART', accountId: account.id, references: ['CHART', account.id],
+      });
+    }
+    if (classifiedChartIds.has(account.id) || !contributesToChartPeriod(account.id)) continue;
+    warnings.push({
+      warningId: cashFlowWarningId('CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED', ['CHART', account.id], query),
+      code: 'CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED',
+      message: `Chart account ${account.id} requires Cash Flow treatment review.`,
+      accountRole: 'CHART', accountId: account.id, references: ['CHART', account.id],
+    });
   }
   for (const issue of hierarchyIssues) {
     const references = [issue.accountRole, issue.accountId, ...(issue.parentId ? [issue.parentId] : [])];
@@ -2620,7 +2715,7 @@ function buildWarnings(
       references,
     });
   }
-  if (unclassifiedCashActivityMinor !== 0n) {
+  if (unclassifiedReferences.length > 0) {
     warnings.push({
       warningId: cashFlowWarningId('UNCLASSIFIED_CASH_ACTIVITY', unclassifiedReferences, query),
       code: 'UNCLASSIFIED_CASH_ACTIVITY',
@@ -2637,7 +2732,7 @@ function buildWarnings(
       references: openingReferences,
     });
   }
-  if (excludedCashActivityMinor !== 0n) {
+  if (excludedReferences.length > 0) {
     warnings.push({
       warningId: cashFlowWarningId('EXCLUDED_MATERIAL_CASH_ACTIVITY', excludedReferences, query),
       code: 'EXCLUDED_MATERIAL_CASH_ACTIVITY',
@@ -2645,12 +2740,15 @@ function buildWarnings(
       references: excludedReferences,
     });
   }
-  if (restrictedBeginning !== 0n || restrictedEnding !== 0n) {
+  const participatingRestrictedAccountIds = [...restrictedAccountIds]
+    .filter(accountId => contributesToPeriod(accountId))
+    .sort();
+  if (participatingRestrictedAccountIds.length > 0) {
     warnings.push({
-      warningId: cashFlowWarningId('RESTRICTED_CASH_PRESENT', [...restrictedAccountIds], query),
+      warningId: cashFlowWarningId('RESTRICTED_CASH_PRESENT', participatingRestrictedAccountIds, query),
       code: 'RESTRICTED_CASH_PRESENT',
       message: 'Restricted cash is reported separately from cash and cash equivalents.',
-      references: [...restrictedAccountIds].sort(),
+      references: participatingRestrictedAccountIds,
     });
   }
   if (noncashReferences.length > 0) {
@@ -2679,19 +2777,23 @@ function buildWarnings(
       references: transferWarningReferences,
     });
   }
-  const outOfBalanceDates = [
-    ...(beginningDifference === 0n ? [] : [beginningDate]),
-    ...(endingDifference === 0n ? [] : [query.endDate]),
+  const outOfBalanceReferences = [
+    ...(beginningDifference === 0n ? [] : [`${beginningDate}:${beginningDifference.toString()}`]),
+    ...(endingDifference === 0n ? [] : [`${query.endDate}:${endingDifference.toString()}`]),
   ];
-  if (outOfBalanceDates.length > 0) {
+  if (outOfBalanceReferences.length > 0) {
     warnings.push({
-      warningId: cashFlowWarningId('SOURCE_BALANCE_SHEET_OUT_OF_BALANCE', outOfBalanceDates, query),
+      warningId: cashFlowWarningId('SOURCE_BALANCE_SHEET_OUT_OF_BALANCE', outOfBalanceReferences, query),
       code: 'SOURCE_BALANCE_SHEET_OUT_OF_BALANCE',
-      message: `The source Balance Sheet is out of balance for ${outOfBalanceDates.join(' and ')}.`,
-      references: outOfBalanceDates,
+      message: `The source Balance Sheet is out of balance for ${outOfBalanceReferences.map(reference => reference.replace(':', ' (difference ') + ')').join(' and ')}.`,
+      references: outOfBalanceReferences,
     });
   }
   return Object.freeze(warnings.sort((left, right) => left.warningId.localeCompare(right.warningId)).map(warning => Object.freeze(warning)));
+}
+
+function isBlockingCashFlowWarning(code: CashFlowWarning['code']): boolean {
+  return !['RESTRICTED_CASH_PRESENT', 'NONCASH_ACTIVITY_IDENTIFIED', 'ARCHIVED_PARTICIPATING_ACCOUNT'].includes(code);
 }
 
 export function dayBeforeBusinessDate(value: string): string {

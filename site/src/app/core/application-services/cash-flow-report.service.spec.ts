@@ -939,6 +939,135 @@ describe('CashFlowReportService query and cash balances', () => {
     expect(report.rows.some(row => row.accountId === excluded.id && (row.section === 'INVESTING' || row.section === 'FINANCING'))).toBeFalse();
   });
 
+  it('keeps zero-net unclassified and excluded activity material for status and provenance', () => {
+    addAccount('cash', 'Primary funds', 0n, '2025-12-01', 'CASH');
+    const unresolved = addChartAccount('zero-net-unresolved', 'Unresolved activity', 'OTHER_CURRENT_ASSET', 'Other current assets');
+    addChartClassification(unresolved.id, unresolved.accountType, unresolved.detailType, 'REVIEW_REQUIRED');
+    const excluded = addChartAccount('zero-net-excluded', 'Excluded activity', 'FIXED_ASSET', 'Machinery and equipment');
+    addChartClassification(excluded.id, excluded.accountType, excluded.detailType, 'EXCLUDED');
+    addTransaction('unclassified-in', 'cash', '2026-12-01', 100n, 'POSTED', undefined, [{ chartAccountId: unresolved.id, amountMinor: 100n, splitId: 'unclassified-in:split' }], false);
+    addTransaction('unclassified-out', 'cash', '2026-12-02', -100n, 'POSTED', undefined, [{ chartAccountId: unresolved.id, amountMinor: -100n, splitId: 'unclassified-out:split' }], false);
+    addTransaction('excluded-in', 'cash', '2026-12-03', 75n, 'POSTED', undefined, [{ chartAccountId: excluded.id, amountMinor: 75n, splitId: 'excluded-in:split' }], false);
+    addTransaction('excluded-out', 'cash', '2026-12-04', -75n, 'POSTED', undefined, [{ chartAccountId: excluded.id, amountMinor: -75n, splitId: 'excluded-out:split' }], false);
+
+    const query = { startDate: '2026-12-01', endDate: '2026-12-31', includeZeroRows: true } as const;
+    const shown = service.getCashFlowReport(query);
+    const hidden = service.getCashFlowReport({ ...query, includeZeroRows: false });
+    expect(shown.status).toBe('REVIEW_REQUIRED');
+    expect(shown.netChangeInCashMinor).toBe(0n);
+    expect(shown.calculatedEndingCashMinor).toBe(0n);
+    expect(shown.endingCashMinor).toBe(0n);
+    expect(shown.differenceMinor).toBe(0n);
+    expect(shown.unclassifiedCashActivityMinor).toBe(0n);
+    expect(shown.warnings.map(warning => warning.code)).toContain('UNCLASSIFIED_CASH_ACTIVITY');
+    expect(shown.warnings.map(warning => warning.code)).toContain('EXCLUDED_MATERIAL_CASH_ACTIVITY');
+    const unclassifiedRow = shown.rows.find(row => row.rowId.startsWith('SYNTHETIC:UNCLASSIFIED_CASH_ACTIVITY'))!;
+    expect(shown.detailIndex[unclassifiedRow.detailKey!].map(item => [item.transactionId, item.contributionMinor]))
+      .toEqual([['unclassified-in', 100n], ['unclassified-out', -100n]]);
+    const differenceRow = shown.rows.find(row => row.rowId.startsWith('SYNTHETIC:DIFFERENCE'))!;
+    expect(differenceRow.amountMinor).toBe(0n);
+    expect(shown.detailIndex[differenceRow.detailKey!].map(item => [item.transactionId, item.contributionMinor]))
+      .toEqual([['unclassified-in', -100n], ['unclassified-out', 100n], ['excluded-in', -75n], ['excluded-out', 75n]]);
+    expect(sumDetail(shown, unclassifiedRow.detailKey)).toBe(0n);
+    expect(sumDetail(shown, differenceRow.detailKey)).toBe(0n);
+
+    expect(hidden.status).toBe(shown.status);
+    expect(hidden.netChangeInCashMinor).toBe(shown.netChangeInCashMinor);
+    expect(hidden.calculatedEndingCashMinor).toBe(shown.calculatedEndingCashMinor);
+    expect(hidden.endingCashMinor).toBe(shown.endingCashMinor);
+    expect(hidden.differenceMinor).toBe(shown.differenceMinor);
+    expect(hidden.detailIndex[unclassifiedRow.detailKey!]).toEqual(shown.detailIndex[unclassifiedRow.detailKey!]);
+    expect(hidden.detailIndex[differenceRow.detailKey!]).toEqual(shown.detailIndex[differenceRow.detailKey!]);
+    expect(hidden.rows.some(row => row.rowId === unclassifiedRow.rowId)).toBeFalse();
+    const hiddenDifferenceRow = hidden.rows.find(row => row.rowId === differenceRow.rowId)!;
+    expect(hiddenDifferenceRow).toBeDefined();
+    expect(hiddenDifferenceRow.rowId).toBe(differenceRow.rowId);
+    expect(hiddenDifferenceRow.amountMinor).toBe(0n);
+    expect(hiddenDifferenceRow.detailKey).toBe(differenceRow.detailKey);
+    expect(sumDetail(hidden, hiddenDifferenceRow.detailKey)).toBe(0n);
+    expect(hidden.reportId).toBe(shown.reportId);
+
+    const transactions = [...repository.transactions.entries()].reverse();
+    repository.transactions.clear();
+    transactions.forEach(([id, transaction]) => repository.transactions.set(id, transaction));
+    const reordered = service.getCashFlowReport(query);
+    expect(reordered.status).toBe(shown.status);
+    expect(reordered.warnings.map(warning => warning.warningId)).toEqual(shown.warnings.map(warning => warning.warningId));
+    expect(reordered.detailIndex[unclassifiedRow.detailKey!]).toEqual(shown.detailIndex[unclassifiedRow.detailKey!]);
+    expect(reordered.detailIndex[differenceRow.detailKey!]).toEqual(shown.detailIndex[differenceRow.detailKey!]);
+  });
+
+  it('warns for restricted cash activity even when its period-end balance is zero', () => {
+    addAccount('cash', 'Primary funds', 1_000n, '2025-12-01', 'CASH');
+    addAccount('restricted', 'Restricted reserve', 0n, '2025-12-01', 'RESTRICTED_CASH');
+    addTransaction('restricted-roundtrip-out', 'cash', '2026-12-10', -100n, 'MATCHED_TRANSFER', 'restricted-roundtrip');
+    addTransaction('restricted-roundtrip-in', 'restricted', '2026-12-10', 100n, 'MATCHED_TRANSFER', 'restricted-roundtrip');
+    repository.transfers.set('restricted-roundtrip', {
+      id: 'restricted-roundtrip', leftTransactionId: 'restricted-roundtrip-out', rightTransactionId: 'restricted-roundtrip-in', confidence: 1,
+      rationale: 'Restricted round-trip out.', confirmedAtUtc: '2026-12-10T00:00:00.000Z',
+    });
+    addTransaction('restricted-roundtrip-back-in', 'cash', '2026-12-11', 100n, 'MATCHED_TRANSFER', 'restricted-roundtrip-back');
+    addTransaction('restricted-roundtrip-back-out', 'restricted', '2026-12-11', -100n, 'MATCHED_TRANSFER', 'restricted-roundtrip-back');
+    repository.transfers.set('restricted-roundtrip-back', {
+      id: 'restricted-roundtrip-back', leftTransactionId: 'restricted-roundtrip-back-out', rightTransactionId: 'restricted-roundtrip-back-in', confidence: 1,
+      rationale: 'Restricted round-trip back.', confirmedAtUtc: '2026-12-11T00:00:00.000Z',
+    });
+
+    const query = { startDate: '2026-12-01', endDate: '2026-12-31', includeZeroRows: true } as const;
+    const shown = service.getCashFlowReport(query);
+    const hidden = service.getCashFlowReport({ ...query, includeZeroRows: false });
+    expect(shown.beginningCashMinor).toBe(1_000n);
+    expect(shown.endingCashMinor).toBe(1_000n);
+    expect(shown.restrictedCashBeginningMinor).toBe(0n);
+    expect(shown.restrictedCashEndingMinor).toBe(0n);
+    expect(shown.netChangeInCashMinor).toBe(0n);
+    expect(shown.differenceMinor).toBe(0n);
+    expect(shown.unclassifiedCashActivityMinor).toBe(0n);
+    expect(shown.warnings.find(warning => warning.code === 'RESTRICTED_CASH_PRESENT')?.references).toEqual(['restricted']);
+    expect(shown.warnings.map(warning => warning.code)).toContain('UNCLASSIFIED_CASH_ACTIVITY');
+    const unclassifiedRow = shown.rows.find(row => row.rowId.startsWith('SYNTHETIC:UNCLASSIFIED_CASH_ACTIVITY'))!;
+    expect(shown.detailIndex[unclassifiedRow.detailKey!].map(item => [item.transferId, item.transactionId, item.contributionMinor]))
+      .toEqual([
+        ['restricted-roundtrip', 'restricted-roundtrip-out', -100n],
+        ['restricted-roundtrip-back', 'restricted-roundtrip-back-in', 100n],
+      ]);
+    const differenceRow = shown.rows.find(row => row.rowId.startsWith('SYNTHETIC:DIFFERENCE'))!;
+    expect(sumDetail(shown, unclassifiedRow.detailKey)).toBe(0n);
+    expect(sumDetail(shown, differenceRow.detailKey)).toBe(0n);
+    expect(hidden.status).toBe(shown.status);
+    expect(hidden.warnings.map(warning => warning.warningId)).toEqual(shown.warnings.map(warning => warning.warningId));
+    expect(hidden.detailIndex[unclassifiedRow.detailKey!]).toEqual(shown.detailIndex[unclassifiedRow.detailKey!]);
+    expect(hidden.detailIndex[differenceRow.detailKey!]).toEqual(shown.detailIndex[differenceRow.detailKey!]);
+
+    const transactions = [...repository.transactions.entries()].reverse();
+    repository.transactions.clear();
+    transactions.forEach(([id, transaction]) => repository.transactions.set(id, transaction));
+    const reordered = service.getCashFlowReport(query);
+    expect(reordered.warnings.map(warning => warning.warningId)).toEqual(shown.warnings.map(warning => warning.warningId));
+    expect(reordered.detailIndex[unclassifiedRow.detailKey!]).toEqual(shown.detailIndex[unclassifiedRow.detailKey!]);
+    expect(reordered.detailIndex[differenceRow.detailKey!]).toEqual(shown.detailIndex[differenceRow.detailKey!]);
+  });
+
+  it('warns independently for participating archived financial and Chart accounts', () => {
+    addAccount('cash', 'Primary funds', 1_000n, '2025-12-01', 'CASH');
+    const archivedFinancial = addAccount('archived-financial', 'Archived liability', 0n, '2025-12-01', 'NOT_CASH', true, 'CREDIT_CARD');
+    updateFinancialTreatment(archivedFinancial.id, 'OPERATING_LIABILITY', 'NOT_CASH');
+    const archivedChart = addChartAccount('archived-chart', 'Archived asset', 'OTHER_CURRENT_ASSET', 'Other current assets', { archived: true });
+    addChartClassification(archivedChart.id, archivedChart.accountType, archivedChart.detailType, 'OPERATING_ASSET');
+    const zeroArchivedChart = addChartAccount('zero-archived-chart', 'Zero archived asset', 'OTHER_CURRENT_ASSET', 'Other current assets', { archived: true });
+    addChartClassification(zeroArchivedChart.id, zeroArchivedChart.accountType, zeroArchivedChart.detailType, 'OPERATING_ASSET');
+    addTransaction('archived-activity', archivedFinancial.id, '2026-12-15', -100n, 'POSTED', undefined, [{ chartAccountId: archivedChart.id, amountMinor: -100n, splitId: 'archived-activity:asset' }], false);
+
+    const report = service.getCashFlowReport({ startDate: '2026-12-01', endDate: '2026-12-31' });
+    const archivedWarnings = report.warnings.filter(warning => warning.code === 'ARCHIVED_PARTICIPATING_ACCOUNT');
+    expect(archivedWarnings.map(warning => [warning.accountRole, warning.accountId, warning.references])).toEqual([
+      ['CHART', archivedChart.id, ['CHART', archivedChart.id]],
+      ['FINANCIAL_SOURCE', archivedFinancial.id, ['FINANCIAL_SOURCE', archivedFinancial.id]],
+    ]);
+    expect(archivedWarnings).toHaveSize(2);
+    expect(archivedWarnings.some(warning => warning.accountId === zeroArchivedChart.id)).toBeFalse();
+  });
+
   it('fails report generation when P/L detail cannot reconcile to the shared Net Profit identity', () => {
     addAccount('cash', 'Operating Checking', 0n, '2026-01-01', 'CASH');
     const malformed = addChartAccount('malformed', 'Malformed P/L account', 'EXPENSE', 'Other expense');
@@ -1338,6 +1467,7 @@ describe('CashFlowReportService query and cash balances', () => {
       expectedRows: Record<string, number>;
       detailGroups: Record<string, readonly { sourceId: string; amountMinor: number }[]>;
       diagnosticContributions?: readonly { sourceId: string; amountMinor: number }[];
+      expectedStatus: 'COMPLETE' | 'REVIEW_REQUIRED';
       expectedWarnings?: readonly string[];
       checkpoints?: readonly { endDate: string; netProfitMinor: number; operatingAssetAdjustmentsMinor?: number; operatingLiabilityAdjustmentsMinor?: number; netOperatingMinor: number; endingCashMinor: number }[];
     };
@@ -1347,7 +1477,7 @@ describe('CashFlowReportService query and cash balances', () => {
       return response.json() as Promise<OracleDocument>;
     });
     const scenarios = new Map(oracleDocument.scenarios.map(scenario => [scenario.id, scenario]));
-    const caseIds = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A12', 'A13', 'A15', 'A16', 'A17'];
+    const caseIds = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A12', 'A13', 'A14', 'A15', 'A16', 'A17'];
     expect(caseIds.every(id => scenarios.has(id))).toBeTrue();
     for (const id of caseIds) {
       const expected = scenarios.get(id)!;
@@ -1359,6 +1489,8 @@ describe('CashFlowReportService query and cash balances', () => {
       const accountRows = report.rows.filter(row => row.rowType === 'ACCOUNT_ACTIVITY');
       const amount = (rows: readonly { amountMinor?: bigint }[]) => rows.reduce((sum, row) => sum + (row.amountMinor ?? 0n), 0n);
       const totals = expected.expectedTotals;
+      expect(report.status).toBe(expected.expectedStatus);
+      if (expected.expectedWarnings) expect(report.warnings.map(warning => warning.code).sort().join('|')).toBe([...expected.expectedWarnings].sort().join('|'));
       expect(report.rows.find(row => row.rowType === 'NET_PROFIT')!.amountMinor).toBe(BigInt(totals['netProfitMinor']));
       expect(amount(report.rows.filter(row => row.rowType === 'ADJUSTMENT' && row.treatment === 'NONCASH_PNL_ADJUSTMENT'))).toBe(BigInt(totals['noncashAdjustmentsMinor']));
       expect(amount(accountRows.filter(row => row.treatment === 'OPERATING_ASSET'))).toBe(BigInt(totals['operatingAssetAdjustmentsMinor']));
@@ -1369,14 +1501,13 @@ describe('CashFlowReportService query and cash balances', () => {
       expect(report.netOperatingMinor).toBe(BigInt(totals['netOperatingMinor']));
       expect(report.beginningCashMinor).toBe(BigInt(totals['beginningCashMinor']));
       expect(report.endingCashMinor).toBe(BigInt(totals['endingCashMinor']));
-      if (id === 'A10' || id === 'A11' || id === 'A12' || id === 'A13') {
+      if (id === 'A10' || id === 'A11' || id === 'A12' || id === 'A13' || id === 'A14') {
         expect(report.netChangeInCashMinor).toBe(BigInt(totals['netChangeInCashMinor']));
         expect(report.calculatedEndingCashMinor).toBe(BigInt(totals['calculatedEndingCashMinor']));
         expect(report.differenceMinor).toBe(BigInt(totals['differenceMinor']));
         expect(report.restrictedCashBeginningMinor).toBe(BigInt(totals['restrictedCashBeginningMinor']));
         expect(report.restrictedCashEndingMinor).toBe(BigInt(totals['restrictedCashEndingMinor']));
         expect(report.unclassifiedCashActivityMinor).toBe(BigInt(totals['unclassifiedCashActivityMinor']));
-        if (expected.expectedWarnings) expect(report.warnings.map(warning => warning.code).sort().join('|')).toBe([...expected.expectedWarnings].sort().join('|'));
       }
       expect(report.databaseRevision).toBe(repository.getDatabaseRevision());
       const netProfitRow = report.rows.find(row => row.rowType === 'NET_PROFIT')!;
@@ -1460,7 +1591,7 @@ describe('CashFlowReportService query and cash balances', () => {
           contributionMinor: item.contributionMinor,
         }))).toEqual(expectedRow.detail);
       }
-      for (const [rowKey, expectedAmount] of id === 'A10' || id === 'A12' || id === 'A13'
+      for (const [rowKey, expectedAmount] of id === 'A10' || id === 'A12' || id === 'A13' || id === 'A14'
         ? Object.entries(expected.expectedRows).filter(([key]) => ['RESTRICTED_CASH_ENDING', 'UNCLASSIFIED_CASH_ACTIVITY', 'DIFFERENCE'].includes(key))
         : []) {
         const row = rowKey === 'RESTRICTED_CASH_ENDING'
@@ -1474,7 +1605,7 @@ describe('CashFlowReportService query and cash balances', () => {
           sourceId: rowKey === 'RESTRICTED_CASH_ENDING'
             ? `${item.accountId}:end`
             : rowKey === 'DIFFERENCE'
-              ? (id === 'A13' ? 'a13-opening:reconciliation' : `${item.transferId}:reconciliation`)
+              ? (id === 'A13' ? 'a13-opening:reconciliation' : id === 'A14' ? 'a14-unclassified:reconciliation' : `${item.transferId}:reconciliation`)
               : (id === 'A13' ? 'a13-opening' : item.transferId ?? item.transactionId ?? ''),
           contributionMinor: item.contributionMinor,
         }));
@@ -1592,9 +1723,9 @@ describe('CashFlowReportService query and cash balances', () => {
   }
 
   function addProductionFixtureScenario(id: string): void {
-    const copper = !['A12', 'A13', 'A15', 'A16', 'A17'].includes(id);
+    const copper = !['A12', 'A13', 'A14', 'A15', 'A16', 'A17'].includes(id);
     const cashId = copper ? 'copper-cash-a' : 'northwind-cash-a';
-    const opening = ({ A1: 0n, A2: 10_000n, A3: 20_000n, A4: 0n, A5: 30_000n, A6: 60_000n, A7: 10_000n, A8: 20_000n, A9: 10_000n, A10: 80_000n, A11: 10_000n, A12: 50_000n, A13: 25_000n, A15: 10_000n, A16: 50_000n, A17: 0n } as Record<string, bigint>)[id];
+    const opening = ({ A1: 0n, A2: 10_000n, A3: 20_000n, A4: 0n, A5: 30_000n, A6: 60_000n, A7: 10_000n, A8: 20_000n, A9: 10_000n, A10: 80_000n, A11: 10_000n, A12: 50_000n, A13: 25_000n, A14: 10_000n, A15: 10_000n, A16: 50_000n, A17: 0n } as Record<string, bigint>)[id];
     const openingDate = id === 'A13' ? '2026-02-10' : id === 'A16' ? '2025-06-01' : '2025-12-01';
     addAccount(cashId, copper ? 'Daily funds' : 'Workshop till', opening, openingDate, 'CASH');
     if (id === 'A10') addAccount('copper-cash-b', 'Reserve funds', 20_000n, openingDate, 'CASH');
@@ -1675,6 +1806,13 @@ describe('CashFlowReportService query and cash balances', () => {
       addTransaction('a12-restricted-transfer:restricted', 'northwind-restricted', '2026-01-15', 20_000n, 'MATCHED_TRANSFER', 'a12-restricted-transfer', [], false);
       repository.transfers.set('a12-restricted-transfer', { id: 'a12-restricted-transfer', leftTransactionId: 'a12-restricted-transfer:cash', rightTransactionId: 'a12-restricted-transfer:restricted', confidence: 1, rationale: 'Fixture restricted cash transfer.', confirmedAtUtc: '2026-01-15T00:00:00.000Z' });
     }
+    if (id === 'A14') {
+      const unresolved = addChartAccount('a14-unresolved', 'Unresolved activity', 'OTHER_CURRENT_ASSET', 'Other current assets');
+      addChartClassification(unresolved.id, unresolved.accountType, unresolved.detailType, 'REVIEW_REQUIRED');
+      const classification = repository.cashFlowClassifications.get(`CHART:${unresolved.id}`)!;
+      repository.cashFlowClassifications.set(`CHART:${unresolved.id}`, { ...classification, status: 'REVIEW_REQUIRED' });
+      addTransaction('a14-unclassified', cashId, '2026-03-15', -3_000n, 'POSTED', undefined, [{ chartAccountId: unresolved.id, amountMinor: -3_000n, splitId: 'a14-unclassified:activity' }], false);
+    }
     if (id === 'A15') {
       addTransaction('a15-pending', cashId, '2026-04-05', 5_000n, 'PENDING');
       addTransaction('a15-excluded', cashId, '2026-04-06', -2_000n, 'EXCLUDED');
@@ -1731,12 +1869,14 @@ describe('CashFlowReportService query and cash balances', () => {
     balanceFixture = true,
   ): void {
     const fixtureSplits = splitInputs.slice();
+    let fixtureBalanceMinor: bigint | undefined;
     if (balanceFixture && state === 'POSTED') {
       const splitTotal = fixtureSplits.reduce((total, split) => total + split.amountMinor, 0n);
       if (splitTotal !== amount) {
+        fixtureBalanceMinor = amount - splitTotal;
         fixtureSplits.push({
           chartAccountId: ensureFixtureBalancingAccount().id,
-          amountMinor: amount - splitTotal,
+          amountMinor: fixtureBalanceMinor,
           splitId: `${id}:fixture-balance`,
         });
       }
@@ -1747,15 +1887,45 @@ describe('CashFlowReportService query and cash balances', () => {
       categorizationSource: state === 'MATCHED_TRANSFER' ? 'TRANSFER' : 'MANUAL', transferMatchId,
       createdAtUtc: `${postingDate}T00:00:00.000Z`, modifiedAtUtc: `${postingDate}T00:00:00.000Z`,
     });
+    if (fixtureBalanceMinor !== undefined && fixtureBalanceMinor !== 0n) {
+      addFixtureEquityOffset(id, postingDate, fixtureBalanceMinor);
+    }
   }
 
   function ensureFixtureBalancingAccount(): ChartAccount {
     const id = '__fixture-balancing-equity__';
     const existing = repository.chartAccounts.get(id);
     if (existing) return existing;
-    const account = addChartAccount(id, 'Fixture balancing equity', 'EQUITY', 'Owner equity', { displayOrder: 999_999 });
-    addChartClassification(account.id, account.accountType, account.detailType, 'CASH_BALANCE');
+    // Keep the fixture-balancing split outside P/L and Balance Sheet while
+    // still giving it a valid Chart classification. This account exists only
+    // to make intentionally synthetic split totals reconcile in fixture rows.
+    const account = addChartAccount(id, 'Fixture balancing account', 'OTHER_EXPENSE', 'Other expense', { displayOrder: 999_999 });
+    account.type = 'ASSET';
+    addChartClassification(account.id, account.accountType, account.detailType, 'OPERATING_REVENUE_EXPENSE');
     return account;
+  }
+
+  function addFixtureEquityOffset(transactionId: string, postingDate: string, amountMinor: bigint): void {
+    const accountId = '__fixture-balancing-equity-offset__';
+    let account = repository.chartAccounts.get(accountId);
+    if (!account) {
+      account = addChartAccount(accountId, 'Fixture balancing equity offset', 'EQUITY', 'Owner equity', { displayOrder: 999_998 });
+      addChartClassification(account.id, account.accountType, account.detailType, 'EXCLUDED');
+    }
+    const id = `${transactionId}:fixture-equity-offset`;
+    repository.transactions.set(id, {
+      id,
+      accountId: '__fixture-journal__',
+      postingDate,
+      amount: money(0n),
+      rawDescription: id,
+      description: 'Fixture balancing equity offset',
+      state: 'POSTED',
+      splits: [{ id: `${id}:split`, chartAccountId: account.id, amount: money(amountMinor) }],
+      categorizationSource: 'MANUAL',
+      createdAtUtc: `${postingDate}T00:00:00.000Z`,
+      modifiedAtUtc: `${postingDate}T00:00:00.000Z`,
+    });
   }
 
   function addChartAccount(
