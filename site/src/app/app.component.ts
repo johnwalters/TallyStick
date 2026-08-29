@@ -15,7 +15,10 @@ import { BalanceSheetContractError, BalanceSheetDetail, BalanceSheetReport, Comp
 import { AccountChangeValidation, AccountRole, AccountingAccountType, AccountTypeGroupDefinition, ImportSourceKind, SaveGenericAccountCommand } from './core/domain-model/account-taxonomy';
 import { BalanceSheetFacade } from './features/balance-sheet/balance-sheet.facade';
 import { CashFlowFacade } from './features/cash-flow/cash-flow.facade';
-import { CashFlowClassificationReviewComponent, CashFlowClassificationEditorDraft } from './features/cash-flow/cash-flow-classification-review.component';
+import type { CashFlowClassificationEditorDraft } from './features/cash-flow/cash-flow-classification-review.component';
+import { CashFlowClassificationReviewHostComponent } from './features/cash-flow/cash-flow-classification-review-host.component';
+import type { CashFlowPeriodPreset } from './features/cash-flow/cash-flow-workspace.component';
+import { CashFlowWorkspaceHostComponent } from './features/cash-flow/cash-flow-workspace-host.component';
 import {
   CASH_FLOW_CASH_ROLES,
   CASH_FLOW_TREATMENTS,
@@ -26,13 +29,17 @@ import {
   CashFlowClassificationReviewItem,
   CashFlowClassificationReviewReasonCode,
   CashFlowClassificationSaveImpact,
+  CashFlowDetail,
+  CashFlowReport,
+  CashFlowRow,
+  CashFlowWarning,
   CashFlowQuery,
   CashFlowTreatment,
 } from './core/domain-model/cash-flow.types';
 
 type TransactionSortColumn = 'DATE_ACCOUNT' | 'SOURCE' | 'CATEGORY' | 'AMOUNT';
 type TransactionSortDirection = 'ASC' | 'DESC';
-type WorkspaceView = 'TRANSACTIONS' | 'CHART' | 'RULES' | 'REPORTS' | 'BALANCE_SHEET' | 'DATA';
+type WorkspaceView = 'TRANSACTIONS' | 'CHART' | 'RULES' | 'REPORTS' | 'CASH_FLOW' | 'BALANCE_SHEET' | 'DATA';
 type ChartSortColumn = 'ORDER' | 'NAME' | 'TYPE' | 'DETAIL' | 'STATUS';
 type RuleStatusFilter = 'ALL' | 'ENABLED' | 'DISABLED';
 type ReportView = 'SUMMARY' | 'DETAIL';
@@ -41,7 +48,6 @@ type ReportSortColumn = 'DATE' | 'ACCOUNT' | 'DESCRIPTION' | 'CATEGORY' | 'AMOUN
 type ReportSortDirection = 'ASC' | 'DESC';
 type ReportSummaryRowKind = 'GROUP' | 'ACCOUNT' | 'SUBTOTAL' | 'SYNTHETIC';
 type ClassificationReviewFilter = 'ALL' | 'REVIEW_REQUIRED' | 'CASH' | 'OPERATING' | 'INVESTING' | 'FINANCING' | 'NONCASH';
-
 interface ReportSummaryDisplayRow {
   id: string;
   label: string;
@@ -121,7 +127,7 @@ const TRANSACTION_VIEW_STORAGE_KEY = 'accounting.transaction-view.v1';
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [RouterOutlet, FormsModule, CashFlowClassificationReviewComponent],
+  imports: [RouterOutlet, FormsModule, CashFlowClassificationReviewHostComponent, CashFlowWorkspaceHostComponent],
   templateUrl: './app.component.html',
   styleUrl: './app.component.scss'
 })
@@ -180,6 +186,18 @@ export class AppComponent {
   balanceSheetIncludeZero = false;
   balanceSheetLoading = false;
   private balanceSheetReturnFocus?: HTMLElement;
+  cashFlowReport?: CashFlowReport;
+  cashFlowDetail?: CashFlowDetail;
+  cashFlowDetailRow?: CashFlowRow;
+  cashFlowStartDate = '';
+  cashFlowEndDate = '';
+  cashFlowPeriod: CashFlowPeriodPreset = 'FISCAL_YEAR';
+  cashFlowShowZeros = false;
+  cashFlowLoading = false;
+  cashFlowStale = false;
+  cashFlowStaleMsg = '';
+  cashFlowDateErr = '';
+  cashFlowExpanded = new Set<string>();
   navigationExpanded = true;
   reportTaxSettings!: TaxYearSettings;
   selectedTransactionIds = new Set<string>();
@@ -226,6 +244,21 @@ export class AppComponent {
   readonly classificationTreatmentLabelForReview = (treatment: CashFlowTreatment): string => this.classificationTreatmentLabel(treatment);
   readonly classificationReasonLabelForReview = (reason: CashFlowClassificationReviewReasonCode): string => this.classificationReasonLabel(reason);
   readonly classificationReasonTextForReview = (item: CashFlowClassificationReviewItem): string => this.classificationReviewItemReasonText(item);
+  get cashFlowWorkspaceState() {
+    return [this.cashFlowReport, this.cashFlowDetail, this.cashFlowDetailRow, this.companyProfile.displayName, this.companyProfile.accountingBasis,
+      this.cashFlowStartDate, this.cashFlowEndDate, this.cashFlowPeriod, this.cashFlowShowZeros, this.cashFlowLoading,
+      this.cashFlowStale, this.cashFlowStaleMsg, this.cashFlowDateErr, this.cashFlowFacade.error(), this.cashFlowExpanded,
+      '', this.classificationReview, this.companyProfile.activeTaxYear, this.companyProfile.fiscalYearStartMonth] as const;
+  }
+  get classificationReviewState() {
+    return [this.classificationReview, this.filteredClassificationReviewItems, this.classificationEditor, this.classificationPreview,
+      this.classificationSaveImpact, this.classificationError, this.classificationSaveMessage, this.classificationEditorSaveEnabled,
+      this.classificationEditorStructureStable, this.classificationReviewStartDate, this.classificationReviewEndDate,
+      this.classificationReviewFilter, this.classificationReviewSearch, this.classificationSelectedAccountKey, this.cashFlowCashRoles,
+      this.cashFlowTreatments, this.classificationSelectionKey.bind(this), this.classificationMoneyForReview,
+      this.classificationCashRoleLabelForReview, this.classificationTreatmentLabelForReview, this.classificationReasonLabelForReview,
+      this.classificationReasonTextForReview] as const;
+  }
   readonly ruleConditionFields: RuleCondition['field'][] = ['ACCOUNT', 'DIRECTION', 'DESCRIPTION', 'PAYEE', 'MEMO', 'AMOUNT', 'SOURCE_TYPE'];
   readonly ruleConditionOperators: RuleCondition['operator'][] = ['EQUALS', 'CONTAINS', 'STARTS_WITH', 'RANGE'];
 
@@ -247,6 +280,10 @@ export class AppComponent {
     const reportYear = this.accounting.getCompany().activeTaxYear;
     this.reportStartDate = `${reportYear}-01-01`;
     this.reportEndDate = `${reportYear}-12-31`;
+    const fiscalStart = Math.min(12, Math.max(1, this.accounting.getCompany().fiscalYearStartMonth || 1));
+    const fiscalStartYear = fiscalStart === 1 ? reportYear : reportYear - 1;
+    this.cashFlowStartDate = `${fiscalStartYear}-${String(fiscalStart).padStart(2, '0')}-01`;
+    this.cashFlowEndDate = new Date(Date.UTC(reportYear, fiscalStart, 0)).toISOString().slice(0, 10);
     this.classificationReviewStartDate = this.reportStartDate;
     this.classificationReviewEndDate = this.reportEndDate;
     const balanceQuery = normalizeBalanceSheetQuery({}, this.accounting.getCompany());
@@ -285,6 +322,89 @@ export class AppComponent {
   balanceSheetOutOfBalance(): boolean { return (this.balanceSheet?.differenceMinor ?? 0n) !== 0n; }
   async exportBalanceSheet(format: 'CSV' | 'XLSX'): Promise<void> { if (this.balanceSheet) await this.balanceSheetFacade.export({ report: this.balanceSheet, format }); }
   async openBalanceSheetPrintPreview(): Promise<void> { if (this.balanceSheet) await this.balanceSheetFacade.openPrintPreview({ report: this.balanceSheet }); }
+
+  cashFlowQuery(): CashFlowQuery | undefined {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(this.cashFlowStartDate) || !/^\d{4}-\d{2}-\d{2}$/.test(this.cashFlowEndDate)) {
+      this.cashFlowDateErr = 'Enter a valid start and end date.';
+      return undefined;
+    }
+    if (this.cashFlowStartDate > this.cashFlowEndDate) {
+      this.cashFlowDateErr = 'Start date must be on or before end date.';
+      return undefined;
+    }
+    this.cashFlowDateErr = '';
+    return { startDate: this.cashFlowStartDate, endDate: this.cashFlowEndDate, includeZeroRows: this.cashFlowShowZeros };
+  }
+
+  loadCashFlowReport(): void {
+    const query = this.cashFlowQuery();
+    const hadReport = Boolean(this.cashFlowReport);
+    this.cashFlowDetail = undefined;
+    this.cashFlowDetailRow = undefined;
+    if (!query) {
+      this.cashFlowReport = undefined;
+      if (hadReport) {
+        this.markCashFlowStale('Enter a valid period, then refresh.');
+      }
+      return;
+    }
+    this.cashFlowLoading = true;
+    this.cashFlowReport = undefined;
+    this.cashFlowFacade.loadReport(query);
+    this.cashFlowReport = this.cashFlowFacade.report();
+    this.cashFlowLoading = false;
+    if (this.cashFlowReport) {
+      this.cashFlowStale = false;
+      this.cashFlowStaleMsg = '';
+    } else if (hadReport) {
+      this.markCashFlowStale(this.cashFlowFacade.error() ?? 'Refresh after resolving the report error.');
+    }
+    const parentIds = new Set((this.cashFlowReport?.rows ?? []).flatMap(row => row.parentRowId ? [row.parentRowId] : []));
+    this.cashFlowExpanded = new Set([...parentIds]);
+  }
+
+  toggleCashFlowRow(row: CashFlowRow): void {
+    const next = new Set(this.cashFlowExpanded);
+    if (next.has(row.rowId)) next.delete(row.rowId); else next.add(row.rowId);
+    this.cashFlowExpanded = next;
+  }
+  reviewCashFlowWarning(warning: CashFlowWarning, event?: Event): void {
+    if (!warning.accountRole || !warning.accountId) return;
+    this.openClassificationReview(event?.currentTarget as HTMLElement | undefined, { accountRole: warning.accountRole, accountId: warning.accountId });
+  }
+  openCashFlowDetail(row: CashFlowRow, event: Event): void {
+    if (this.cashFlowStale || !this.cashFlowReport || !row.detailKey) return;
+    this.cashFlowDetailRow = row;
+    if (row.accountRole && row.accountId && !this.classificationReview) this.loadClassificationState();
+    this.cashFlowFacade.loadDetail({ reportId: this.cashFlowReport.reportId, databaseRevision: this.cashFlowReport.databaseRevision, detailKey: row.detailKey });
+    this.cashFlowDetail = this.cashFlowFacade.detail();
+    if (!this.cashFlowDetail && this.cashFlowFacade.error()) {
+      this.markCashFlowStale(this.cashFlowFacade.error()!);
+    }
+    queueMicrotask(() => (document.querySelector('.cash-flow-detail-close') as HTMLElement | null)?.focus());
+  }
+  closeCashFlowDetail(): void { this.cashFlowDetail = undefined; this.cashFlowDetailRow = undefined; }
+  async exportCashFlow(format: 'CSV' | 'XLSX'): Promise<void> {
+    if (this.cashFlowStale || !this.cashFlowReport) return;
+    await this.cashFlowFacade.export({ reportId: this.cashFlowReport.reportId, databaseRevision: this.cashFlowReport.databaseRevision, format });
+    if (this.cashFlowFacade.error()) {
+      this.markCashFlowStale(this.cashFlowFacade.error()!);
+    }
+  }
+  async openCashFlowPrintPreview(): Promise<void> {
+    if (this.cashFlowStale || !this.cashFlowReport) return;
+    await this.cashFlowFacade.openPrintPreview({ reportId: this.cashFlowReport.reportId, databaseRevision: this.cashFlowReport.databaseRevision });
+    if (this.cashFlowFacade.error()) {
+      this.markCashFlowStale(this.cashFlowFacade.error()!);
+    }
+  }
+  private markCashFlowStale(message: string): void { this.cashFlowStale = true; this.cashFlowStaleMsg = message; }
+  private invalidateCashFlow(message = 'Report is stale. Refresh report to continue.'): void {
+    if (!this.cashFlowReport) return;
+    this.markCashFlowStale(message);
+    this.cashFlowDetail = undefined;
+    this.cashFlowDetailRow = undefined;
+  }
 
   refresh(): void {
     this.transactionMonth = this.transactionMonthForRange();
@@ -331,6 +451,7 @@ export class AppComponent {
     const visibleTransactionIds = new Set(this.transactions.map(transaction => transaction.id));
     this.selectedTransactionIds = new Set([...this.selectedTransactionIds].filter(id => visibleTransactionIds.has(id)));
     this.loadReports();
+    if (this.workspaceView === 'CASH_FLOW') this.loadCashFlowReport();
     this.persistTransactionView();
   }
 
@@ -374,6 +495,7 @@ export class AppComponent {
     this.workspaceView = view;
     this.closeCategoryPicker();
     if (view === 'BALANCE_SHEET') this.loadBalanceSheet();
+    if (view === 'CASH_FLOW') this.loadCashFlowReport();
     if (view === 'REPORTS') this.loadReports();
     if (view === 'RULES') this.ruleFacade.load();
     if (view === 'CHART') this.chartAccountFacade.load();
@@ -462,6 +584,7 @@ export class AppComponent {
       this.companyProfile = this.accounting.updateCompanyProfile(command);
       this.statusMessage = `Saved company information for ${this.companyProfile.displayName}.`;
       this.closeCompanySettings();
+      this.invalidateCashFlow();
     } catch (error) {
       this.companyEditorError = error instanceof BalanceSheetContractError ? error.failure.message : 'Unable to save company information.';
     }
@@ -508,7 +631,7 @@ export class AppComponent {
     return `${role}:${accountId}`;
   }
 
-  openClassificationReview(opener?: HTMLElement | null): void {
+  openClassificationReview(opener?: HTMLElement | null, target?: { accountRole: 'FINANCIAL_SOURCE' | 'CHART'; accountId: string }): void {
     const active = opener ?? (document.activeElement instanceof HTMLElement ? document.activeElement : undefined);
     if (active) this.classificationReviewReturnFocus = active;
     this.classificationReviewOpen = true;
@@ -520,6 +643,15 @@ export class AppComponent {
     this.classificationSaveMessage = '';
     this.classificationSaveImpact = undefined;
     this.loadClassificationState();
+    if (target) {
+      const targetKey = this.classificationSelectionKey(target.accountRole, target.accountId);
+      const targetItem = this.classificationReview?.accounts.find(item => this.classificationSelectionKey(item.accountRole, item.accountId) === targetKey);
+      if (!this.filteredClassificationReviewItems.some(item => this.classificationSelectionKey(item.accountRole, item.accountId) === targetKey)) {
+        this.classificationReviewFilter = 'ALL';
+      }
+      this.classificationSelectedAccountKey = targetKey;
+      this.setClassificationEditor(target.accountRole, target.accountId, targetItem);
+    }
   }
 
   closeClassificationReview(): void {
@@ -685,6 +817,7 @@ export class AppComponent {
     this.classificationSaveImpact = savedReview.saveImpact ?? savedReview.impact;
     this.classificationSaveMessage = `Saved classification for ${draft.accountPath}. Affected report sections will use it after refresh.`;
     this.statusMessage = `Saved Cash Flow classification for ${draft.accountPath}.`;
+    this.invalidateCashFlow();
     this.loadClassificationState();
     const updatedItem = this.classificationReview?.accounts.find(item => item.accountRole === draft.accountRole && item.accountId === draft.accountId);
     this.setClassificationEditor(draft.accountRole, draft.accountId, updatedItem);
@@ -1520,6 +1653,7 @@ export class AppComponent {
     this.setupFacade.load();
     this.statusMessage = `${id ? 'Updated' : 'Created'} ${saved.name}.`;
     this.chartDraft = undefined;
+    this.invalidateCashFlow();
   }
 
   toggleChartAccountArchived(account: ChartAccount): void {
@@ -1529,6 +1663,7 @@ export class AppComponent {
     if (!result) { this.statusMessage = this.chartAccountFacade.error() ?? `Unable to ${action} account.`; return; }
     this.setupFacade.load();
     this.statusMessage = `${account.archived ? 'Restored' : 'Archived'} ${account.name}.`;
+    this.invalidateCashFlow();
   }
 
   chartAccountLeafName(account: ChartAccount): string { return account.name.split(':').pop() ?? account.name; }

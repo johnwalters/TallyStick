@@ -1,4 +1,4 @@
-import { TestBed } from '@angular/core/testing';
+import { ComponentFixture, DeferBlockBehavior, DeferBlockState, TestBed } from '@angular/core/testing';
 import { ACCOUNTING_APPLICATION } from './core/application-interface/accounting.application';
 import { DefaultAccountingApplication } from './core/application-services/default-accounting.application';
 import { ImportPipelineService } from './core/import-services/import-pipeline.service';
@@ -8,13 +8,24 @@ import { BackupBundleService } from './core/backup-services/backup-bundle.servic
 import { ACCOUNTING_REPOSITORY } from './core/repository-gateways/accounting.repository';
 import { ImportFacade } from './features/imports/import.facade';
 import * as XLSX from 'xlsx';
-import { money, newId, nowUtc } from './core/domain-model/accounting.types';
+import { formatMoney, money, newId, nowUtc } from './core/domain-model/accounting.types';
+import { CashFlowWarning } from './core/domain-model/cash-flow.types';
+
+const cashFlowDisplayMoney = (value: bigint): string => formatMoney(money(value));
+
+async function settleDeferred(fixture: ComponentFixture<unknown>): Promise<void> {
+  await fixture.whenStable();
+  for (const block of await fixture.getDeferBlocks()) await block.render(DeferBlockState.Complete);
+  await new Promise<void>(resolve => setTimeout(resolve, 500));
+  fixture.detectChanges();
+}
 
 describe('AppComponent', () => {
   beforeEach(async () => {
     localStorage.removeItem('accounting.transaction-view.v1');
     await TestBed.configureTestingModule({
       imports: [AppComponent],
+      deferBlockBehavior: DeferBlockBehavior.Playthrough,
       providers: [
         InMemoryAccountingRepository,
         { provide: ACCOUNTING_REPOSITORY, useExisting: InMemoryAccountingRepository },
@@ -46,7 +57,7 @@ describe('AppComponent', () => {
     expect(fixture.nativeElement.querySelector('#reports-workspace')).toBeNull();
   });
 
-  it('opens the Cash Flow classification review, exposes structural reasons, and saves a validated stable-ID change', () => {
+  it('opens the Cash Flow classification review, exposes structural reasons, and saves a validated stable-ID change', async () => {
     const application = TestBed.inject(ACCOUNTING_APPLICATION);
     const created = application.saveGenericAccount({
       requestedRole: 'CHART', accountType: 'EXPENSE', detailType: 'Other business expenses', name: 'Classification review expense',
@@ -60,6 +71,7 @@ describe('AppComponent', () => {
     const component = fixture.componentInstance;
     component.openClassificationReview();
     fixture.detectChanges();
+    await settleDeferred(fixture);
 
     const panel = fixture.nativeElement.querySelector('.cash-flow-review-panel') as HTMLElement;
     expect(panel).toBeTruthy();
@@ -174,7 +186,7 @@ describe('AppComponent', () => {
     trigger.focus();
     trigger.click();
     fixture.detectChanges();
-    await fixture.whenStable();
+    await settleDeferred(fixture);
     const panel = fixture.nativeElement.querySelector('.cash-flow-review-panel') as HTMLElement;
     expect(document.activeElement).toBe(panel);
     const focusable = Array.from(panel.querySelectorAll<HTMLElement>('button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'));
@@ -186,12 +198,12 @@ describe('AppComponent', () => {
     const search = panel.querySelector('input') as HTMLInputElement;
     search.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
     fixture.detectChanges();
-    await fixture.whenStable();
+    await settleDeferred(fixture);
     expect(fixture.nativeElement.querySelector('.cash-flow-review-panel')).toBeNull();
     expect(document.activeElement).toBe(trigger);
   });
 
-  it('keeps archived classification editors read-only', () => {
+  it('keeps archived classification editors read-only', async () => {
     const application = TestBed.inject(ACCOUNTING_APPLICATION);
     const repository = TestBed.inject(InMemoryAccountingRepository);
     const chart = [...repository.chartAccounts.values()].find(account => !account.archived)!;
@@ -201,6 +213,7 @@ describe('AppComponent', () => {
     const component = fixture.componentInstance;
     component.openClassificationReview();
     fixture.detectChanges();
+    await settleDeferred(fixture);
     const item = component.classificationReview!.accounts.find(candidate => candidate.accountRole === 'CHART' && candidate.accountId === chart.id)!;
     component.selectClassificationReviewItem(item);
     fixture.detectChanges();
@@ -477,7 +490,7 @@ describe('AppComponent', () => {
     expect((fixture.nativeElement.querySelector('.generic-account-editor-footer .primary-button') as HTMLButtonElement).disabled).toBeTrue();
   });
 
-  it('shows exactly one icon-led primary accounting workspace', () => {
+  it('shows exactly one icon-led primary accounting workspace', async () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const tabs = [...fixture.nativeElement.querySelectorAll('.workspace-tab')] as HTMLButtonElement[];
@@ -485,19 +498,22 @@ describe('AppComponent', () => {
     const chartTab = tabs.find(tab => tab.textContent?.trim() === 'Chart of Accounts')!;
     const rulesTab = tabs.find(tab => tab.textContent?.trim() === 'Rules')!;
     const reportsTab = tabs.find(tab => tab.textContent?.trim() === 'Profit & Loss')!;
+    const cashFlowTab = tabs.find(tab => tab.textContent?.trim() === 'Cash Flow')!;
     const balanceSheetTab = tabs.find(tab => tab.textContent?.trim() === 'Balance Sheet')!;
     const dataTab = tabs.find(tab => tab.textContent?.trim() === 'Backups')!;
-    expect(tabs).toHaveSize(6);
+    expect(tabs).toHaveSize(7);
     expect(fixture.nativeElement.querySelector('.workspace-switcher select')).toBeNull();
     expect(fixture.nativeElement.querySelector('.app-sidebar')).toBeTruthy();
     expect(fixture.nativeElement.querySelector('.workspace-switcher')?.getAttribute('aria-orientation')).toBe('vertical');
     expect(transactionsTab.querySelector('.bi-list')).toBeTruthy();
     expect(chartTab.querySelector('.bi-bar-chart-steps')).toBeTruthy();
     expect(reportsTab.querySelector('.bi-file-ruled')).toBeTruthy();
+    expect(cashFlowTab.querySelector('.bi-cash-coin')).toBeTruthy();
     expect(dataTab.querySelector('.bi-database')).toBeTruthy();
     expect(transactionsTab.getAttribute('aria-selected')).toBe('true');
     expect(reportsTab.getAttribute('aria-selected')).toBe('false');
     expect(balanceSheetTab.getAttribute('aria-selected')).toBe('false');
+    expect(cashFlowTab.getAttribute('aria-selected')).toBe('false');
 
     const navigationToggle = fixture.nativeElement.querySelector('.navigation-toggle') as HTMLButtonElement;
     navigationToggle.click();
@@ -535,6 +551,14 @@ describe('AppComponent', () => {
     expect(fixture.nativeElement.querySelector('#rules-workspace')).toBeNull();
     expect(fixture.nativeElement.querySelector('#reports-workspace')).toBeTruthy();
     expect(reportsTab.getAttribute('aria-selected')).toBe('true');
+
+    cashFlowTab.click();
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    expect(fixture.componentInstance.workspaceView).toBe('CASH_FLOW');
+    expect(fixture.nativeElement.querySelector('#cash-flow-workspace')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('#reports-workspace')).toBeNull();
+    expect(cashFlowTab.getAttribute('aria-selected')).toBe('true');
 
     dataTab.click();
     fixture.detectChanges();
@@ -586,6 +610,256 @@ describe('AppComponent', () => {
     component.chartStatusFilter = 'ARCHIVED';
     fixture.detectChanges();
     expect(component.filteredChartAccounts.some(account => account.id === created.id && account.archived)).toBeTrue();
+  });
+
+  it('renders the Cash Flow workspace with independent period controls and statement metadata', async () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const reportStart = component.reportStartDate;
+    const reportEnd = component.reportEndDate;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+
+    const workspace = fixture.nativeElement.querySelector('#cash-flow-workspace') as HTMLElement;
+    expect(component.cashFlowReport).toBeTruthy();
+    expect(workspace.querySelector('h2')?.textContent).toContain('Statement of Cash Flows');
+    expect(workspace.querySelector('[aria-label="Statement of Cash Flows"]')).toBeTruthy();
+    expect(workspace.textContent).toContain('Beginning Cash');
+    expect(workspace.textContent).toContain('Net Change in Cash');
+    expect(workspace.textContent).toContain('Ending Cash');
+    expect(workspace.textContent).toContain('Difference');
+
+    component.cashFlowStartDate = '2026-02-01';
+    component.cashFlowEndDate = '2026-02-28';
+    component.cashFlowPeriod = 'CUSTOM';
+    component.loadCashFlowReport();
+    fixture.detectChanges();
+    expect(component.cashFlowReport?.query.startDate).toBe('2026-02-01');
+    expect(component.cashFlowReport?.query.endDate).toBe('2026-02-28');
+    expect(component.reportStartDate).toBe(reportStart);
+    expect(component.reportEndDate).toBe(reportEnd);
+    expect(component.cashFlowPeriod).toBe('CUSTOM');
+
+    const period = workspace.querySelector('.cash-flow-controls select') as HTMLSelectElement;
+    period.value = 'CURRENT_QUARTER';
+    period.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    expect(component.cashFlowReport?.query.startDate).toMatch(/^\d{4}-(01|04|07|10)-01$/);
+    expect(component.cashFlowReport?.query.endDate).toMatch(/^\d{4}-(03|06|09|12)-\d{2}$/);
+  });
+
+  it('supports Cash Flow hierarchy expansion, accessible amount drilldown, and detail reconciliation', async () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    const report = component.cashFlowReport!;
+    const workspace = fixture.nativeElement.querySelector('#cash-flow-workspace') as HTMLElement;
+    const detailRow = report.rows.find(row => row.detailKey && row.amountMinor !== undefined)!;
+    expect(detailRow).toBeTruthy();
+    const amount = Array.from(workspace.querySelectorAll('.cash-flow-amount')).find(button => button.textContent?.trim() === cashFlowDisplayMoney(detailRow.amountMinor!)) as HTMLButtonElement;
+    expect(amount).toBeTruthy();
+    expect(amount.getAttribute('aria-label')).toContain(component.cashFlowStartDate);
+    amount.click();
+    fixture.detectChanges();
+    expect(component.cashFlowDetail?.reportId).toBe(report.reportId);
+    expect(component.cashFlowDetail?.databaseRevision).toEqual(report.databaseRevision);
+    expect(workspace.querySelector('.cash-flow-detail')).toBeTruthy();
+    expect(workspace.querySelector('.cash-flow-detail-sum')?.textContent).toContain(cashFlowDisplayMoney(component.cashFlowDetail!.contributions.reduce((sum, item) => sum + item.contributionMinor, 0n)));
+    (workspace.querySelector('.cash-flow-detail') as HTMLElement).dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    fixture.detectChanges();
+    expect(component.cashFlowDetail).toBeUndefined();
+
+    const parent = report.rows.find(row => report.rows.some(candidate => candidate.parentRowId === row.rowId));
+    if (parent) {
+      expect(component.cashFlowExpanded.has(parent.rowId)).toBeTrue();
+      component.toggleCashFlowRow(parent);
+      expect(component.cashFlowExpanded.has(parent.rowId)).toBeFalse();
+      expect(report.rows.filter(row => row.parentRowId === parent.rowId).every(row => !component.cashFlowExpanded.has(row.rowId))).toBeTrue();
+      component.toggleCashFlowRow(parent);
+    }
+    expect(workspace.querySelector('.cash-flow-detail')).toBeNull();
+  });
+
+  it('surfaces invalid Cash Flow periods and report failures without rendering stale data', async () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    component.cashFlowStartDate = '2026-03-31';
+    component.cashFlowEndDate = '2026-03-01';
+    component.cashFlowPeriod = 'CUSTOM';
+    component.loadCashFlowReport();
+    fixture.detectChanges();
+    expect(component.cashFlowReport).toBeUndefined();
+    expect(fixture.nativeElement.querySelector('.cash-flow-error')?.textContent).toContain('on or before');
+
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    spyOn(application, 'getCashFlowReport').and.throwError('Cash Flow fixture failure');
+    component.cashFlowStartDate = '2026-01-01';
+    component.cashFlowEndDate = '2026-12-31';
+    component.loadCashFlowReport();
+    fixture.detectChanges();
+    expect(component.cashFlowReport).toBeUndefined();
+    expect(fixture.nativeElement.querySelector('.cash-flow-error')?.textContent).toContain('Cash Flow fixture failure');
+  });
+
+  it('marks an open Cash Flow report stale after classification save and recovers on refresh', async () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    const originalReportId = component.cashFlowReport?.reportId;
+    component.openClassificationReview();
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    const item = component.classificationReview!.accounts.find(candidate => candidate.accountPath.endsWith('Operating Checking'))!;
+    component.selectClassificationReviewItem(item);
+    component.classificationEditor!.rationale = `${component.classificationEditor!.rationale} UI stale test`;
+    component.classificationEditorChanged();
+    component.saveClassificationEditor();
+    component.closeClassificationReview();
+    fixture.detectChanges();
+    expect(component.cashFlowReport?.reportId).toBe(originalReportId);
+    expect(component.cashFlowStale).toBeTrue();
+    const workspace = fixture.nativeElement.querySelector('#cash-flow-workspace') as HTMLElement;
+    expect(workspace.querySelector('.cash-flow-status')?.textContent).toContain('Stale');
+    expect(workspace.querySelector('.cash-flow-stale')?.textContent).toContain('Refresh report');
+    expect(workspace.querySelector('.cash-flow-totals')).toBeNull();
+    expect(workspace.querySelector('.cash-flow-table')).toBeNull();
+    expect(Array.from(workspace.querySelectorAll('.cash-flow-actions button')).filter(button => /Export|Print/.test(button.textContent ?? '')).every(button => (button as HTMLButtonElement).disabled)).toBeTrue();
+    expect(Array.from(workspace.querySelectorAll('.cash-flow-amount')).every(button => (button as HTMLButtonElement).disabled)).toBeTrue();
+
+    component.loadCashFlowReport();
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    expect(component.cashFlowStale).toBeFalse();
+    expect(fixture.nativeElement.querySelector('.cash-flow-stale')).toBeNull();
+  });
+
+  it('marks reports stale when detail, export, or print encounters a revision conflict', async () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    fixture.detectChanges();
+    const row = component.cashFlowReport!.rows.find(candidate => candidate.detailKey && candidate.amountMinor !== undefined)!;
+    spyOn(application, 'getCashFlowDetail').and.throwError('Report revision is stale; reload and try again.');
+    component.openCashFlowDetail(row, { currentTarget: document.createElement('button') } as unknown as Event);
+    expect(component.cashFlowStale).toBeTrue();
+    component.cashFlowStale = false;
+    const exportSpy = spyOn(application, 'exportCashFlow').and.throwError('Report revision is stale; reload and try again.');
+    await component.exportCashFlow('CSV');
+    expect(exportSpy).toHaveBeenCalled();
+    expect(component.cashFlowStale).toBeTrue();
+    component.cashFlowStale = false;
+    const printSpy = spyOn(application, 'openCashFlowPrintPreview').and.throwError('Report revision is stale; reload and try again.');
+    await component.openCashFlowPrintPreview();
+    expect(printSpy).toHaveBeenCalled();
+    expect(component.cashFlowStale).toBeTrue();
+  });
+
+  it('covers every Cash Flow period preset, custom dates, empty/no-cash, and responsive workspace states', async () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    fixture.detectChanges();
+    for (const preset of ['CURRENT_MONTH', 'PREVIOUS_MONTH', 'CURRENT_QUARTER', 'YEAR_TO_DATE', 'FISCAL_YEAR', 'PREVIOUS_FISCAL_YEAR'] as const) {
+      const period = fixture.nativeElement.querySelector('.cash-flow-controls select') as HTMLSelectElement;
+      period.value = preset;
+      period.dispatchEvent(new Event('change'));
+      fixture.detectChanges();
+      await settleDeferred(fixture);
+      expect(component.cashFlowReport?.query.startDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(component.cashFlowReport?.query.endDate).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
+    component.cashFlowStartDate = '2026-02-01';
+    component.cashFlowEndDate = '2026-02-28';
+    component.cashFlowPeriod = 'CUSTOM';
+    component.loadCashFlowReport();
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    expect(component.cashFlowPeriod).toBe('CUSTOM');
+    const report = component.cashFlowReport!;
+    component.cashFlowLoading = true;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.cash-flow-loading')?.textContent).toContain('Loading Statement of Cash Flows');
+    component.cashFlowLoading = false;
+    fixture.detectChanges();
+    const informationalWarning = { warningId: 'warning-ui-restricted', code: 'RESTRICTED_CASH_PRESENT', message: 'Restricted cash is disclosed.', accountRole: 'FINANCIAL_SOURCE', accountId: component.accounts[0].id } as CashFlowWarning;
+    component.cashFlowReport = { ...report, status: 'COMPLETE', warnings: [informationalWarning] };
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.cash-flow-warnings h3')?.textContent).toContain('Warnings and disclosures');
+    component.cashFlowReport = { ...component.cashFlowReport!, status: 'REVIEW_REQUIRED' };
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.cash-flow-warnings h3')?.textContent).toContain('Review required');
+    component.cashFlowReport = { ...report, rows: [], warnings: [{ ...informationalWarning, code: 'NO_CASH_ACCOUNTS_CONFIGURED', message: 'No cash accounts are configured.' }], status: 'REVIEW_REQUIRED' };
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.cash-flow-empty')).toBeTruthy();
+    component.cashFlowReport = undefined;
+    component.cashFlowStale = false;
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.cash-flow-empty-state')).toBeTruthy();
+    component.cashFlowReport = report;
+    component.cashFlowShowZeros = true;
+    component.loadCashFlowReport();
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    window.dispatchEvent(new Event('resize'));
+    expect(fixture.nativeElement.querySelector('.cash-flow-table-wrap')).toBeTruthy();
+    expect(fixture.nativeElement.querySelector('.cash-flow-actions')).toBeTruthy();
+  });
+
+  it('navigates an actionable warning by composite role and account identity and renders audit detail fields', async () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    const report = component.cashFlowReport!;
+    const source = application.listAccounts().find(account => account.name === 'Operating Checking')!;
+    const warning = { warningId: 'warning-ui-account', code: 'ARCHIVED_PARTICIPATING_ACCOUNT', message: 'Review this account.', accountRole: 'FINANCIAL_SOURCE', accountId: source.id } as CashFlowWarning;
+    component.cashFlowReport = { ...report, warnings: [warning], status: 'REVIEW_REQUIRED' };
+    fixture.detectChanges();
+    (fixture.nativeElement.querySelector('.cash-flow-warning .quiet-button') as HTMLButtonElement).click();
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    expect(component.classificationSelectedAccountKey).toBe(`FINANCIAL_SOURCE:${source.id}`);
+    expect(component.classificationEditor?.accountId).toBe(source.id);
+    expect(component.classificationReviewFilter).toBe('ALL');
+    expect(fixture.nativeElement.querySelector('.cash-flow-review-item.selected')?.textContent).toContain('Operating Checking');
+    expect(document.activeElement).toBe(fixture.nativeElement.querySelector('.cash-flow-review-panel'));
+
+    const row = report.rows.find(candidate => candidate.detailKey)!;
+    const detail = { reportId: report.reportId, databaseRevision: report.databaseRevision, detailKey: row.detailKey!, rowId: row.rowId, amountMinor: 0n, contributions: [{ contributionId: 'ui-opening', detailKey: row.detailKey!, contributionType: 'BALANCE_CHANGE' as const, contributionMinor: 0n, openingAmountMinor: 0n, endingAmountMinor: 0n, rawChangeMinor: 0n, formula: 'Opening - Ending', accountRole: row.accountRole, accountId: row.accountId, chartAccountPath: row.fullPath, transactionId: 'tx-ui', transferId: 'transfer-ui' }] };
+    component.cashFlowDetailRow = row;
+    component.cashFlowDetail = detail;
+    fixture.detectChanges();
+    const panel = fixture.nativeElement.querySelector('.cash-flow-detail') as HTMLElement;
+    expect(panel.textContent).toContain('Opening $0.00');
+    expect(panel.textContent).toContain('Ending $0.00');
+    expect(panel.textContent).toContain('Raw change $0.00');
+    expect(panel.textContent).toContain('Opening - Ending');
+    expect(panel.textContent).toContain('Report');
+    expect(panel.textContent).toContain('revision');
+    expect(panel.textContent).toContain('transfer-ui');
   });
 
   it('shows configured database locations and runs a verified desktop backup from Data & Backups', async () => {

@@ -12,6 +12,7 @@
       <button id="chart-workspace-tab" type="button" class="workspace-tab" role="tab" [class.active]="workspaceView === 'CHART'" [attr.aria-selected]="workspaceView === 'CHART'" aria-controls="chart-workspace" title="Chart of Accounts" (click)="selectWorkspace('CHART')"><svg class="bi bi-bar-chart-steps" viewBox="0 0 16 16" aria-hidden="true"><path d="M.5 0a.5.5 0 0 1 .5.5v15a.5.5 0 0 1-1 0V.5A.5.5 0 0 1 .5 0M2 1.5a.5.5 0 0 1 .5-.5h4a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-4a.5.5 0 0 1-.5-.5zm2 4a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5zm2 4a.5.5 0 0 1 .5-.5h6a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-6a.5.5 0 0 1-.5-.5zm2 4a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 .5.5v1a.5.5 0 0 1-.5.5h-7a.5.5 0 0 1-.5-.5z"/></svg><span class="workspace-label">Chart of Accounts</span></button>
       <button id="rules-workspace-tab" type="button" class="workspace-tab" role="tab" [class.active]="workspaceView === 'RULES'" [attr.aria-selected]="workspaceView === 'RULES'" aria-controls="rules-workspace" title="Rules" (click)="selectWorkspace('RULES')"><svg class="bi bi-funnel" viewBox="0 0 16 16" aria-hidden="true"><path d="M1.5 1.5A.5.5 0 0 1 2 1h12a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-.128.334L10 8.692V13.5a.5.5 0 0 1-.342.474l-3 1A.5.5 0 0 1 6 14.5V8.692L1.628 3.834A.5.5 0 0 1 1.5 3.5zm1 .5v1.308l4.372 4.858A.5.5 0 0 1 7 8.5v5.306l2-.666V8.5a.5.5 0 0 1 .128-.334L13.5 3.308V2z"/></svg><span class="workspace-label">Rules</span></button>
       <button id="reports-workspace-tab" type="button" class="workspace-tab" role="tab" [class.active]="workspaceView === 'REPORTS'" [attr.aria-selected]="workspaceView === 'REPORTS'" aria-controls="reports-workspace" title="Profit &amp; Loss" (click)="selectWorkspace('REPORTS')"><svg class="bi bi-file-ruled" viewBox="0 0 16 16" aria-hidden="true"><path d="M2 2a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zm2-1a1 1 0 0 0-1 1v4h10V2a1 1 0 0 0-1-1zm9 6H6v2h7zm0 3H6v2h7zm0 3H6v2h6a1 1 0 0 0 1-1zm-8 2v-2H3v1a1 1 0 0 0 1 1zm-2-3h2v-2H3zm0-3h2V7H3z"/></svg><span class="workspace-label">Profit &amp; Loss</span></button>
+      <button id="cash-flow-workspace-tab" type="button" class="workspace-tab" role="tab" [class.active]="workspaceView === 'CASH_FLOW'" [attr.aria-selected]="workspaceView === 'CASH_FLOW'" aria-controls="cash-flow-workspace" (click)="selectWorkspace('CASH_FLOW')"><span class="bi bi-cash-coin"></span><span class="workspace-label">Cash Flow</span></button>
       <button id="balance-sheet-workspace-tab" type="button" class="workspace-tab" role="tab" [class.active]="workspaceView === 'BALANCE_SHEET'" [attr.aria-selected]="workspaceView === 'BALANCE_SHEET'" aria-controls="balance-sheet-workspace" title="Balance Sheet" (click)="selectWorkspace('BALANCE_SHEET')"><svg class="bi" viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1a.5.5 0 0 1 .5.5V3h4a.5.5 0 0 1 .45.28l2 4A3.5 3.5 0 0 1 8 7.5l2.25-4.5H8.5v11H12a.5.5 0 0 1 0 1H4a.5.5 0 0 1 0-1h3.5V3H5.75L8 7.5a3.5 3.5 0 0 1-7 0L3.25 3h4.25V1.5A.5.5 0 0 1 8 1M1.8 7h5.4L5.45 3.5h-1.9zm7 0h5.4l-1.75-3.5h-1.9z"/></svg><span class="workspace-label">Balance Sheet</span></button>
       <button id="data-workspace-tab" type="button" class="workspace-tab" role="tab" [class.active]="workspaceView === 'DATA'" [attr.aria-selected]="workspaceView === 'DATA'" aria-controls="data-workspace" title="Backups" (click)="selectWorkspace('DATA')"><svg class="bi bi-database" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.318 2.687C5.234 2.271 6.536 2 8 2s2.766.27 3.682.687C12.644 3.125 13 3.627 13 4c0 .374-.356.875-1.318 1.313C10.766 5.729 9.464 6 8 6s-2.766-.27-3.682-.687C3.356 4.875 3 4.373 3 4c0-.374.356-.875 1.318-1.313M13 5.698V7c0 .374-.356.875-1.318 1.313C10.766 8.729 9.464 9 8 9s-2.766-.27-3.682-.687C3.356 7.875 3 7.373 3 7V5.698c.271.202.58.378.904.525C4.978 6.711 6.427 7 8 7s3.022-.289 4.096-.777A5 5 0 0 0 13 5.698M14 4c0-1.007-.875-1.755-1.904-2.223C11.022 1.289 9.573 1 8 1s-3.022.289-4.096.777C2.875 2.245 2 2.993 2 4v9c0 1.007.875 1.755 1.904 2.223C4.978 15.71 6.427 16 8 16s3.022-.289 4.096-.777C13.125 14.755 14 14.007 14 13zm-1 4.698V10c0 .374-.356.875-1.318 1.313C10.766 11.729 9.464 12 8 12s-2.766-.27-3.682-.687C3.356 10.875 3 10.373 3 10V8.698c.271.202.58.378.904.525C4.978 9.71 6.427 10 8 10s3.022-.289 4.096-.777A5 5 0 0 0 13 8.698m0 3V13c0 .374-.356.875-1.318 1.313C10.766 14.729 9.464 15 8 15s-2.766-.27-3.682-.687C3.356 13.875 3 13.373 3 13v-1.302c.271.202.58.378.904.525C4.978 12.71 6.427 13 8 13s3.022-.289 4.096-.777c.324-.147.633-.323.904-.525"/></svg><span class="workspace-label">Backups</span></button>
     </nav>
@@ -419,6 +420,28 @@
   </section>
   }
 
+  @if (workspaceView === 'CASH_FLOW') {
+    @defer (on immediate) {
+    <app-cash-flow-workspace-host
+      [state]="cashFlowWorkspaceState"
+      (periodRangeChange)="cashFlowPeriod = $event.preset; cashFlowStartDate = $event.startDate; cashFlowEndDate = $event.endDate; loadCashFlowReport()"
+      (startDateChange)="cashFlowStartDate = $event"
+      (endDateChange)="cashFlowEndDate = $event"
+      (datesChanged)="cashFlowPeriod = 'CUSTOM'; loadCashFlowReport()"
+      (includeZeroRowsChange)="cashFlowShowZeros = $event; loadCashFlowReport()"
+      (refresh)="loadCashFlowReport()"
+      (reviewClassifications)="openClassificationReview($any($event.currentTarget))"
+      (export)="exportCashFlow($event)"
+      (print)="openCashFlowPrintPreview()"
+      (toggleRow)="toggleCashFlowRow($event)"
+      (openDetail)="openCashFlowDetail($event.row, $event.event)"
+      (closeDetail)="closeCashFlowDetail()"
+      (reviewWarning)="reviewCashFlowWarning($event.warning, $event.event)" />
+    } @placeholder {
+      …
+    }
+  }
+
   @if (workspaceView === 'BALANCE_SHEET') {
   <section id="balance-sheet-workspace" class="balance-sheet-workspace workspace-panel" role="tabpanel" aria-labelledby="balance-sheet-workspace-tab">
     <header class="balance-sheet-header"><div><p class="eyebrow">FINANCIAL POSITION</p><h2>Balance Sheet</h2><p>{{ balanceSheet?.company?.displayName }} · {{ balanceSheet?.accountingBasis }} basis · as of {{ balanceSheet?.query?.asOfDate }}</p></div><div class="balance-sheet-controls"><label>As of<input type="date" [(ngModel)]="balanceSheetAsOf" (change)="loadBalanceSheet()" /></label><label class="zero-toggle"><input type="checkbox" [(ngModel)]="balanceSheetIncludeZero" (change)="loadBalanceSheet()" /> Show zero balances</label></div></header>
@@ -457,39 +480,18 @@
   }
 
   @if (classificationReviewOpen) {
-      <app-cash-flow-classification-review
-        [review]="classificationReview"
-        [items]="filteredClassificationReviewItems"
-        [editor]="classificationEditor"
-        [preview]="classificationPreview"
-        [saveImpact]="classificationSaveImpact"
-        [error]="classificationError"
-        [saveMessage]="classificationSaveMessage"
-        [saveEnabled]="classificationEditorSaveEnabled"
-        [structureStable]="classificationEditorStructureStable"
-        [startDate]="classificationReviewStartDate"
-        [endDate]="classificationReviewEndDate"
-        [filter]="classificationReviewFilter"
-        [search]="classificationReviewSearch"
-        [selectedKey]="classificationSelectedAccountKey"
-        [cashRoles]="cashFlowCashRoles"
-        [treatments]="cashFlowTreatments"
-        [selectionKey]="classificationSelectionKey"
-        [money]="classificationMoneyForReview"
-        [cashRoleLabel]="classificationCashRoleLabelForReview"
-        [treatmentLabel]="classificationTreatmentLabelForReview"
-        [reasonLabel]="classificationReasonLabelForReview"
-        [reasonText]="classificationReasonTextForReview"
-        (close)="closeClassificationReview()"
-        (refresh)="refreshClassificationReview()"
-        (select)="selectClassificationReviewItem($event)"
+    @defer (on immediate) {
+      <app-cash-flow-classification-review-host
+        [state]="classificationReviewState"
+        (close)="closeClassificationReview()" (refresh)="refreshClassificationReview()" (select)="selectClassificationReviewItem($event)"
         (fieldChange)="classificationEditorFieldChanged($event)"
         (startDateChange)="classificationReviewStartDate = $event; refreshClassificationReview()"
         (endDateChange)="classificationReviewEndDate = $event; refreshClassificationReview()"
-        (filterChange)="classificationReviewFilterChanged($event)"
-        (searchChange)="classificationReviewSearch = $event"
-        (cancel)="cancelClassificationEditor()"
-        (save)="saveClassificationEditor()" />
+        (filterChange)="classificationReviewFilterChanged($event)" (searchChange)="classificationReviewSearch = $event"
+        (cancel)="cancelClassificationEditor()" (save)="saveClassificationEditor()" />
+    } @placeholder {
+      …
+    }
   }
 
   @if (genericAccountDraft) {
