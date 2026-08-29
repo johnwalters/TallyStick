@@ -1,12 +1,14 @@
 import { TestBed } from '@angular/core/testing';
+import Papa from 'papaparse';
 import { ChartAccount, FinancialAccount, Transaction, money } from '../domain-model/accounting.types';
 import { CashFlowClassification } from '../domain-model/cash-flow-classification';
-import { CashFlowContribution, CashFlowContractError } from '../domain-model/cash-flow.types';
+import { CashFlowContribution, CashFlowContractError, CashFlowReport } from '../domain-model/cash-flow.types';
 import { ACCOUNTING_REPOSITORY, CashFlowClassificationRecord } from '../repository-gateways/accounting.repository';
 import { InMemoryAccountingRepository } from '../repository-gateways/in-memory-accounting.repository';
 import { BalanceSheetReportService } from './balance-sheet-report.service';
 import { assertCashFlowDetailAmount, CashFlowReportService, dayBeforeBusinessDate } from './cash-flow-report.service';
 import { calculateUnadjustedNetProfit } from './profit-loss-calculation';
+import { cashFlowCsv } from './cash-flow-output.service';
 
 describe('CashFlowReportService query and cash balances', () => {
   let repository: InMemoryAccountingRepository;
@@ -1572,6 +1574,7 @@ describe('CashFlowReportService query and cash balances', () => {
     });
     const scenarios = new Map(oracleDocument.scenarios.map(scenario => [scenario.id, scenario]));
     const caseIds = ['A1', 'A2', 'A3', 'A4', 'A5', 'A6', 'A7', 'A8', 'A9', 'A10', 'A11', 'A12', 'A13', 'A14', 'A15', 'A16', 'A17'];
+    productionCsvParityScenarioCount = 0;
     expect(caseIds.every(id => scenarios.has(id))).toBeTrue();
     for (const id of caseIds) {
       const expected = scenarios.get(id)!;
@@ -1580,6 +1583,7 @@ describe('CashFlowReportService query and cash balances', () => {
       addProductionFixtureScenario(id);
       const report = service.getCashFlowReport({ startDate: expected.period.startDate, endDate: expected.period.endDate, includeZeroRows: true });
       const repeat = service.getCashFlowReport({ startDate: expected.period.startDate, endDate: expected.period.endDate, includeZeroRows: true });
+      assertProductionCsvParity(report);
       const accountRows = report.rows.filter(row => row.rowType === 'ACCOUNT_ACTIVITY');
       const amount = (rows: readonly { amountMinor?: bigint }[]) => rows.reduce((sum, row) => sum + (row.amountMinor ?? 0n), 0n);
       const totals = expected.expectedTotals;
@@ -1747,6 +1751,7 @@ describe('CashFlowReportService query and cash balances', () => {
         expect(checkpoint.endingCashMinor).toBe(BigInt(expected.checkpoints[0].endingCashMinor));
       }
     }
+    expect(productionCsvParityScenarioCount).toBe(caseIds.length);
   });
 
   it('includes only confirmed matched transfers and keeps archived participating accounts visible', () => {
@@ -2052,3 +2057,80 @@ describe('CashFlowReportService query and cash balances', () => {
     repository.cashFlowClassifications.set(key, { ...classification, status: 'REVIEW_REQUIRED' });
   }
 });
+
+let productionCsvParityScenarioCount = 0;
+
+/**
+ * Production acceptance guard: parse the actual CSV emitted for every oracle
+ * scenario and compare its complete screen-order payload with the immutable
+ * report used to generate it. The fixture gate executes this spec, so a
+ * disabled or stale CSV assertion cannot leave the production gate green.
+ */
+function assertProductionCsvParity(report: CashFlowReport): void {
+  productionCsvParityScenarioCount += 1;
+  expect(report.rows.filter(row => row.accountRole === 'FINANCIAL_SOURCE' && row.accountId).every(row => row.cashRole !== undefined)).toBeTrue();
+  const parsed = Papa.parse<string[]>(cashFlowCsv(report), { header: false, skipEmptyLines: false });
+  expect(parsed.errors).toEqual([]);
+  const rows = parsed.data;
+  expect(rows[0][0].replace(/^\uFEFF/, '')).toBe('Report');
+  expect(rows.slice(0, 14)).toEqual([
+    ['Report', 'Statement of Cash Flows'],
+    ['Company legal name', report.company.legalName],
+    ['Company display name', report.company.displayName],
+    ['Report title', 'Statement of Cash Flows'],
+    ['Start date', report.query.startDate],
+    ['End date', report.query.endDate],
+    ['Method', report.method],
+    ['Basis', report.accountingBasis],
+    ['Currency', report.currencyCode],
+    ['Report ID', report.reportId],
+    ['Database revision', report.databaseRevision],
+    ['Generated at', report.generatedAt],
+    ['Status', report.status],
+    ['Disclaimer', `Prepared from recorded transactions and account classifications for ${report.query.startDate} through ${report.query.endDate}. Supplemental noncash disclosures do not affect cash totals.`],
+  ]);
+  const rowHeaderIndex = 15;
+  expect(rows[rowHeaderIndex]).toEqual(['Row ID', 'Row type', 'Section', 'Treatment', 'Label', 'Full path', 'Depth', 'Amount minor', 'Amount', 'Account role', 'Account ID', 'Cash role', 'Archived', 'Review required', 'Detail key', 'Warning code', 'Warning message', 'Warning references']);
+  const csvRows = rows.slice(rowHeaderIndex + 1, rowHeaderIndex + 1 + report.rows.length);
+  expect(csvRows).toEqual(report.rows.map(row => [
+    row.rowId, row.rowType, row.section, row.treatment ?? '', row.label, row.fullPath ?? '', String(row.depth),
+    row.amountMinor === undefined ? '' : row.amountMinor.toString(), row.amountMinor === undefined ? '' : decimalForCsv(row.amountMinor),
+    row.accountRole ?? '', row.accountId ?? '', row.cashRole ?? '', String(row.archived), String(row.reviewRequired), row.detailKey ?? '', '', '', '',
+  ]));
+
+  const warningsMarker = rowHeaderIndex + 1 + report.rows.length + 1;
+  expect(rows[warningsMarker]).toEqual(['Warnings']);
+  const warningHeader = warningsMarker + 1;
+  expect(rows[warningHeader]).toEqual(['Warning ID', 'Code', 'Message', 'Account role', 'Account ID', 'Business date', 'Detail key', 'References']);
+  expect(rows.slice(warningHeader + 1, warningHeader + 1 + report.warnings.length)).toEqual(report.warnings.map(warning => [
+    warning.warningId, warning.code, warning.message, warning.accountRole ?? '', warning.accountId ?? '', warning.businessDate ?? '', warning.detailKey ?? '', (warning.references ?? []).slice().sort().join(';'),
+  ]));
+
+  const reconciliationMarker = warningHeader + 1 + report.warnings.length + 1;
+  expect(rows[reconciliationMarker]).toEqual(['Reconciliation']);
+  const reconciliationHeader = reconciliationMarker + 1;
+  expect(rows[reconciliationHeader]).toEqual(['Metric', 'Amount minor', 'Amount']);
+  const metrics: readonly [string, bigint][] = [
+    ['Net Operating', report.netOperatingMinor], ['Net Investing', report.netInvestingMinor], ['Net Financing', report.netFinancingMinor],
+    ['Net Change in Cash', report.netChangeInCashMinor], ['Beginning Cash', report.beginningCashMinor], ['Calculated Ending Cash', report.calculatedEndingCashMinor],
+    ['Ending Cash', report.endingCashMinor], ['Restricted Cash Beginning', report.restrictedCashBeginningMinor], ['Restricted Cash Ending', report.restrictedCashEndingMinor],
+    ['Unclassified Cash Activity', report.unclassifiedCashActivityMinor], ['Difference', report.differenceMinor],
+  ];
+  expect(rows.slice(reconciliationHeader + 1, reconciliationHeader + 1 + metrics.length)).toEqual(metrics.map(([label, amount]) => [label, amount.toString(), decimalForCsv(amount)]));
+
+  const disclosureMarker = reconciliationHeader + 1 + metrics.length + 1;
+  expect(rows[disclosureMarker]).toEqual(['Noncash disclosures']);
+  const disclosureHeader = disclosureMarker + 1;
+  expect(rows[disclosureHeader]).toEqual(['Disclosure ID', 'Section', 'Label', 'Amount minor', 'Amount', 'Detail key', 'Account role', 'Account ID', 'Chart account ID', 'Transaction ID', 'Transfer ID', 'Rationale']);
+  expect(rows.slice(disclosureHeader + 1, disclosureHeader + 1 + (report.disclosures ?? []).length)).toEqual((report.disclosures ?? []).map(disclosure => [
+    disclosure.disclosureId, disclosure.section, disclosure.label, disclosure.amountMinor === undefined ? '' : disclosure.amountMinor.toString(),
+    disclosure.amountMinor === undefined ? '' : decimalForCsv(disclosure.amountMinor), disclosure.detailKey ?? '', disclosure.accountRole ?? '', disclosure.accountId ?? '',
+    disclosure.chartAccountId ?? '', disclosure.transactionId ?? '', disclosure.transferId ?? '', disclosure.rationale,
+  ]));
+}
+
+function decimalForCsv(value: bigint): string {
+  const sign = value < 0n ? '-' : '';
+  const absolute = value < 0n ? -value : value;
+  return `${sign}${absolute / 100n}.${String(absolute % 100n).padStart(2, '0')}`;
+}

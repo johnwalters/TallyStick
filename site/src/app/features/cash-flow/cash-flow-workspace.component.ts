@@ -6,6 +6,7 @@ import {
   CashFlowReport,
   CashFlowRow,
   CashFlowWarning,
+  cashFlowReportDisclaimer,
 } from '../../core/domain-model/cash-flow.types';
 import { formatMoney, money } from '../../core/domain-model/accounting.types';
 
@@ -77,6 +78,9 @@ export class CashFlowWorkspaceComponent implements OnChanges, AfterViewChecked {
   statusLabel(): string {
     if (this.stale) return 'Stale — refresh required';
     return this.report?.status === 'REVIEW_REQUIRED' ? 'Review required' : 'Complete';
+  }
+  disclaimer(): string {
+    return cashFlowReportDisclaimer(this.report?.query ?? { startDate: this.startDate, endDate: this.endDate });
   }
   warningHeading(): string { return this.report?.status === 'REVIEW_REQUIRED' ? 'Review required' : 'Warnings and disclosures'; }
   differenceNonzero(): boolean { return (this.report?.differenceMinor ?? 0n) !== 0n; }

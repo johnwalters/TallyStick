@@ -55,6 +55,14 @@ export interface CashFlowQueryInput {
   readonly includeZeroRows?: boolean;
 }
 
+/**
+ * The single user-facing disclaimer shared by the screen and CSV output.
+ * Keeping it query-based prevents period text from drifting between surfaces.
+ */
+export function cashFlowReportDisclaimer(query: Pick<CashFlowQuery, 'startDate' | 'endDate'>): string {
+  return `Prepared from recorded transactions and account classifications for ${query.startDate} through ${query.endDate}. Supplemental noncash disclosures do not affect cash totals.`;
+}
+
 export interface CashFlowQueryDefaults {
   readonly fiscalYearStartMonth: number;
   readonly activeTaxYear: number;
@@ -102,6 +110,8 @@ export interface CashFlowRow {
   readonly rowType: CashFlowRowType;
   readonly section: CashFlowSection;
   readonly treatment?: CashFlowTreatment;
+  /** Explicit source cash role when the row represents a classified account. */
+  readonly cashRole?: CashFlowCashRole;
   readonly accountRole?: AccountRole;
   readonly accountId?: string;
   readonly parentRowId?: CashFlowRowId;
@@ -448,12 +458,30 @@ export interface ExportCashFlowCommand extends CashFlowReportIdentity {
   readonly format: CashFlowExportFormat;
 }
 
-export interface CashFlowExportResult {
-  readonly format: CashFlowExportFormat;
-  readonly path: string;
-  readonly completedAtUtc: string;
-  readonly rowCount: number;
-}
+export type CashFlowExportResult =
+  | {
+      readonly format: 'CSV';
+      readonly status: 'SAVED';
+      readonly path: string;
+      readonly completedAtUtc: string;
+      readonly rowCount: number;
+      /** The exact immutable CSV bytes represented as text. */
+      readonly content: string;
+      readonly suggestedFileName: string;
+    }
+  | {
+      readonly format: 'CSV';
+      readonly status: 'DOWNLOAD_READY';
+      readonly rowCount: number;
+      /** Browser callers download this exact immutable CSV content. */
+      readonly content: string;
+      readonly suggestedFileName: string;
+    }
+  | {
+      readonly format: 'CSV';
+      readonly status: 'CANCELLED';
+      readonly rowCount: number;
+    };
 
 export interface OpenCashFlowPrintPreviewCommand extends CashFlowReportIdentity {}
 

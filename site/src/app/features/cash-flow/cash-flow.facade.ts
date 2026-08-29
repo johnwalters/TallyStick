@@ -7,8 +7,10 @@ import {
   CashFlowClassificationImportPreview,
   CashFlowClassificationPreview,
   CashFlowClassificationReview,
+  CashFlowContractError,
   CashFlowDetail,
   CashFlowExportResult,
+  CashFlowFailure,
   CashFlowQuery,
   CashFlowQueryInput,
   CashFlowReport,
@@ -37,6 +39,8 @@ export class CashFlowFacade {
   readonly lastClassificationExport = signal<CashFlowClassificationExportResult | undefined>(undefined);
   readonly busy = signal(false);
   readonly error = signal<string | undefined>(undefined);
+  /** Typed boundary failure retained for UI decisions such as stale versus export errors. */
+  readonly failure = signal<CashFlowFailure | undefined>(undefined);
 
   constructor(@Inject(ACCOUNTING_APPLICATION) private readonly application: AccountingApplication) {}
 
@@ -103,19 +107,19 @@ export class CashFlowFacade {
 
   private run(work: () => void): void {
     try {
-      this.error.set(undefined);
+      this.clearError();
       work();
     } catch (error) {
-      this.error.set(error instanceof Error ? error.message : 'Unable to complete the Statement of Cash Flows request.');
+      this.captureError(error);
     }
   }
 
   private runWithResult<T>(work: () => T): T | undefined {
     try {
-      this.error.set(undefined);
+      this.clearError();
       return work();
     } catch (error) {
-      this.error.set(error instanceof Error ? error.message : 'Unable to complete the Statement of Cash Flows request.');
+      this.captureError(error);
       return undefined;
     }
   }
@@ -123,13 +127,28 @@ export class CashFlowFacade {
   private async runAsync<T>(work: () => Promise<T>): Promise<T | undefined> {
     try {
       this.busy.set(true);
-      this.error.set(undefined);
+      this.clearError();
       return await work();
     } catch (error) {
-      this.error.set(error instanceof Error ? error.message : 'Unable to complete the Statement of Cash Flows request.');
+      this.captureError(error);
       return undefined;
     } finally {
       this.busy.set(false);
     }
+  }
+
+  private clearError(): void {
+    this.error.set(undefined);
+    this.failure.set(undefined);
+  }
+
+  private captureError(error: unknown): void {
+    if (error instanceof CashFlowContractError) {
+      this.failure.set(error.failure);
+      this.error.set(error.failure.message);
+      return;
+    }
+    this.failure.set(undefined);
+    this.error.set(error instanceof Error ? error.message : 'Unable to complete the Statement of Cash Flows request.');
   }
 }

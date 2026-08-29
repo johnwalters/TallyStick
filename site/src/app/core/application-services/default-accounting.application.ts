@@ -79,7 +79,6 @@ import { CashFlowClassificationService } from './cash-flow-classification.servic
 import { BalanceSheetReportService } from './balance-sheet-report.service';
 import { CashFlowReportService } from './cash-flow-report.service';
 import { calculateUnadjustedNetProfit } from './profit-loss-calculation';
-import { BalanceSheetOutputService } from './balance-sheet-output.service';
 import { ACCOUNTING_REPOSITORY, AccountingRepository, CashFlowClassificationRecord } from '../repository-gateways/accounting.repository';
 import {
   addMoney,
@@ -209,7 +208,6 @@ export class DefaultAccountingApplication implements AccountingApplication {
   private readonly cashFlowClassifications = inject(CashFlowClassificationService);
   private readonly balanceSheets = inject(BalanceSheetReportService);
   private readonly cashFlowReports = inject(CashFlowReportService);
-  private readonly balanceSheetOutputs = inject(BalanceSheetOutputService);
   private readonly previews = new Map<string, ImportPreview>();
   private readonly rulePreviews = new Map<string, RuleImportPreview>();
   private readonly chartAccountPreviews = new Map<string, PendingChartAccountImport>();
@@ -263,11 +261,13 @@ export class DefaultAccountingApplication implements AccountingApplication {
   }
 
   async exportBalanceSheet(command: ExportBalanceSheetCommand): Promise<BalanceSheetExportResult> {
-    return this.balanceSheetOutputs.export(command);
+    const { BalanceSheetOutputService } = await import('./balance-sheet-output.service');
+    return new BalanceSheetOutputService().export(command);
   }
 
   async openBalanceSheetPrintPreview(command: OpenBalanceSheetPrintPreviewCommand): Promise<BalanceSheetPrintPreviewResult> {
-    return this.balanceSheetOutputs.openPrintPreview(command.report);
+    const { BalanceSheetOutputService } = await import('./balance-sheet-output.service');
+    return new BalanceSheetOutputService().openPrintPreview(command.report);
   }
 
   getCashFlowClassificationCatalog(): CashFlowClassificationCatalog {
@@ -296,7 +296,14 @@ export class DefaultAccountingApplication implements AccountingApplication {
 
   async exportCashFlow(command: ExportCashFlowCommand): Promise<CashFlowExportResult> {
     this.cashFlowReports.assertCashFlowReportCurrent(command);
-    return this.cashFlowNotImplemented(`Export Cash Flow report ${command.reportId} as ${command.format}`);
+    const report = this.cashFlowReports.getCachedCashFlowReport(command);
+    if (!report) return this.cashFlowNotImplemented(`Export Cash Flow report ${command.reportId} as ${command.format}`);
+    if (command.format !== 'CSV') return this.cashFlowNotImplemented(`Export Cash Flow report ${command.reportId} as ${command.format}`);
+    // Keep the CSV writer out of the eager application shell. It is a pure
+    // output boundary with no repository dependencies, so load it only when
+    // the user requests CSV export.
+    const { CashFlowOutputService } = await import('./cash-flow-output.service');
+    return new CashFlowOutputService().export(report, command.format);
   }
 
   async openCashFlowPrintPreview(command: OpenCashFlowPrintPreviewCommand): Promise<CashFlowPrintPreviewResult> {

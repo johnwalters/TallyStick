@@ -360,24 +360,38 @@ export class CashFlowReportService {
   }
 
   /**
-   * Output operations are still implemented by a later slice, but their
-   * public boundary must reject a report that no longer matches the books.
-   * Unknown current-revision identities are left to the deferred operation
-   * so existing callers receive the contract's not-implemented response.
+   * Output operations must consume the exact cached report identity. Unknown
+   * or mismatched identities are stale/invalid references, never a deferred
+   * implementation response.
    */
   assertCashFlowReportCurrent(identity: CashFlowReportIdentity): void {
     const currentRevision = this.repository.getDatabaseRevision();
     this.invalidateIfRevisionChanged(currentRevision);
     const report = this.reportsById.get(identity.reportId);
-    if (currentRevision !== identity.databaseRevision || (report && report.databaseRevision !== currentRevision)) {
+    if (!report || report.databaseRevision !== identity.databaseRevision || currentRevision !== identity.databaseRevision) {
       throw new CashFlowContractError({
         code: 'CASH_FLOW_REPORT_REVISION_STALE',
-        message: 'The Statement of Cash Flows report is stale. Regenerate it before exporting or printing.',
+        message: 'The requested Statement of Cash Flows report is unavailable or stale. Regenerate it before exporting or printing.',
         reportId: identity.reportId,
         databaseRevision: identity.databaseRevision,
         retryable: true,
       });
     }
+  }
+
+  /**
+   * Return the immutable report already generated for an identity. Output
+   * services use this accessor to consume the exact cached snapshot rather
+   * than recalculating behind an export command. Unknown identities remain
+   * undefined so the public application can preserve its deferred-operation
+   * contract for reports that were never opened.
+   */
+  getCachedCashFlowReport(identity: CashFlowReportIdentity): CashFlowReport | undefined {
+    const currentRevision = this.repository.getDatabaseRevision();
+    this.invalidateIfRevisionChanged(currentRevision);
+    const report = this.reportsById.get(identity.reportId);
+    if (!report || report.databaseRevision !== identity.databaseRevision || currentRevision !== identity.databaseRevision) return undefined;
+    return report;
   }
 
   private invalidateIfRevisionChanged(revision: string): void {
@@ -1927,6 +1941,7 @@ function cashFlowActivityReviewRow(candidate: CashFlowActivityAccount): CashFlow
     rowId: candidate.rowId,
     rowType: 'ACCOUNT_ACTIVITY', section: candidate.classification.treatment as 'INVESTING' | 'FINANCING', treatment: candidate.classification.treatment,
     accountRole: candidate.accountRole, accountId: candidate.account.id,
+    cashRole: candidate.accountRole === 'FINANCIAL_SOURCE' ? candidate.classification.cashRole : undefined,
     label: leafAccountName(candidate.account.name), fullPath: candidate.accountPath, depth: 2,
     amountMinor: candidate.amountMinor, detailKey: candidate.detailKey,
     bold: false, derived: true, archived: candidate.account.archived, reviewRequired: true,
@@ -1951,6 +1966,7 @@ function renderCashFlowActivityNode(
     rowId: node.rowId,
     rowType: 'ACCOUNT_ACTIVITY', section, treatment: section,
     accountRole: node.accountRole, accountId: node.account.id,
+    cashRole: node.accountRole === 'FINANCIAL_SOURCE' ? node.classification.cashRole : undefined,
     parentRowId: node.parentId && byKey.has(cashFlowActivityCandidateKey(node.accountRole, node.parentId))
       ? cashFlowAccountRowId(section, node.accountRole, node.parentId) : undefined,
     label: leafAccountName(node.account.name), fullPath: node.accountPath, depth: activityAccountDepth(node, byKey), amountMinor: node.amountMinor,
@@ -1973,6 +1989,7 @@ function renderCashFlowActivityNode(
       rowId: subtotalRowId,
       rowType: 'SUBTOTAL', section, treatment: section,
       accountRole: node.accountRole, accountId: node.account.id, parentRowId: node.rowId,
+      cashRole: node.accountRole === 'FINANCIAL_SOURCE' ? node.classification.cashRole : undefined,
       label: `Total for ${leafAccountName(node.account.name)}`, fullPath: node.accountPath, depth: activityAccountDepth(node, byKey),
       amountMinor: totalMinor, detailKey: subtotalDetailKey, bold: true, derived: true, archived: node.account.archived,
       reviewRequired: subtree.some(candidate => candidate.classification.status === 'REVIEW_REQUIRED'),
@@ -2112,6 +2129,7 @@ function workingCapitalReviewRow(candidate: WorkingCapitalAccount): CashFlowRow 
     rowId: candidate.rowId,
     rowType: 'ACCOUNT_ACTIVITY', section: 'OPERATING', treatment: candidate.classification.treatment,
     accountRole: candidate.accountRole, accountId: candidate.account.id,
+    cashRole: candidate.accountRole === 'FINANCIAL_SOURCE' ? candidate.classification.cashRole : undefined,
     label: leafAccountName(candidate.account.name), fullPath: candidate.accountPath, depth: 2,
     amountMinor: candidate.amountMinor, detailKey: candidate.detailKey,
     bold: false, derived: true, archived: candidate.account.archived, reviewRequired: true,
@@ -2235,6 +2253,7 @@ function renderWorkingCapitalNode(
     rowId: node.rowId,
     rowType: 'ACCOUNT_ACTIVITY', section: 'OPERATING', treatment,
     accountRole: node.accountRole, accountId: node.account.id,
+    cashRole: node.accountRole === 'FINANCIAL_SOURCE' ? node.classification.cashRole : undefined,
     parentRowId: node.parentId && byKey.has(`${node.accountRole}:${node.parentId}`)
       ? cashFlowAccountRowId('OPERATING', node.accountRole, node.parentId)
       : undefined,
@@ -2261,6 +2280,7 @@ function renderWorkingCapitalNode(
         rowId: subtotalRowId,
         rowType: 'SUBTOTAL', section: 'OPERATING', treatment,
         accountRole: node.accountRole, accountId: node.account.id,
+        cashRole: node.accountRole === 'FINANCIAL_SOURCE' ? node.classification.cashRole : undefined,
         parentRowId: node.rowId, label: `Total for ${leafAccountName(node.account.name)}`,
         fullPath: node.accountPath, depth, amountMinor: totalMinor, detailKey: subtotalDetailKey,
         bold: true, derived: true, archived: node.account.archived,

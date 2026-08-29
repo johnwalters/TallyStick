@@ -9,8 +9,72 @@ import { DatabaseLifecycleManager } from './database-lifecycle';
 import { SQLITE_MIGRATIONS, SQLITE_V3_MIGRATIONS, SQLITE_V4_MIGRATIONS, SQLITE_V5_MIGRATIONS } from '../app/core/sqlite-gateway/schema';
 import { applySchema6Bootstrap } from '../app/core/sqlite-gateway/schema-v6-migration';
 import { applySchema7Bootstrap } from '../app/core/sqlite-gateway/schema-v7-migration';
+import { reportFileDialogOptions } from './report-file-dialog';
+import { saveReportFile } from './report-file-save';
 
 let sqlPromise: Promise<SqlJsStatic> | undefined;
+
+test('uses report-specific native save dialog options for Cash Flow and Balance Sheet', () => {
+  const cashFlow = reportFileDialogOptions('north-statement.csv', 'CSV', 'Statement of Cash Flows');
+  assert.deepEqual(cashFlow, {
+    title: 'Save Statement of Cash Flows CSV',
+    defaultPath: 'north-statement.csv',
+    filters: [{ name: 'Statement of Cash Flows CSV', extensions: ['csv'] }],
+  });
+  const balanceSheet = reportFileDialogOptions('north-balance.csv', 'CSV', 'Balance Sheet');
+  assert.deepEqual(balanceSheet, {
+    title: 'Save Balance Sheet CSV',
+    defaultPath: 'north-balance.csv',
+    filters: [{ name: 'Balance Sheet CSV', extensions: ['csv'] }],
+  });
+  const legacy = reportFileDialogOptions('north-balance.xlsx', 'XLSX');
+  assert.equal(legacy.title, 'Save Balance Sheet XLSX');
+  assert.deepEqual(legacy.filters[0].extensions, ['xlsx']);
+});
+
+test('saves report bytes atomically, handles cancellation, and cleans failed temporary writes', async () => {
+  const root = await mkdtemp(path.join(tmpdir(), 'accounting-report-save-'));
+  try {
+    const target = path.join(root, 'cash-flow.csv');
+    const bytes = new TextEncoder().encode('Report,Statement of Cash Flows\r\n');
+    const writes: string[] = [];
+    const result = await saveReportFile('cash-flow.csv', bytes, 'CSV', 'Statement of Cash Flows', {
+      showSaveDialog: async options => {
+        assert.equal(options.title, 'Save Statement of Cash Flows CSV');
+        return { canceled: false, filePath: target };
+      },
+      writeFile: async (filePath, fileBytes, options) => { writes.push(filePath); await writeFile(filePath, fileBytes, options); },
+      rename: async (oldPath, newPath) => { await (await import('node:fs/promises')).rename(oldPath, newPath); },
+      remove: async (filePath, options) => { await rm(filePath, options); },
+      processId: 42,
+    });
+    assert.equal(result, 'SAVED');
+    assert.deepEqual(new Uint8Array(await readFile(target)), bytes);
+    assert.equal(writes[0], `${target}.tallystick-42.tmp`);
+
+    let cancelledWrites = 0;
+    assert.equal(await saveReportFile('cancelled.csv', bytes, 'CSV', 'Statement of Cash Flows', {
+      showSaveDialog: async () => ({ canceled: true }),
+      writeFile: async () => { cancelledWrites += 1; },
+      rename: async () => undefined,
+      remove: async () => undefined,
+      processId: 42,
+    }), 'CANCELLED');
+    assert.equal(cancelledWrites, 0);
+
+    const failedTarget = path.join(root, 'failed.csv');
+    const failedTemporary = `${failedTarget}.tallystick-99.tmp`;
+    let removed = '';
+    await assert.rejects(() => saveReportFile('failed.csv', bytes, 'CSV', 'Statement of Cash Flows', {
+      showSaveDialog: async () => ({ canceled: false, filePath: failedTarget }),
+      writeFile: async filePath => { await writeFile(filePath, bytes); throw new Error('native write failure'); },
+      rename: async () => undefined,
+      remove: async filePath => { removed = filePath; await rm(filePath, { force: true }); },
+      processId: 99,
+    }), /native write failure/);
+    assert.equal(removed, failedTemporary);
+  } finally { await rm(root, { recursive: true, force: true }); }
+});
 
 function sql(): Promise<SqlJsStatic> {
   sqlPromise ??= initSqlJs({ locateFile: file => path.join(process.cwd(), 'node_modules', 'sql.js', 'dist', file) });

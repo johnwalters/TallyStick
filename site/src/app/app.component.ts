@@ -378,7 +378,7 @@ export class AppComponent {
     if (row.accountRole && row.accountId && !this.classificationReview) this.loadClassificationState();
     this.cashFlowFacade.loadDetail({ reportId: this.cashFlowReport.reportId, databaseRevision: this.cashFlowReport.databaseRevision, detailKey: row.detailKey });
     this.cashFlowDetail = this.cashFlowFacade.detail();
-    if (!this.cashFlowDetail && this.cashFlowFacade.error()) {
+    if (!this.cashFlowDetail && this.cashFlowFacade.failure()?.code === 'CASH_FLOW_REPORT_REVISION_STALE') {
       this.markCashFlowStale(this.cashFlowFacade.error()!);
     }
     queueMicrotask(() => (document.querySelector('.cash-flow-detail-close') as HTMLElement | null)?.focus());
@@ -386,15 +386,24 @@ export class AppComponent {
   closeCashFlowDetail(): void { this.cashFlowDetail = undefined; this.cashFlowDetailRow = undefined; }
   async exportCashFlow(format: 'CSV' | 'XLSX'): Promise<void> {
     if (this.cashFlowStale || !this.cashFlowReport) return;
-    await this.cashFlowFacade.export({ reportId: this.cashFlowReport.reportId, databaseRevision: this.cashFlowReport.databaseRevision, format });
-    if (this.cashFlowFacade.error()) {
+    const result = await this.cashFlowFacade.export({ reportId: this.cashFlowReport.reportId, databaseRevision: this.cashFlowReport.databaseRevision, format });
+    const failure = this.cashFlowFacade.failure();
+    if (failure?.code === 'CASH_FLOW_REPORT_REVISION_STALE') {
       this.markCashFlowStale(this.cashFlowFacade.error()!);
+      return;
+    }
+    // Desktop saves through the host bridge. In a browser-only session the
+    // output service returns the same immutable CSV content so the workspace
+    // can offer a normal download without recalculating the report.
+    const desktopReportFileBridge = (globalThis as { localAccounting?: { reportFiles?: unknown } }).localAccounting?.reportFiles;
+    if (format === 'CSV' && result?.status === 'DOWNLOAD_READY' && !desktopReportFileBridge) {
+      this.downloadFile(result.content, result.suggestedFileName, 'text/csv;charset=utf-8');
     }
   }
   async openCashFlowPrintPreview(): Promise<void> {
     if (this.cashFlowStale || !this.cashFlowReport) return;
     await this.cashFlowFacade.openPrintPreview({ reportId: this.cashFlowReport.reportId, databaseRevision: this.cashFlowReport.databaseRevision });
-    if (this.cashFlowFacade.error()) {
+    if (this.cashFlowFacade.failure()?.code === 'CASH_FLOW_REPORT_REVISION_STALE') {
       this.markCashFlowStale(this.cashFlowFacade.error()!);
     }
   }

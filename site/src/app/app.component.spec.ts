@@ -9,7 +9,7 @@ import { ACCOUNTING_REPOSITORY } from './core/repository-gateways/accounting.rep
 import { ImportFacade } from './features/imports/import.facade';
 import * as XLSX from 'xlsx';
 import { formatMoney, money, newId, nowUtc } from './core/domain-model/accounting.types';
-import { CashFlowWarning } from './core/domain-model/cash-flow.types';
+import { cashFlowReportDisclaimer, CashFlowContractError, CashFlowExportResult, CashFlowWarning } from './core/domain-model/cash-flow.types';
 
 const cashFlowDisplayMoney = (value: bigint): string => formatMoney(money(value));
 
@@ -756,19 +756,104 @@ describe('AppComponent', () => {
     await settleDeferred(fixture);
     fixture.detectChanges();
     const row = component.cashFlowReport!.rows.find(candidate => candidate.detailKey && candidate.amountMinor !== undefined)!;
-    spyOn(application, 'getCashFlowDetail').and.throwError('Report revision is stale; reload and try again.');
+    const staleError = new CashFlowContractError({ code: 'CASH_FLOW_REPORT_REVISION_STALE', message: 'Report revision is stale; reload and try again.', retryable: true });
+    spyOn(application, 'getCashFlowDetail').and.throwError(staleError);
     component.openCashFlowDetail(row, { currentTarget: document.createElement('button') } as unknown as Event);
     expect(component.cashFlowStale).toBeTrue();
     component.cashFlowStale = false;
-    const exportSpy = spyOn(application, 'exportCashFlow').and.throwError('Report revision is stale; reload and try again.');
+    const exportSpy = spyOn(application, 'exportCashFlow').and.throwError(staleError);
     await component.exportCashFlow('CSV');
     expect(exportSpy).toHaveBeenCalled();
     expect(component.cashFlowStale).toBeTrue();
     component.cashFlowStale = false;
-    const printSpy = spyOn(application, 'openCashFlowPrintPreview').and.throwError('Report revision is stale; reload and try again.');
+    const printSpy = spyOn(application, 'openCashFlowPrintPreview').and.throwError(staleError);
     await component.openCashFlowPrintPreview();
     expect(printSpy).toHaveBeenCalled();
     expect(component.cashFlowStale).toBeTrue();
+  });
+
+  it('keeps the current report usable when a CSV save fails without changing the revision', async () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    const report = component.cashFlowReport!;
+    spyOn(application, 'exportCashFlow').and.rejectWith(new CashFlowContractError({
+      code: 'CASH_FLOW_EXPORT_FAILED', message: 'Cash Flow CSV export failed. Choose another location and try again.',
+      reportId: report.reportId, databaseRevision: report.databaseRevision, retryable: true,
+    }));
+
+    await component.exportCashFlow('CSV');
+
+    expect(component.cashFlowStale).toBeFalse();
+    expect(component.cashFlowReport).toBe(report);
+    expect(component.cashFlowFacade.failure()?.code).toBe('CASH_FLOW_EXPORT_FAILED');
+    expect(component.cashFlowFacade.error()).toContain('Choose another location');
+  });
+
+  it('downloads immutable CSV content returned by the Cash Flow output boundary in browser mode', async () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    const report = component.cashFlowReport!;
+    const result: CashFlowExportResult = {
+      format: 'CSV', status: 'DOWNLOAD_READY', suggestedFileName: 'statement.csv',
+      rowCount: report.rows.length, content: '\uFEFFReport,Statement of Cash Flows\r\n',
+    };
+    spyOn(application, 'exportCashFlow').and.resolveTo(result);
+    const download = spyOn<any>(component, 'downloadFile');
+
+    await component.exportCashFlow('CSV');
+
+    expect(download).toHaveBeenCalledOnceWith(result.content, result.suggestedFileName, 'text/csv;charset=utf-8');
+    expect(component.cashFlowStale).toBeFalse();
+  });
+
+  it('uses the same query-based disclaimer on screen and in CSV output', async () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    fixture.detectChanges();
+    const report = component.cashFlowReport!;
+    const screenDisclaimer = (fixture.nativeElement.querySelector('.cash-flow-disclaimer') as HTMLElement).textContent?.trim();
+    expect(screenDisclaimer).toBe(cashFlowReportDisclaimer(report.query));
+    const exported = await application.exportCashFlow({ reportId: report.reportId, databaseRevision: report.databaseRevision, format: 'CSV' });
+    if (exported.status === 'CANCELLED') throw new Error('Expected browser-ready CSV output.');
+    const disclaimerRow = exported.content.split(/\r?\n/).find(line => line.startsWith('Disclaimer,'));
+    expect(disclaimerRow).toContain(cashFlowReportDisclaimer(report.query));
+  });
+
+  it('does not download a second copy when the desktop save dialog is cancelled', async () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    const report = component.cashFlowReport!;
+    const result: CashFlowExportResult = {
+      format: 'CSV', status: 'CANCELLED', rowCount: report.rows.length,
+    };
+    spyOn(application, 'exportCashFlow').and.resolveTo(result);
+    (globalThis as { localAccounting?: unknown }).localAccounting = { reportFiles: { save: async () => 'CANCELLED' } };
+    const download = spyOn<any>(component, 'downloadFile');
+
+    await component.exportCashFlow('CSV');
+
+    expect(download).not.toHaveBeenCalled();
+    expect(component.cashFlowStale).toBeFalse();
   });
 
   it('covers every Cash Flow period preset, custom dates, empty/no-cash, and responsive workspace states', async () => {

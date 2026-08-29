@@ -24,7 +24,7 @@ const bridge: LocalAccountingBridge = {
     restoreDatabaseBackup: () => ipcRenderer.invoke('database-lifecycle:restore'),
   },
   reportFiles: {
-    save: (suggestedFileName, bytes, fileType) => ipcRenderer.invoke('report-file:save', suggestedFileName, bytes, fileType),
+    save: (suggestedFileName, bytes, fileType, reportTitle) => ipcRenderer.invoke('report-file:save', suggestedFileName, bytes, fileType, reportTitle),
   },
   reportPreview: { open: (title, html) => ipcRenderer.invoke('report-preview:open', title, html) },
 };

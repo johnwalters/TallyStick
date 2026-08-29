@@ -22,7 +22,7 @@ export interface LocalAccountingBridge {
     restoreDatabaseBackup(): Promise<{ operation: 'RESTORE'; path: string; completedAtUtc: string; safetyBackupPath?: string; restartRequired: boolean } | undefined>;
   };
   reportFiles: {
-    save(suggestedFileName: string, bytes: Uint8Array, fileType: 'CSV' | 'XLSX' | 'HTML'): Promise<'SAVED' | 'CANCELLED'>;
+    save(suggestedFileName: string, bytes: Uint8Array, fileType: 'CSV' | 'XLSX' | 'HTML', reportTitle?: 'Balance Sheet' | 'Statement of Cash Flows'): Promise<'SAVED' | 'CANCELLED'>;
   };
   reportPreview: { open(title: string, html: string): Promise<string>; };
 }

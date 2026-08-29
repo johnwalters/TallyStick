@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import * as path from 'node:path';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { DatabaseLifecycleManager } from './database-lifecycle';
+import { saveReportFile } from './report-file-save';
 import { SqliteHostStore } from './sqlite-host-store';
 import { CURRENT_SQLITE_SCHEMA_VERSION } from '../shared/schema-version';
 
@@ -329,14 +330,14 @@ ipcMain.handle('database-lifecycle:restore', async () => {
   if (!desktopSmokeMode) scheduleRestart();
   return operation;
 });
-ipcMain.handle('report-file:save', async (_event, suggestedFileName: string, bytes: Uint8Array, fileType: 'CSV' | 'XLSX' | 'HTML') => {
-  const extensions = fileType === 'CSV' ? ['csv'] : fileType === 'XLSX' ? ['xlsx'] : ['html'];
-  const result = await dialog.showSaveDialog({ title: `Save Balance Sheet ${fileType}`, defaultPath: suggestedFileName, filters: [{ name: `Balance Sheet ${fileType}`, extensions }] });
-  if (result.canceled || !result.filePath) return 'CANCELLED';
-  const temporaryPath = `${result.filePath}.tallystick-${process.pid}.tmp`;
-  try { await fs.writeFile(temporaryPath, bytes, { flag: 'wx' }); await fs.rename(temporaryPath, result.filePath); }
-  catch (error) { await fs.rm(temporaryPath, { force: true }); throw error; }
-  return 'SAVED';
+ipcMain.handle('report-file:save', async (_event, suggestedFileName: string, bytes: Uint8Array, fileType: 'CSV' | 'XLSX' | 'HTML', requestedReportTitle?: 'Balance Sheet' | 'Statement of Cash Flows') => {
+  return saveReportFile(suggestedFileName, bytes, fileType, requestedReportTitle, {
+    showSaveDialog: options => dialog.showSaveDialog(options),
+    writeFile: (filePath, fileBytes, options) => fs.writeFile(filePath, fileBytes, options),
+    rename: (oldPath, newPath) => fs.rename(oldPath, newPath),
+    remove: (filePath, options) => fs.rm(filePath, options),
+    processId: process.pid,
+  });
 });
 ipcMain.handle('report-preview:open', async (_event, title: string, html: string) => {
   const preview = new BrowserWindow({ title, width: 1000, height: 800, parent: mainWindow, webPreferences: { contextIsolation: true, nodeIntegration: false, sandbox: true } });

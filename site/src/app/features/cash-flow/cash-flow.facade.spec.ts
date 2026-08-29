@@ -7,6 +7,7 @@ import {
   CashFlowClassificationImportPreview,
   CashFlowClassificationPreview,
   CashFlowClassificationReview,
+  CashFlowContractError,
   CashFlowDetail,
   CashFlowExportResult,
   CashFlowReport,
@@ -29,7 +30,10 @@ describe('CashFlowFacade', () => {
   const report = { reportId: 'report-1', databaseRevision: revision, query } as unknown as CashFlowReport;
   const detail = { reportId: 'report-1', databaseRevision: revision, detailKey: 'detail-1' } as unknown as CashFlowDetail;
   const classificationExport = { databaseRevision: revision, rows: [] } as CashFlowClassificationExportResult;
-  const exportResult = { format: 'CSV', path: '/tmp/cash-flow.csv', completedAtUtc: '2026-08-25T00:00:00.000Z', rowCount: 0 } as CashFlowExportResult;
+  const exportResult: CashFlowExportResult = {
+    format: 'CSV', status: 'SAVED', path: '/tmp/cash-flow.csv', suggestedFileName: 'cash-flow.csv',
+    completedAtUtc: '2026-08-25T00:00:00.000Z', rowCount: 0, content: '\uFEFFReport,Statement of Cash Flows\r\n',
+  };
 
   beforeEach(() => {
     application = jasmine.createSpyObj<AccountingApplication>('AccountingApplication', [
@@ -83,6 +87,7 @@ describe('CashFlowFacade', () => {
     expect(facade.report()).toBe(report);
     expect(facade.detail()).toBe(detail);
     expect(facade.error()).toBeUndefined();
+    expect(facade.failure()).toBeUndefined();
     expect(facade.busy()).toBeFalse();
     expect(application.previewCashFlowClassificationImport).toHaveBeenCalledWith(importCommand);
     expect(application.commitCashFlowClassificationImport).toHaveBeenCalledWith({ previewId: 'preview-1', databaseRevision: revision });
@@ -98,6 +103,18 @@ describe('CashFlowFacade', () => {
     expect(facade.report()).toBeUndefined();
     expect(facade.detail()).toBeUndefined();
     expect(facade.error()).toBe('The Cash Flow report revision is stale.');
+  });
+
+  it('preserves typed export failures for the UI without retaining a stale report decision', async () => {
+    const failure = new CashFlowContractError({ code: 'CASH_FLOW_EXPORT_FAILED', message: 'Choose another location.', retryable: true });
+    application.exportCashFlow.and.rejectWith(failure);
+
+    const result = await facade.export({ reportId: 'report-1' as never, databaseRevision: revision, format: 'CSV' });
+
+    expect(result).toBeUndefined();
+    expect(facade.error()).toBe('Choose another location.');
+    expect(facade.failure()).toEqual(failure.failure);
+    expect(facade.failure()?.code).toBe('CASH_FLOW_EXPORT_FAILED');
   });
 });
 
