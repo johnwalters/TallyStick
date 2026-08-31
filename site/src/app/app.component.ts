@@ -2,7 +2,7 @@ import { Component, ElementRef, Inject, ViewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterOutlet } from '@angular/router';
 import { ACCOUNTING_APPLICATION, AccountingApplication, ProfitLossCell, ProfitLossReport, ProfitLossSectionKey, ReportDetailRow, ReportDrilldownQuery, ReportExportDisclosure, SaveAccountCommand, SaveChartAccountCommand, ScheduleCReadyReport, TransactionSuggestion } from './core/application-interface/accounting.application';
-import { AccountType, CHART_ACCOUNT_TYPES, ChartAccount, ChartAccountKind, FINANCIAL_ACCOUNT_TYPES, formatMoney, FinancialAccount, ImportPreview, ImportRowDisposition, money, RuleCondition, TaxYearSettings, Transaction, TransactionRule, TransactionState } from './core/domain-model/accounting.types';
+import { AccountType, CHART_ACCOUNT_TYPES, ChartAccount, ChartAccountImportIssue, ChartAccountKind, FINANCIAL_ACCOUNT_TYPES, formatMoney, FinancialAccount, ImportPreview, ImportRowDisposition, money, RuleCondition, TaxYearSettings, Transaction, TransactionRule, TransactionState } from './core/domain-model/accounting.types';
 import { AccountFacade } from './features/accounts/account.facade';
 import { ImportFacade } from './features/imports/import.facade';
 import { ReportFacade } from './features/reports/report.facade';
@@ -160,6 +160,8 @@ export class AppComponent {
   dateFilterError = '';
   search = '';
   statusMessage = 'Ready';
+  statusTone: 'NEUTRAL' | 'SUCCESS' | 'ERROR' = 'NEUTRAL';
+  chartImportIssues: readonly ChartAccountImportIssue[] = [];
   importPreview?: ImportPreview;
   selectedFileName = '';
   report!: ScheduleCReadyReport;
@@ -1588,34 +1590,41 @@ export class AppComponent {
     const input = event.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
+    this.chartImportIssues = [];
     const content = file.name.toLowerCase().endsWith('.csv') ? await file.text() : await file.arrayBuffer();
     const preview = this.chartAccountFacade.preview(content);
     if (this.chartAccountFacade.error()) {
-      this.statusMessage = this.chartAccountFacade.error()!;
+      this.setChartImportStatus(this.chartAccountFacade.error()!, 'ERROR');
       input.value = '';
       return;
     }
     if (!preview) {
-      this.statusMessage = 'Unable to preview the Chart of Accounts workbook.';
+      this.setChartImportStatus('Unable to preview the Chart of Accounts workbook.', 'ERROR');
       input.value = '';
       return;
     }
     if (preview.issues.length) {
-      this.statusMessage = `Chart import blocked: ${preview.issues[0].message}`;
+      this.chartImportIssues = preview.issues;
+      this.setChartImportStatus(`Chart import blocked: ${preview.issues.length} issue${preview.issues.length === 1 ? '' : 's'} need correction. Review the details below.`, 'ERROR');
       input.value = '';
       return;
     }
     const confirmed = globalThis.confirm(`Replace the current Chart of Accounts with ${preview.rows.length} rows? Cash Flow classifications will be imported atomically.`);
     if (!confirmed) {
-      this.statusMessage = 'Chart of Accounts import canceled.';
+      this.setChartImportStatus('Chart of Accounts import canceled.', 'NEUTRAL');
       input.value = '';
       return;
     }
     const accounts = this.chartAccountFacade.commitImport();
-    if (this.chartAccountFacade.error()) this.statusMessage = this.chartAccountFacade.error()!;
-    else this.statusMessage = `Loaded ${accounts?.length ?? 0} accounting categories from ${file.name}.`;
+    if (this.chartAccountFacade.error()) this.setChartImportStatus(this.chartAccountFacade.error()!, 'ERROR');
+    else this.setChartImportStatus(`Loaded ${accounts?.length ?? 0} accounting categories from ${file.name}.`, 'SUCCESS');
     input.value = '';
     this.refresh();
+  }
+
+  private setChartImportStatus(message: string, tone: 'NEUTRAL' | 'SUCCESS' | 'ERROR'): void {
+    this.statusMessage = message;
+    this.statusTone = tone;
   }
 
   exportChartAccounts(): void {

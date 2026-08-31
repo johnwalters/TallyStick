@@ -26,7 +26,7 @@
     </div>
     <div class="topbar-actions">
       <button type="button" class="company-settings-trigger" (click)="openCompanySettings()">Company settings</button>
-      <div class="status"><span class="status-dot"></span>{{ statusMessage }}</div>
+      <div class="status" [class.success]="statusTone === 'SUCCESS'" [class.error]="statusTone === 'ERROR'" aria-live="polite"><span class="status-dot"></span>{{ statusMessage }}</div>
     </div>
   </header>
 
@@ -244,6 +244,18 @@
         <label class="quiet-file-button">Import accounts<input type="file" accept=".csv,.xls,.xlsx" (change)="importChartFile($event)" /></label>
       </div>
     </div>
+
+    @if (chartImportIssues.length) {
+      <section class="chart-import-errors" role="alert" aria-label="Chart of Accounts import issues">
+        <strong>Chart of Accounts import was not applied</strong>
+        <p>Nothing was changed. Correct every item below, then choose the workbook again.</p>
+        <ol>
+          @for (issue of chartImportIssues; track $index) {
+            <li><strong>{{ issue.rowNumber ? 'Workbook row ' + issue.rowNumber : 'Existing record' }}</strong><span>{{ issue.message }}</span></li>
+          }
+        </ol>
+      </section>
+    }
 
     <div class="chart-table-wrap">
       <table class="chart-table">

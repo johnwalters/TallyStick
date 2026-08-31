@@ -485,10 +485,10 @@ export class DefaultAccountingApplication implements AccountingApplication {
     const issues: ChartAccountImportIssue[] = [];
     try {
       this.validateChartRows(rows);
-      this.validateChartImportReferences(rows);
     } catch (error) {
       issues.push({ rowNumber: 0, code: error instanceof AccountingError && error.code === 'CHART_REFERENCE_ORPHANED' ? 'CHART_REFERENCE_ORPHANED' : 'CHART_INVALID', message: error instanceof Error ? error.message : 'The chart workbook is invalid.' });
     }
+    issues.push(...this.validateChartImportReferences(rows));
     const classifications = new Map<string, CashFlowClassification>();
     rawRows.forEach((sourceRow, index) => {
       const row = this.normalizeWorkbookRow(sourceRow);
@@ -2101,24 +2101,59 @@ export class DefaultAccountingApplication implements AccountingApplication {
     });
   }
 
-  private validateChartImportReferences(rows: readonly ChartAccount[]): void {
+  private validateChartImportReferences(rows: readonly ChartAccount[]): ChartAccountImportIssue[] {
     const priorChart = new Map(this.repository.chartAccounts);
-    const referenced = [
-      ...[...this.repository.transactions.values()].flatMap(transaction => transaction.splits.map(split => split.chartAccountId)),
-      ...[...this.repository.rules.values()].filter(rule => rule.enabled).map(rule => rule.chartAccountId).filter((id): id is string => Boolean(id)),
-    ];
     const importedIds = new Set(rows.map(row => row.id));
     const importedNames = new Set(rows.map(row => row.name.toLowerCase()));
-    const defaultTaxNames = new Set(['federal income tax', 'state and local income tax']);
-    const configuredTaxReferences = [...this.repository.taxSettings.values()]
-      .flatMap(settings => [...settings.federalIncomeTaxAccountIds, ...settings.stateLocalIncomeTaxAccountIds])
-      .filter(id => {
-        const priorName = priorChart.get(id)?.name.toLowerCase();
-        return priorName && !defaultTaxNames.has(priorName) && !importedIds.has(id) && !importedNames.has(priorName);
-      });
-    if (referenced.some(id => !importedIds.has(id)) || configuredTaxReferences.length) {
-      throw new AccountingError('CHART_REFERENCE_ORPHANED', 'The workbook would orphan an existing transaction, rule, or configured tax-setting account reference.');
+    const issues: ChartAccountImportIssue[] = [];
+    const describeAccount = (accountId: string) => {
+      const account = priorChart.get(accountId);
+      return account ? `“${account.name}” (Account ID ${accountId})` : `Account ID ${accountId}`;
+    };
+
+    for (const transaction of this.repository.transactions.values()) {
+      for (const split of transaction.splits) {
+        if (importedIds.has(split.chartAccountId)) continue;
+        issues.push({
+          rowNumber: 0,
+          code: 'CHART_REFERENCE_ORPHANED',
+          accountId: split.chartAccountId,
+          message: `Existing ${transaction.state.toLowerCase()} transaction “${transaction.description}” on ${transaction.postingDate} is categorized as ${describeAccount(split.chartAccountId)}. Add that Account ID to the workbook, or recategorize this transaction before replacing the Chart of Accounts.`,
+        });
+      }
     }
+
+    // Disabled rules are still persisted with their category reference. They
+    // must be included here too; otherwise SQLite rejects the replacement at
+    // commit time with an internal foreign-key error.
+    for (const rule of this.repository.rules.values()) {
+      if (!rule.chartAccountId || importedIds.has(rule.chartAccountId)) continue;
+      issues.push({
+        rowNumber: 0,
+        code: 'CHART_REFERENCE_ORPHANED',
+        accountId: rule.chartAccountId,
+        message: `${rule.enabled ? 'Enabled' : 'Disabled'} rule “${rule.name}” uses ${describeAccount(rule.chartAccountId)}. Add that Account ID to the workbook, or update or delete the rule before replacing the Chart of Accounts.`,
+      });
+    }
+
+    const defaultTaxNames = new Set(['federal income tax', 'state and local income tax']);
+    for (const settings of this.repository.taxSettings.values()) {
+      const configured = [
+        ...settings.federalIncomeTaxAccountIds.map(id => ({ id, label: 'Federal income-tax setting' })),
+        ...settings.stateLocalIncomeTaxAccountIds.map(id => ({ id, label: 'State and local income-tax setting' })),
+      ];
+      for (const reference of configured) {
+        const priorName = priorChart.get(reference.id)?.name.toLowerCase();
+        if (!priorName || defaultTaxNames.has(priorName) || importedIds.has(reference.id) || importedNames.has(priorName)) continue;
+        issues.push({
+          rowNumber: 0,
+          code: 'CHART_REFERENCE_ORPHANED',
+          accountId: reference.id,
+          message: `${reference.label} for ${settings.taxYear} uses ${describeAccount(reference.id)}. Add that Account ID to the workbook, or update the tax setting before replacing the Chart of Accounts.`,
+        });
+      }
+    }
+    return issues;
   }
 
   private hasCashFlowWorkbookFields(row: Record<string, string | number | boolean>): boolean {
@@ -2429,9 +2464,11 @@ export class DefaultAccountingApplication implements AccountingApplication {
       this.ensureAdvertisingMarketingAccount(false);
       this.ensureInterestPaidAccount(false);
       this.ensureOfficeExpenseHierarchy(false);
-      const feeAccount = this.findChartByName('Marketplace Fees')[0];
       const defaultRuleId = newId();
-      this.repository.rules.set(defaultRuleId, { id: defaultRuleId, name: 'Example: marketplace fee labels', enabled: false, priority: 10, conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'Marketplace fee' }], chartAccountId: feeAccount });
+      // A disabled example must not retain a category reference that blocks a
+      // user from replacing the starter Chart of Accounts. Assign a category
+      // when the rule is made active.
+      this.repository.rules.set(defaultRuleId, { id: defaultRuleId, name: 'Example: marketplace fee labels', enabled: false, priority: 10, conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'Marketplace fee' }] });
       this.repository.taxSettings.set(this.repository.company.activeTaxYear, this.getTaxYearSettings(this.repository.company.activeTaxYear));
     });
   }

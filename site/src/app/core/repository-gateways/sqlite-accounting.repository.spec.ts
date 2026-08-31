@@ -242,6 +242,46 @@ describe('SqliteAccountingRepository', () => {
     expect(reopenedRepository.audit.some(event => event.operation === 'IMPORT_CHART')).toBeTrue();
   });
 
+  it('lists every referenced category, including disabled rules, before a Chart replacement can reach SQLite', async () => {
+    await TestBed.configureTestingModule({
+      providers: [
+        SqliteDatabaseGateway,
+        SqliteAccountingRepository,
+        { provide: ACCOUNTING_REPOSITORY, useExisting: SqliteAccountingRepository },
+        ImportPipelineService,
+        BackupBundleService,
+        { provide: ACCOUNTING_APPLICATION, useClass: DefaultAccountingApplication },
+      ],
+    }).compileComponents();
+    const database = TestBed.inject(SqliteDatabaseGateway);
+    const repository = TestBed.inject(SqliteAccountingRepository);
+    await repository.initialize();
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const protectedAccount = application.listChartAccounts().find(account => account.name === 'Operating Expenses')!;
+    const first = application.saveRule({
+      id: '', name: 'Keep disabled rule one', enabled: false, priority: 801,
+      conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'one' }], chartAccountId: protectedAccount.id, matchMode: 'ALL',
+    });
+    const second = application.saveRule({
+      id: '', name: 'Keep disabled rule two', enabled: false, priority: 802,
+      conditions: [{ field: 'DESCRIPTION', operator: 'CONTAINS', value: 'two' }], chartAccountId: protectedAccount.id, matchMode: 'ALL',
+    });
+    const beforeChart = application.listChartAccounts();
+    const preview = application.previewChartAccountsImport([
+      'Account ID,Account Name,Account Type,Detail Type',
+      'replacement-chart,Replacement chart category,Expenses,Other business expenses',
+    ].join('\n'));
+
+    expect(preview.issues).toEqual(jasmine.arrayContaining([
+      jasmine.objectContaining({ code: 'CHART_REFERENCE_ORPHANED', accountId: protectedAccount.id, message: jasmine.stringContaining(`Disabled rule “${first.name}”`) }),
+      jasmine.objectContaining({ code: 'CHART_REFERENCE_ORPHANED', accountId: protectedAccount.id, message: jasmine.stringContaining(`Disabled rule “${second.name}”`) }),
+    ]));
+    expect(preview.blockedRowCount).toBe(preview.rows.length);
+    expect(() => application.commitChartAccountsImport(preview.previewToken)).toThrowError(/rule/);
+    expect(application.listChartAccounts()).toEqual(beforeChart);
+    expect(database.foreignKeyCheck().valid).toBeTrue();
+  });
+
   it('persists audited rule editor mutations and deletion in SQLite', async () => {
     await TestBed.configureTestingModule({
       providers: [
