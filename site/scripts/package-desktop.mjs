@@ -1,6 +1,6 @@
 import { packager } from '@electron/packager';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -10,6 +10,7 @@ const outputDirectory = path.join(siteDirectory, 'release');
 const iconSource = path.join(siteDirectory, 'TallyStick1.png');
 const iconWorkDirectory = mkdtempSync(path.join(tmpdir(), 'tallystick-icon-'));
 const iconPath = path.join(iconWorkDirectory, 'TallyStick.icns');
+const iconComposerPath = path.join(iconWorkDirectory, 'TallyStick.icon');
 
 const iconChunks = [];
 for (const [chunkType, size] of [
@@ -36,6 +37,24 @@ iconHeader.write('icns', 0, 4, 'ascii');
 iconHeader.writeUInt32BE(8 + iconChunks.reduce((total, chunk) => total + chunk.length, 0), 4);
 writeFileSync(iconPath, Buffer.concat([iconHeader, ...iconChunks]));
 
+// Electron Packager on macOS 26+ supports Icon Composer's `.icon` bundle in
+// addition to the legacy `.icns` resource. Supply both formats so the package
+// has a native icon on current macOS and does not emit a missing-format warning.
+const iconAssetsDirectory = path.join(iconComposerPath, 'Assets');
+mkdirSync(iconAssetsDirectory, { recursive: true });
+copyFileSync(path.join(iconWorkDirectory, '1024.png'), path.join(iconAssetsDirectory, 'TallyStick.png'));
+writeFileSync(path.join(iconComposerPath, 'icon.json'), `${JSON.stringify({
+  groups: [{
+    layers: [{
+      'image-name': 'TallyStick.png',
+      name: 'TallyStick',
+    }],
+  }],
+  'supported-platforms': {
+    squares: 'shared',
+  },
+}, null, 2)}\n`);
+
 const appPaths = await packager({
   dir: siteDirectory,
   name: 'TallyStick',
@@ -46,7 +65,7 @@ const appPaths = await packager({
   prune: true,
   appBundleId: 'io.tallystick.desktop',
   appCategoryType: 'public.app-category.finance',
-  icon: iconPath,
+  icon: [iconPath, iconComposerPath],
   ignore: [
     /^\/\.angular(?:\/|$)/,
     /^\/coverage(?:\/|$)/,
