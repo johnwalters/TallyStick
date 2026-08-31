@@ -2060,6 +2060,37 @@ describe('CashFlowReportService query and cash balances', () => {
     repository.cashFlowClassifications.set(key, { ...classification, status: 'REVIEW_REQUIRED' });
   }
 
+  it('meets release performance targets for a 10,000-transaction immutable report, cached read, and 2,000-plus contribution detail', () => {
+    const cash = addAccount('release-scale-cash', 'Release scale cash', 0n, '2025-12-31', 'CASH');
+    const expense = addChartAccount('release-scale-expense', 'Release scale expense', 'EXPENSE', 'Office expenses');
+    addChartClassification(expense.id, expense.accountType, expense.detailType, 'OPERATING_REVENUE_EXPENSE');
+    for (let index = 0; index < 10_000; index += 1) {
+      addTransaction(`release-scale-${index}`, cash.id, '2026-06-15', -1n, 'POSTED', undefined, [{ chartAccountId: expense.id, amountMinor: -1n, splitId: `release-scale-${index}:expense` }], false);
+    }
+    const query = { startDate: '2026-01-01', endDate: '2026-12-31', includeZeroRows: false };
+    const revisionBefore = repository.getDatabaseRevision();
+    const started = performance.now();
+    const report = service.getCashFlowReport(query);
+    const reportMs = performance.now() - started;
+    const cachedStarted = performance.now();
+    const cached = service.getCashFlowReport({ ...query });
+    const cachedMs = performance.now() - cachedStarted;
+    const accountRow = report.rows.find(row => row.detailKey && (report.detailIndex[row.detailKey] ?? []).length >= 2_000)!;
+    const detailStarted = performance.now();
+    const detail = service.getCashFlowDetail({ reportId: report.reportId, databaseRevision: report.databaseRevision, detailKey: accountRow.detailKey! });
+    const detailMs = performance.now() - detailStarted;
+
+    console.info(`Cash Flow release performance: full=${reportMs.toFixed(2)}ms cached=${cachedMs.toFixed(2)}ms detail=${detailMs.toFixed(2)}ms transactions=10000 contributions=${detail.contributions.length}`);
+
+    expect(reportMs).toBeLessThan(750);
+    expect(cachedMs).toBeLessThan(100);
+    expect(detailMs).toBeLessThan(300);
+    expect(cached).toBe(report);
+    expect(detail.contributions.length).toBeGreaterThanOrEqual(2_000);
+    expect(detail.contributions.reduce((sum, contribution) => sum + contribution.contributionMinor, 0n)).toBe(accountRow.amountMinor!);
+    expect(repository.getDatabaseRevision()).toBe(revisionBefore);
+  });
+
   it('orders participating classifications with locale-independent normalized paths and role/id tie-breakers', () => {
     const cash = addAccount('cash', 'Primary funds', 0n, '2025-12-01', 'CASH');
     const decomposed = addChartAccount('z-account', 'E\u0301clair', 'EXPENSE', 'Office expenses');

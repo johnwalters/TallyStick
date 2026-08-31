@@ -108,6 +108,8 @@ describe('Cash Flow CSV output', () => {
     const document = new DOMParser().parseFromString(output, 'text/html');
     expect(output).toContain('<title>North &lt;Studio&gt; — Statement of Cash Flows</title>');
     expect(output).toContain('thead{display:table-header-group}');
+    expect(output).toContain('.identity-part{white-space:nowrap}');
+    expect(document.querySelectorAll('.identity-part')).toHaveSize(3);
     expect(document.querySelectorAll('thead .running-context')).toHaveSize(document.querySelectorAll('table').length);
     expect(output).toContain(`Report ID: ${report.reportId}`);
     expect(output).toContain(`Database revision: ${report.databaseRevision}`);

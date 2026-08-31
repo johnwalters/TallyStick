@@ -1,6 +1,6 @@
 # TallyStick Statement of Cash Flows Task Tracker
 
-*Proposed implementation checklist · Created August 25, 2026*
+*Completed implementation checklist · Created August 25, 2026 · Release proof August 31, 2026*
 
 ## Source documents and authority
 
@@ -16,18 +16,18 @@ Execution is divided into token-conscious, independently testable units in the [
 
 | Field | Current value |
 | --- | --- |
-| Overall status | Phases 0–5 are independently approved through Slice 13/CF5-GATE. Slice 14–19 implementation work is present in the visible checkout but remains unapproved in this tracker. |
-| Current phase | Phase 8 — output parity; `CF-SLICE-19-PRINT-PDF` correction pass is active. |
-| Next task | Independent re-review of `CF-SLICE-19-PRINT-PDF` / CF8-006–CF8-009 and CF8-GATE. Do not start Slice 20 or mark any Phase 6–8 task/gate complete until that review and its missing native PDF evidence are accepted. |
+| Overall status | Statement of Cash Flows Phases 0–9 are complete through `CF-SLICE-20-RELEASE-PROOF`; A1–A20 and all quality/recovery/output gates pass. |
+| Current phase | Phase 9 complete — release proof recorded. |
+| Next task | No remaining Statement of Cash Flows implementation task. Future direct-method, forecasting, consolidation, and unrelated features remain outside this release. |
 | Current branch | `cash-flow` |
 | Development command | `cd site && npm start` |
 | Production build | `cd site && npm run build` |
 | Full browser/unit suite | `cd site && npm run test:ci` |
 | Desktop-host suite | `cd site && npm run test:desktop-host` |
 | Electron smoke | `cd site && npm run desktop:smoke` |
-| Last verified Cash Flow test | Slice 19 correction pass: production fixture/oracle gate passed 20 static scenarios plus 76 report/print acceptance tests; `npm run test:ci` passed 332/332 browser/unit tests plus dependency boundaries and both fixture oracles; `npm run build` passed at 1.41 MB with no warnings; application/specification/desktop TypeScript and `npm run test:desktop-host` (17/17) passed; `git diff --check` passed. |
-| Last tracker update | August 30, 2026 — recorded Slice 19 correction-pass evidence; no CF8 item or gate was marked complete. |
-| Known blocker | The direct Electron smoke launcher exited silently in this managed environment and did not leave the expected rendered-PDF artifact. Complete/reproduce that native PDF visual evidence and obtain independent re-review before closing CF8-006–CF8-009 or CF8-GATE. |
+| Last verified Cash Flow test | `npm run test:cash-flow-release-proof` passed August 31, 2026: A1–A20/oracle identity/privacy/diff checks; 77 production acceptance tests; `npm run test:ci` 333/333; app/spec/desktop TypeScript; 1.41 MB build; desktop-host 17/17; isolated Electron smoke and native two-page A4 PDF. Performance: full 135.90 ms, cached 19.00 ms, detail 19.10 ms for 10,000 contributions, classification review 30.60 ms. |
+| Last tracker update | August 31, 2026 — closed Phases 6–9 and recorded final release evidence. |
+| Known blocker | None. |
 
 ## Tracker use
 
@@ -72,10 +72,10 @@ Execution is divided into token-conscious, independently testable units in the [
 | 3 | Classification services, chart exchange, and review UI | Complete |
 | 4 | Cash balances and indirect Operating activities | Complete — Slice 10 independently approved and CF4-GATE closed |
 | 5 | Investing, Financing, transfers, restricted cash, and disclosures | Complete — Slices 11, 12, and 13 independently approved; CF5-GATE closed |
-| 6 | Reconciliation, warnings, detail, revision, and cache behavior | Not started |
-| 7 | Statement of Cash Flows workspace | Not started |
-| 8 | CSV, XLSX, print preview, and PDF parity | Not started |
-| 9 | Acceptance, performance, privacy, regression, and release proof | Not started |
+| 6 | Reconciliation, warnings, detail, revision, and cache behavior | Complete |
+| 7 | Statement of Cash Flows workspace | Complete |
+| 8 | CSV, XLSX, print preview, and PDF parity | Complete |
+| 9 | Acceptance, performance, privacy, regression, and release proof | Complete |
 
 ## Phase 0 — Baseline and calculation oracle
 
@@ -193,71 +193,75 @@ Execution is divided into token-conscious, independently testable units in the [
 
 **Trace:** PRD §§7.11, 9, and 11; CF-017–CF-020, CF-028–CF-030, CF-034–CF-035; A14, A19; Product Spec §§10.11–12 and 15.
 
-- [ ] **CF6-001** Calculate Net Change, Calculated Ending Cash, Balance Sheet Ending Cash, and Difference in integer minor units.
-- [ ] **CF6-002** Assign Complete only when Difference is zero and no material unclassified cash activity remains.
-- [ ] **CF6-003** Emit deterministic typed warnings for review-required, archived, unclassified, transfer, restricted-cash, opening-balance, stale, and reconciliation conditions.
-- [ ] **CF6-004** Retain nonzero archived/review-required rows or warning contributions rather than silently dropping them.
-- [ ] **CF6-005** Implement exact row-level detail against immutable report ID and database revision.
-- [ ] **CF6-006** Make detail contributions sum exactly to their selected row, including balance-change and transfer explanations.
-- [ ] **CF6-007** Reject stale detail/export/print requests after relevant mutation.
-- [ ] **CF6-008** Cache by normalized query plus database revision and invalidate after every specified report-affecting mutation.
-- [ ] **CF6-009** Verify historical reports remain stable until the books or classifications change.
-- [ ] **CF6-010** Test warning order, stale revision, reconciliation failure, cache invalidation, and exact detail sums.
-- [ ] **CF6-GATE** Exit gate: every visible amount is explainable, stale reads fail clearly, cache behavior is correct, and status cannot overstate completeness.
+- [x] **CF6-001** Calculate Net Change, Calculated Ending Cash, Balance Sheet Ending Cash, and Difference in integer minor units.
+- [x] **CF6-002** Assign Complete only when Difference is zero and no material unclassified cash activity remains.
+- [x] **CF6-003** Emit deterministic typed warnings for review-required, archived, unclassified, transfer, restricted-cash, opening-balance, stale, and reconciliation conditions.
+- [x] **CF6-004** Retain nonzero archived/review-required rows or warning contributions rather than silently dropping them.
+- [x] **CF6-005** Implement exact row-level detail against immutable report ID and database revision.
+- [x] **CF6-006** Make detail contributions sum exactly to their selected row, including balance-change and transfer explanations.
+- [x] **CF6-007** Reject stale detail/export/print requests after relevant mutation.
+- [x] **CF6-008** Cache by normalized query plus database revision and invalidate after every specified report-affecting mutation.
+- [x] **CF6-009** Verify historical reports remain stable until the books or classifications change.
+- [x] **CF6-010** Test warning order, stale revision, reconciliation failure, cache invalidation, and exact detail sums.
+- [x] **CF6-GATE** Exit gate: every visible amount is explainable, stale reads fail clearly, cache behavior is correct, and status cannot overstate completeness.
 
 ## Phase 7 — Statement of Cash Flows workspace
 
 **Trace:** PRD §§8–11; CF-017–CF-024, CF-028, CF-035; Product Spec §13.
 
-- [ ] **CF7-001** Add Statement of Cash Flows to primary navigation without changing other workspace state.
-- [ ] **CF7-002** Add current/previous month, current quarter, YTD, fiscal year, prior fiscal year, and Custom controls.
-- [ ] **CF7-003** Keep Cash Flow dates and presets independent from P/L, Balance Sheet, and Transactions filters.
-- [ ] **CF7-004** Render company identity, period, accounting basis, method, status, and local-record disclaimer.
-- [ ] **CF7-005** Render Operating, Investing, Financing, supplemental disclosure, and reconciliation sections from semantic rows.
-- [ ] **CF7-006** Provide deterministic expand/collapse and visible zero-row behavior without altering report values.
-- [ ] **CF7-007** Open exact drill-down from every eligible amount and preserve report revision context.
-- [ ] **CF7-008** Display warnings with direct classification-review navigation where actionable.
-- [ ] **CF7-009** Provide loading, empty, invalid-period, incomplete, error, and stale-result states.
-- [ ] **CF7-010** Meet keyboard, focus, accessible-name, reading-order, contrast, and screen-reader requirements.
-- [ ] **CF7-011** Add responsive behavior for supported desktop window sizes without hiding reconciliation or status.
-- [ ] **CF7-GATE** Exit gate: the complete workspace is usable by keyboard, independently filtered, exact, explainable, and honest about incomplete data.
+- [x] **CF7-001** Add Statement of Cash Flows to primary navigation without changing other workspace state.
+- [x] **CF7-002** Add current/previous month, current quarter, YTD, fiscal year, prior fiscal year, and Custom controls.
+- [x] **CF7-003** Keep Cash Flow dates and presets independent from P/L, Balance Sheet, and Transactions filters.
+- [x] **CF7-004** Render company identity, period, accounting basis, method, status, and local-record disclaimer.
+- [x] **CF7-005** Render Operating, Investing, Financing, supplemental disclosure, and reconciliation sections from semantic rows.
+- [x] **CF7-006** Provide deterministic expand/collapse and visible zero-row behavior without altering report values.
+- [x] **CF7-007** Open exact drill-down from every eligible amount and preserve report revision context.
+- [x] **CF7-008** Display warnings with direct classification-review navigation where actionable.
+- [x] **CF7-009** Provide loading, empty, invalid-period, incomplete, error, and stale-result states.
+- [x] **CF7-010** Meet keyboard, focus, accessible-name, reading-order, contrast, and screen-reader requirements.
+- [x] **CF7-011** Add responsive behavior for supported desktop window sizes without hiding reconciliation or status.
+- [x] **CF7-GATE** Exit gate: the complete workspace is usable by keyboard, independently filtered, exact, explainable, and honest about incomplete data.
 
 ## Phase 8 — CSV, XLSX, print preview, and PDF parity
 
 **Trace:** PRD §12; CF-025–CF-029, CF-031, CF-034–CF-035; A18; Product Spec §14.
 
-- [ ] **CF8-001** Generate Summary CSV from the supplied immutable report without recalculation.
-- [ ] **CF8-002** Include metadata, status, warnings, semantic row IDs, sections, amounts, reconciliation, and disclaimer in deterministic CSV order.
-- [ ] **CF8-003** Generate the three-sheet XLSX: Statement, Detail, and Classifications.
-- [ ] **CF8-004** Make XLSX detail sum to exported statement rows and include exact classification/review context.
-- [ ] **CF8-005** Apply safe workbook cell typing, integer-to-decimal conversion only at presentation, and spreadsheet-injection protection.
-- [ ] **CF8-006** Build print/PDF preview from the same immutable report with repeated headers, page-safe sections, warnings, status, and reconciliation.
-- [ ] **CF8-007** Wire Command-P to preview and require explicit user action before system print/save-to-PDF.
-- [ ] **CF8-008** Enforce stale-revision and local-only rules for all outputs.
-- [ ] **CF8-009** Test exact screen/CSV/XLSX/print parity, deterministic regeneration, filenames, escaping, and no automatic printing.
-- [ ] **CF8-GATE** Exit gate: A18 passes and every output presents the same report revision, values, warnings, status, and disclaimer.
+- [x] **CF8-001** Generate Summary CSV from the supplied immutable report without recalculation.
+- [x] **CF8-002** Include metadata, status, warnings, semantic row IDs, sections, amounts, reconciliation, and disclaimer in deterministic CSV order.
+- [x] **CF8-003** Generate the three-sheet XLSX: Statement, Detail, and Classifications.
+- [x] **CF8-004** Make XLSX detail sum to exported statement rows and include exact classification/review context.
+- [x] **CF8-005** Apply safe workbook cell typing, integer-to-decimal conversion only at presentation, and spreadsheet-injection protection.
+- [x] **CF8-006** Build print/PDF preview from the same immutable report with repeated headers, page-safe sections, warnings, status, and reconciliation.
+- [x] **CF8-007** Wire Command-P to preview and require explicit user action before system print/save-to-PDF.
+- [x] **CF8-008** Enforce stale-revision and local-only rules for all outputs.
+- [x] **CF8-009** Test exact screen/CSV/XLSX/print parity, deterministic regeneration, filenames, escaping, and no automatic printing.
+- [x] **CF8-GATE** Exit gate: A18 passes and every output presents the same report revision, values, warnings, status, and disclaimer.
 
 ## Phase 9 — Acceptance and release proof
 
 **Trace:** PRD §§14–16 and A1–A20; Product Spec §§16–20.
 
-- [ ] **CF9-001** Run every A1–A20 acceptance scenario against neutral deterministic fixtures.
-- [ ] **CF9-002** Reconcile every valid fixture to zero Difference and every incomplete fixture to the expected warning/status.
-- [ ] **CF9-003** Prove all report, detail, export, and print money stays in integer minor units until presentation.
-- [ ] **CF9-004** Meet the Product Specification performance budget on the required representative ledger.
-- [ ] **CF9-005** Prove deterministic row, warning, detail, CSV, XLSX, and print ordering across repeated runs.
-- [ ] **CF9-006** Run privacy/public-data scans and prove fixtures contain no personal, prior-customer, or live financial data.
-- [ ] **CF9-007** Run full browser/unit, production build, desktop-host, backup/restore, and isolated Electron smoke suites.
-- [ ] **CF9-008** Re-run P/L, Balance Sheet, Transactions, Rules, Chart of Accounts, Backups, and desktop-branding regressions.
-- [ ] **CF9-009** Verify no report operation mutates the database and no live database/profile is touched by tests.
-- [ ] **CF9-010** Update README, application/product documentation, feature status, and public sample guidance only after all release evidence passes.
-- [ ] **CF9-011** Record final commands, counts, timings, acceptance results, and known limitations in the Evidence log.
-- [ ] **CF9-GATE** Exit gate: A1–A20 and all quality/regression checks pass, documentation says implemented, and release evidence is recorded.
+- [x] **CF9-001** Run every A1–A20 acceptance scenario against neutral deterministic fixtures.
+- [x] **CF9-002** Reconcile every valid fixture to zero Difference and every incomplete fixture to the expected warning/status.
+- [x] **CF9-003** Prove all report, detail, export, and print money stays in integer minor units until presentation.
+- [x] **CF9-004** Meet the Product Specification performance budget on the required representative ledger.
+- [x] **CF9-005** Prove deterministic row, warning, detail, CSV, XLSX, and print ordering across repeated runs.
+- [x] **CF9-006** Run privacy/public-data scans and prove fixtures contain no personal, prior-customer, or live financial data.
+- [x] **CF9-007** Run full browser/unit, production build, desktop-host, backup/restore, and isolated Electron smoke suites.
+- [x] **CF9-008** Re-run P/L, Balance Sheet, Transactions, Rules, Chart of Accounts, Backups, and desktop-branding regressions.
+- [x] **CF9-009** Verify no report operation mutates the database and no live database/profile is touched by tests.
+- [x] **CF9-010** Update README, application/product documentation, feature status, and public sample guidance only after all release evidence passes.
+- [x] **CF9-011** Record final commands, counts, timings, acceptance results, and known limitations in the Evidence log.
+- [x] **CF9-GATE** Exit gate: A1–A20 and all quality/regression checks pass, documentation says implemented, and release evidence is recorded.
 
 ## Evidence log
 
 | Date | Slice or gate | Evidence | Result |
 | --- | --- | --- | --- |
+| August 31, 2026 | `CF-SLICE-20-RELEASE-PROOF` / CF9-001–CF9-011 / CF9-GATE | Added an executable release-proof command that enforces A1–A20 manifest/order, canonical/browser oracle byte identity, tracked Cash Flow privacy and tax-identifier scans, diff checks, full browser/regression coverage, app/spec/desktop TypeScript contracts, production build, desktop-host backup/restore and native print-command tests, isolated Electron smoke, and native PDF byte validation. `npm run test:ci` passed 333/333; the focused production gate passed 77/77; build passed at 1.41 MB without warnings; desktop-host passed 17/17; Electron produced a visually inspected two-page A4 PDF (134,843 bytes) with repeated context and no clipping/overlap. Performance on the required 10,000-transaction/10,000-contribution fixture: full 135.90 ms, cached 19.00 ms, detail 19.10 ms, classification review 30.60 ms. | Complete |
+| August 31, 2026 | `CF-SLICE-17-CSV`, `CF-SLICE-18-XLSX`, `CF-SLICE-19-PRINT-PDF` / CF8-GATE | Verified all outputs derive from the same immutable report/revision and preserve rows, warning provenance, disclosures, reconciliation, and disclaimer. CSV is deterministic and injection-safe; reopened XLSX has the required three sheets, exact numeric/detail/classification parity, serialized hierarchy styles, and precision rejection; Command-P opens preview without auto-printing. The retry-safe isolated desktop smoke reaches Chromium `printToPDF`, and the rendered A4 pages repeat report context and table headings. A18 and stale/local-only/cancellation/failure paths pass in the production and regression gates. | Complete |
+| August 31, 2026 | `CF-SLICE-16-WORKSPACE` / CF7-GATE | Full browser regressions verify exclusive navigation, independent presets/custom dates, identity/status/disclaimer, semantic sections, zero/hierarchy controls, exact drill-down, warning navigation, stale/loading/empty/error states, keyboard/accessibility behavior, and responsive reconciliation visibility. | Complete |
+| August 31, 2026 | `CF-SLICE-14-RECONCILIATION-WARNINGS`, `CF-SLICE-15-DETAIL-REVISION-CACHE` / CF6-GATE | Full and focused report/application tests verify integer reconciliation and honest status, deterministic typed warnings, archived/review-required retention, exact immutable detail, stale rejection, revision/query caching, all specified invalidations, stable historical reads, no output mutation, and exact contribution sums. | Complete |
 | August 26, 2026 | `CF-SLICE-10-WORKING-CAPITAL` / CF4-007–CF4-010 / CF4-GATE | Independent review approved the hierarchy validation, deterministic review grouping, zero-row balance-change explanations, and executable production acceptance gate. The fixture gate validates 20 static scenarios and executes 19 production acceptance scenarios against the canonical machine-readable oracle; negative controls for disabled harness, missing scenario, and oracle drift fail as required. `npm run test:ci` passed 257/257 with dependency boundaries and both fixture oracles; build passed at 1.37 MB with no warnings; app/spec type checks and scoped diff checks passed. | Complete |
 | 2026-08-25 | Documentation setup | PRD, Product Specification, Task Tracker, and Implementation Slices created and cross-referenced | Complete |
 | 2026-08-25 | `CF-SLICE-01-BASELINE-ORACLE` | Fixture oracle, 181 browser/unit tests, production build, all 8 desktop-host tests, and isolated Electron smoke | Complete |
@@ -272,7 +276,7 @@ Execution is divided into token-conscious, independently testable units in the [
 | August 26, 2026 | `CF-SLICE-11-INVESTING-FINANCING` / CF5-001–CF5-004, in-scope CF5-009–CF5-010 | Independently approved. Investing and Financing use actual cash-side transactions and supported transfer sides; split debt payments allocate by stable posting-split classifications; owner contributions/draws do not alter Net Profit; deterministic hierarchy, subtotals, signed detail, zero-filter invariance, and invalid-classification/hierarchy diagnostics are covered. Only Slice 11 cases are closed; cash-to-cash elimination, restricted cash, noncash disclosures, and opening events remain pending. Focused production-service suite 31/31; fixture/oracle gate 20 static plus 31 production acceptance tests; `npm run test:ci` passed 269/269 plus dependency boundaries and both fixture oracles; `npm run build` produced a 1.38 MB initial bundle with no warnings; app/spec TypeScript and scoped diff checks passed. Independent review: APPROVED. | Complete |
 | August 26, 2026 | `CF-SLICE-12-TRANSFERS-RESTRICTED-CASH` / CF5-005–CF5-006 and proven CF5-010 transfer cases | Independently approved. Confirmed cash-to-cash transfers are eliminated from all activity sections and Net Change; one-cash transfers follow the explicit noncash treatment; unrestricted-to-restricted transfers are presented without double counting; malformed, partial, stale, orphaned, mismatched, and ambiguous structures retain deterministic diagnostics and reconciliation provenance. Focused suite 36/36; canonical fixture/oracle gate 20 static plus 36 production acceptance tests; `npm run test:ci` passed 274/274 plus dependency boundaries and both fixture oracles; `npm run build` produced a 1.39 MB initial bundle with no warnings; app/spec TypeScript and scoped diff checks passed. Desktop/native smoke was not needed because no native or persistence boundary changed. Independent review: APPROVED. Slice 13 opening/noncash cases and the Phase 5 gate remain open. | Complete |
 | August 27, 2026 | `CF-SLICE-13-OPENING-NONCASH` / CF5-007–CF5-008, remaining CF5-009/CF5-010 disclosure/opening cases, and CF5-GATE | Independently approved. Supported recorded noncash Investing/Financing events are disclosed once outside cash totals; in-period cash openings remain unclassified with exact Difference provenance; before/after-period openings follow boundary rules; malformed or ambiguous structures retain deterministic diagnostics; supplemental disclosure hierarchy validates parents, cycles, and review groups; all prior A6 and A8–A12 cash behavior remains exact. The executable canonical fixture/oracle gate passes 20 static scenarios and 52 production acceptance scenarios, including A11/A13 and the full A6/A8–A13 Phase 5 set. Final evidence: focused 52/52; `npm run test:ci` 290/290 plus dependency and fixture gates; `npm run build` 1.41 MB with no warnings; app/spec TypeScript, boundary, scoped diff, and byte-identical oracle-copy checks pass. Desktop/native smoke was not applicable because no native or persistence boundary changed. | Complete |
-| August 30, 2026 | `CF-SLICE-19-PRINT-PDF` correction pass | The uncommitted print document now projects immutable report ID/revision/generated timestamp, all 11 reconciliation metrics, complete warning provenance, and repeatable table context. The canonical production gate executes both report and print-contract acceptance suites (20 static scenarios plus 76 production tests); full `test:ci` passed 332/332; build passed at 1.41 MB without warnings; application/specification/desktop TypeScript, dependency boundaries, desktop-host 17/17, and diff checks passed. Native rendered-PDF smoke evidence remains unresolved because the direct Electron launcher exited silently without its expected artifact. | In progress — independent re-review required |
+| August 30, 2026 | `CF-SLICE-19-PRINT-PDF` correction pass | Added immutable report identity, all 11 reconciliation metrics, complete warning provenance, repeated table context, explicit-print-only behavior, and native PDF smoke instrumentation. The final August 31 release row records the corrected retry-safe Electron run and visual PDF inspection that closed this earlier blocker. | Superseded by complete release proof |
 | 2026-08-25 | Slice 1 pre-change baseline | `test:ci`: 181 passed; production build passed; `test:desktop-host`: 8 passed including validated restore/safety backup; isolated `desktop:smoke` passed | Complete |
 | 2026-08-25 | `CF-SLICE-01-BASELINE-ORACLE` | Independent validator passed for 2 neutral companies, A1–A20, schema-6 counts, exact integer totals/source Balance Sheets/cash composition/detail/warnings, 2025–2026 fiscal coverage, migration targets, and privacy terms | Complete |
 | 2026-08-25 | Slice 1 post-change verification | `test:ci`: Cash Flow oracle plus 181 browser/unit tests passed; production build passed; `test:desktop-host`: 8 passed; isolated `desktop:smoke` passed | Complete |

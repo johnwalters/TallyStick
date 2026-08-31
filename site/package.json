@@ -10,6 +10,7 @@
     "test:boundaries": "node scripts/check-boundaries.mjs",
     "test:balance-sheet-fixtures": "node scripts/validate-balance-sheet-fixtures.mjs",
     "test:cash-flow-fixtures": "node scripts/validate-cash-flow-fixtures.mjs && node scripts/run-cash-flow-production-gate.mjs",
+    "test:cash-flow-release-proof": "node scripts/run-cash-flow-release-proof.mjs",
     "test:ci": "npm run test:boundaries && npm run test:balance-sheet-fixtures && npm run test:cash-flow-fixtures && ng test --watch=false --browsers=ChromeHeadless --code-coverage",
     "test:unit": "ng test --watch=false --browsers=ChromeHeadless",
     "test:contract": "ng test --watch=false --browsers=ChromeHeadless",

@@ -1,6 +1,6 @@
 # Local Accounting Application Product Specification
 
-*Product specification · Version 1.0 · Current milestone implemented through Balance Sheet · August 24, 2026*
+*Product specification · Version 1.1 · Current milestone implemented through Statement of Cash Flows · August 31, 2026*
 
 ## 1. Document purpose and authority
 
@@ -23,7 +23,8 @@ The product is a single-user, local desktop accounting application for a small o
 5. Produce a cash-basis profit and loss report with traceable detail.
 6. Produce a Schedule C-ready variant whose tax-account adjustments are visible and report-only.
 7. Produce a reconciled as-of Balance Sheet with exact contribution detail and screen/export/print parity.
-8. Export an accountant package and preserve the books through verified local backup.
+8. Produce a reconciled indirect-method Statement of Cash Flows with exact detail and screen/CSV/XLSX/print/PDF parity.
+9. Export an accountant package and preserve the books through verified local backup.
 
 The product is not a general-purpose accounting suite and does not replace third-party marketplace analytics services.
 
@@ -39,6 +40,7 @@ The owner/bookkeeper is the only MVP user. Authentication, roles, approvals, con
 | Rejected rows | 100% visible with a human-readable reason |
 | P/L reconciliation | `$0.00` difference between displayed totals and drill-down detail |
 | Balance Sheet reconciliation | `$0.00` accounting-equation Difference for valid books, with every displayed amount traceable to detail |
+| Cash Flow reconciliation | `$0.00` Difference for complete books, with every amount and warning traceable to immutable detail |
 | Zero-amount rows | 100% of exact-zero normalized rows rejected individually without aborting their batch |
 | Transfer effect | `$0.00` effect on net profit after confirmation |
 | Schedule C adjustment | Disclosed, drillable, tax-year-specific, and non-mutating |
@@ -58,7 +60,7 @@ The owner/bookkeeper is the only MVP user. Authentication, roles, approvals, con
 - Editing, exact splits, individual and bulk actions, exclusion reasons, and undo.
 - Bank and credit-card transfer suggestions, confirmation, and unmatching.
 - In-app Chart of Accounts list/editor plus CSV/XLSX round-trip import/export.
-- P/L summary/detail, Schedule C-ready report, as-of Balance Sheet, exceptions, reconciliation, and accountant export.
+- P/L summary/detail, Schedule C-ready report, as-of Balance Sheet, indirect-method Statement of Cash Flows, exceptions, reconciliation, and accountant export.
 - Local backup, validation-first restore, portable export, integrity checks, and audit history.
 
 ### 3.2 Explicit non-goals
@@ -70,7 +72,7 @@ The owner/bookkeeper is the only MVP user. Authentication, roles, approvals, con
 - Amazon payout/clearing auto-matching.
 - Duplicate-detection or automatic de-duplication behavior beyond manual review and exclusion.
 - Invoices, bills, accounts payable, payroll, or sales-tax filing.
-- A Statement of Cash Flows, general-journal workspace, closing-entry workflow, or other financial statements beyond the implemented P/L and Balance Sheet.
+- A general-journal workspace, closing-entry workflow, direct-method Cash Flow presentation, or financial statements beyond the implemented P/L, Balance Sheet, and Statement of Cash Flows.
 - Automatic Schedule C mapping, recategorization, or tax filing.
 - In-app chart-of-accounts maintenance beyond import/export and use of active entries.
 - Multiple companies, multiple users, cloud sync, or collaboration.

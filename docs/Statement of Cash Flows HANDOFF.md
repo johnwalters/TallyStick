@@ -2,31 +2,32 @@
 
 ## Current feature state
 
-`CF-SLICE-19-PRINT-PDF` is the active uncommitted correction pass in the visible checkout. It is not independently approved, and CF8-006–CF8-009 and CF8-GATE remain open. The print document now renders only the immutable supplied report, including report ID, database revision, generated timestamp, complete reconciliation (including restricted-cash beginning/ending and unclassified activity), warnings with every public provenance field, disclosures, and repeated report context on every printable table. Command-P opens a preview; only the explicit preview action invokes printing.
+The Statement of Cash Flows release is implemented and verified through `CF-SLICE-20-RELEASE-PROOF`. Phases 0–9, CF8-GATE, CF9-GATE, and A1–A20 are complete. The workspace, exact detail, CSV, reopened three-sheet XLSX, print preview, and native PDF all consume the same immutable report/revision and retain complete warning, disclosure, and reconciliation provenance.
 
-The executable production gate now runs the canonical report and print-contract suites together: 20 static fixture scenarios plus 76 production acceptance tests. The output, report, and native smoke paths include an Electron `printToPDF` attempt. The remaining blocker is environmental verification: the direct Electron smoke launcher exited silently in this managed environment and did not produce the expected rendered-PDF artifact for visual/multi-page inspection. Do not mark the Slice 19 tasks or Phase 8 gate complete until that artifact is reproduced and independent re-review approves the correction pass.
-
-Phases 0–5 remain independently approved through `CF-SLICE-13-OPENING-NONCASH` / CF5-GATE. Later implementation work is present but does not change tracker completion without independent approval.
+The executable release command validates the canonical A1–A20 oracle, oracle-copy identity, privacy, determinism, integer money, no-mutation behavior, performance, full browser regressions, TypeScript contracts, production build, desktop-host backup/restore, and an isolated Electron PDF smoke. Command-P opens preview only; printing or Save as PDF requires an explicit action.
 
 ## Immediate resume point
 
-Resume by reproducing the native rendered-PDF smoke artifact for `CF-SLICE-19-PRINT-PDF`, inspecting its page/layout evidence, then requesting independent re-review of CF8-006–CF8-009 and CF8-GATE. Do not begin `CF-SLICE-20-RELEASE-PROOF`.
+No Statement of Cash Flows implementation work remains. For future regressions, run `cd site && npm run test:cash-flow-release-proof`. Direct-method presentation, forecasting, consolidation, and unrelated features remain out of scope.
 
 ## Checkout context
 
-- Path: `/Volumes/External SSD 1TB/Projects/TallyStick`
+- Path: visible saved-project repository root (no alternate checkout or worktree)
 - Branch: `cash-flow`
-- Current HEAD: `50d5e6788a7fd768ffe425b004f16565695e52fd`.
-- Current state: the working tree contains the existing Slice 18/19 implementation overlay plus these tracker/handoff edits. The output service, report tests, production-gate script, desktop bridge/preload/main path, and focused native command tests are all intentionally in scope. No commit or push has been performed.
+- Baseline HEAD for this final release-proof pass: `b44a9f9c215abeb207071042572a6dd1cdd1bbf2`.
+- Current state: the working tree contains the focused Slice 20 release-proof, retry-safe desktop smoke, print identity layout, and completion-document updates. No commit or push has been performed for this pass.
 - No alternate checkout or worktree is in use.
 
 ## Verification evidence
 
-- Independent approval remains recorded for Slice 13 / CF5-GATE only; Slice 19 is awaiting re-review.
-- Production fixture/oracle gate: 20 static scenarios plus 76 report/print acceptance tests passed.
-- `npm run test:ci`: 332/332 browser/unit tests passed, including dependency boundaries and both fixture oracles (Balance Sheet: 2 companies/19 scenarios; Cash Flow: 2 companies/20 scenarios).
-- `npm run build`: passed; initial bundle 1.41 MB with no warnings. Application/specification/desktop TypeScript, dependency boundaries, `npm run test:desktop-host` (17/17), and `git diff --check` passed.
-- Direct Electron `desktop:smoke:launch` did not yield its expected PDF artifact in this managed environment; native visual/PDF evidence remains outstanding.
+- `npm run test:cash-flow-release-proof`: passed end to end.
+- Production fixture/oracle gate: 20 static A1–A20 scenarios plus 77 report/output/performance acceptance tests passed.
+- `npm run test:ci`: 333/333 browser/unit tests passed, including dependency boundaries and both fixture oracles (Balance Sheet: 2 companies/19 scenarios; Cash Flow: 2 companies/20 scenarios).
+- Performance: full report 135.90 ms, cached report 19.00 ms, detail 19.10 ms for 10,000 contributions, and classification review 30.60 ms for 10,000 transactions.
+- `npm run build`: 1.41 MB initial bundle, no warnings. Application/specification/desktop TypeScript passed.
+- `npm run test:desktop-host`: 17/17 passed, including validated backup/restore and print routing.
+- Isolated `npm run desktop:smoke`: passed. Chromium generated a 134,843-byte, two-page A4 PDF; visual inspection found repeated context/headings and no clipping or overlap.
+- Privacy, byte-identical oracle copies, and `git diff --check` passed.
 
 ## Historical context
 

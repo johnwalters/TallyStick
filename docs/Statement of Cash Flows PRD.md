@@ -1,20 +1,20 @@
 # TallyStick Statement of Cash Flows
 
-*Product Requirements Document · Draft 0.1 · Proposed August 25, 2026*
+*Product Requirements Document · Version 1.0 · Implemented August 31, 2026*
 
 Companion documents: [TallyStick Product Specification](PRODUCT_SPEC.md) · [Statement of Cash Flows Product Specification](Statement%20of%20Cash%20Flows%20PRODUCT_SPEC.md) · [Balance Sheet PRD](Balance%20Sheet%20PRD.md)
 
 ## 1. Product summary
 
-TallyStick will provide a period-based Statement of Cash Flows that explains how the configured company's cash and cash equivalents changed between two dates. The first release will use the **indirect method**: it will begin with unadjusted P/L Net Profit, adjust for noncash activity and changes in operating assets and liabilities, then present investing and financing cash flows and reconcile calculated ending cash to the Balance Sheet.
+TallyStick provides a period-based Statement of Cash Flows that explains how the configured company's cash and cash equivalents changed between two dates. The first release uses the **indirect method**: it begins with unadjusted P/L Net Profit, adjusts for noncash activity and changes in operating assets and liabilities, then presents investing and financing cash flows and reconciles calculated ending cash to the Balance Sheet.
 
-The feature will complete TallyStick's core financial-statement set:
+The feature completes TallyStick's core financial-statement set:
 
 - Profit & Loss explains operating performance over a period.
 - Balance Sheet explains financial position as of a date.
 - Statement of Cash Flows explains the period's change in cash and cash equivalents.
 
-The report will be regenerated from ledger detail and account classifications. Report totals will not be stored or directly editable.
+The report is regenerated from ledger detail and account classifications. Report totals are not stored or directly editable.
 
 **Primary user:** Owner or bookkeeper of a one-person or small business  
 **Primary question:** Why did cash change during this period, and do the reported cash flows reconcile to the Balance Sheet?  

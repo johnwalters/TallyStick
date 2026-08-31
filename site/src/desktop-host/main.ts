@@ -247,6 +247,12 @@ async function runDesktopSmoke(): Promise<void> {
       };
     })()`);
     if ((result as { ready?: boolean })?.ready) break;
+    // Each attempt changes workspace/editor state.  Reload before retrying so
+    // a transient miss in a later workspace cannot leave the next pass
+    // searching the wrong state forever.
+    const loaded = new Promise<void>(resolve => mainWindow?.webContents.once('did-finish-load', () => resolve()));
+    mainWindow.webContents.reload();
+    await loaded;
     await new Promise(resolve => setTimeout(resolve, 100));
   }
   const printMenuItem = Menu.getApplicationMenu()?.getMenuItemById('print-report');

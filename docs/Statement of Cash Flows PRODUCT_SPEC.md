@@ -1,6 +1,6 @@
 # TallyStick Statement of Cash Flows Product Specification
 
-*Implementation specification · Draft 0.1 · Proposed August 25, 2026*
+*Implementation specification · Version 1.0 · Implemented August 31, 2026*
 
 Authority: [Statement of Cash Flows PRD](Statement%20of%20Cash%20Flows%20PRD.md) Draft 0.1  
 Current product baseline: [TallyStick Product Specification](PRODUCT_SPEC.md)  
@@ -8,9 +8,9 @@ Related completed feature: [Balance Sheet Product Specification](Balance%20Sheet
 
 ## 1. Purpose and status
 
-This document translates the proposed Statement of Cash Flows PRD into implementation contracts, persistence changes, calculations, user-interface behavior, outputs, and verification gates.
+This document defines the implemented Statement of Cash Flows contracts, persistence changes, calculations, user-interface behavior, outputs, and verification gates.
 
-**Status: Proposed; not implemented.** Nothing in this document marks application code, schema migration, fixtures, tests, or release work complete.
+**Status: Implemented and release-verified.** The executable A1-A20 oracle, browser regressions, performance/privacy checks, desktop-host recovery tests, and isolated Electron PDF smoke satisfy the completion gate recorded in the Task Tracker.
 
 The first release provides:
 
@@ -338,7 +338,7 @@ export interface CashFlowPrintPreviewResult {
 
 Detail and output commands carry `reportId` and `databaseRevision`. The service rejects stale requests instead of recalculating behind the caller's back.
 
-## 7. Proposed schema version 7
+## 7. Schema version 7
 
 Schema 7 is the Cash Flow classification migration from schema 6. If another migration lands first, renumber this migration without changing its atomicity or compatibility requirements.
 

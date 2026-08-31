@@ -22,6 +22,7 @@ All code created by (ChatGPT) models. Kudos to everybody who put stuff on the we
 - Produces Profit & Loss summary and detail reports with drill-down and reconciliation.
 - Produces an as-of-date Balance Sheet with Assets, Liabilities, Equity, Current Earnings, Retained Earnings, Opening Balance Equity, exact drill-down, warnings, and an explicit accounting-equation Difference.
 - Exports the Balance Sheet to UTF-8 CSV and verified two-sheet XLSX, and opens a print/PDF-ready preview without automatically printing.
+- Produces an indirect-method Statement of Cash Flows with explicit cash classifications, Operating/Investing/Financing sections, supplemental noncash disclosures, exact reconciliation and drill-down, and deterministic CSV/XLSX/print/PDF parity.
 - Produces a Schedule C-ready reporting view with disclosed, tax-year-specific adjustments that do not alter the underlying ledger.
 - Exports accounting and report data to CSV and XLSX and supports print-ready output.
 - Creates verified SQLite backups, restores validated backups, and safely relocates the active database.
@@ -63,6 +64,7 @@ cd site
 npm run test:ci
 npm run build
 npm run test:desktop-host
+npm run test:cash-flow-release-proof
 ```
 
 The test suite covers domain behavior, imports, transaction state changes, rules, persistence, reports, backups, feature facades, and Angular UI behavior.
@@ -104,10 +106,21 @@ The Balance Sheet is calculated from ledger detail rather than stored report tot
 
 The requirements, implementation contracts, and verification evidence are in the [Balance Sheet PRD](docs/Balance%20Sheet%20PRD.md), [Balance Sheet Product Specification](docs/Balance%20Sheet%20PRODUCT_SPEC.md), and [Balance Sheet Task Tracker](docs/Balance%20Sheet%20TASKS.md).
 
+## Completed Statement of Cash Flows milestone
+
+The Statement of Cash Flows uses one immutable, revision-consistent report for the workspace, exact detail, CSV, verified three-sheet XLSX, print preview, and native PDF rendering. It includes:
+
+- Indirect-method Operating, Investing, and Financing activity in integer minor units.
+- Explicit cash, cash-equivalent, restricted-cash, and account-treatment classifications without account-name inference.
+- Transfer elimination, opening-balance diagnostics, supplemental noncash disclosures, typed warnings, and an explicit Difference.
+- Stale-revision rejection, deterministic caching and invalidation, and read-only report/output behavior.
+- Neutral A1-A20 acceptance fixtures, performance budgets, privacy checks, full regressions, backup/restore coverage, and isolated Electron smoke proof.
+
+The requirements and release evidence are in the [Statement of Cash Flows PRD](docs/Statement%20of%20Cash%20Flows%20PRD.md), [Statement of Cash Flows Product Specification](docs/Statement%20of%20Cash%20Flows%20PRODUCT_SPEC.md), and [Statement of Cash Flows Task Tracker](docs/Statement%20of%20Cash%20Flows%20TASKS.md).
+
 ## Future feature candidates
 
 - Comparative Balance Sheet columns and financial ratios.
-- Cash-flow classification and a future Statement of Cash Flows.
 - General journal entries and explicit closing entries.
 - PDF/OCR statement import.
 - Optional direct bank connectors.
@@ -116,7 +129,7 @@ The requirements, implementation contracts, and verification evidence are in the
 - Optional assisted categorization while retaining explainability and user control.
 - Multi-company, multi-user, collaboration, and synchronization capabilities.
 
-The Balance Sheet milestone is complete. These are candidates for the next product discussion, not committed work or promises for a particular release.
+The Balance Sheet and Statement of Cash Flows milestones are complete. These are candidates for the next product discussion, not committed work or promises for a particular release.
 
 ## Architecture
 

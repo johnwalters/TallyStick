@@ -346,8 +346,10 @@ describe('Cash Flow public application contract', () => {
     }
     const startedAt = performance.now();
     const review = application.getCashFlowClassificationReview({ startDate: '2026-01-01', endDate: '2026-12-31', includeZeroRows: false });
+    const reviewMs = performance.now() - startedAt;
+    console.info(`Cash Flow classification performance: review=${reviewMs.toFixed(2)}ms transactions=10000`);
     expect(review.databaseRevision).toBeDefined();
-    expect(performance.now() - startedAt).toBeLessThan(500);
+    expect(reviewMs).toBeLessThan(500);
   });
 });
 

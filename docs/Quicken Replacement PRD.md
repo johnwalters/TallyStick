@@ -1,13 +1,13 @@
 # Local books for a small online business
 
-*Product Requirements Document · Version 1.0 · Current milestone implemented through Balance Sheet*
+*Product Requirements Document · Version 1.1 · Current milestone implemented through Statement of Cash Flows*
 
 Companion: [Technical architecture →](Quicken%20Replacement%20Technical%20Architecture.md)
 
 A focused, local-first accounting application for a small online business: ingest transactions, review and categorize them, and produce accountant-ready financial reports with supporting transaction detail.
 
 - **Primary user:** **Business owner / bookkeeper**
-- **Primary output:** **Cash-basis P/L, reconciled as-of Balance Sheet, and transaction detail**
+- **Primary output:** **Cash-basis P/L, reconciled as-of Balance Sheet, indirect-method Statement of Cash Flows, and transaction detail**
 - **Deployment:** **Single-user local desktop app**
 
 **Product thesis:** the application is not a general accounting suite and does not replace the existing Amazon analytics service. It is a dependable transaction ledger and classification system that makes year-end tax preparation faster, traceable, and repeatable.
@@ -27,7 +27,7 @@ A focused, local-first accounting application for a small online business: inges
 - Import bank, credit-card, and Amazon-summary data without live bank connections.
 - Make review efficient through reusable deterministic rules and transfer matching.
 - Maintain a clear Pending, Posted, Excluded, and Transfer-matched lifecycle.
-- Produce a date-filtered P/L by month or year and a reconciled as-of Balance Sheet, both with exportable detail.
+- Produce a date-filtered P/L, a reconciled as-of Balance Sheet, and an indirect-method Statement of Cash Flows, all with exportable detail.
 - Preserve an audit trail so any reported number can be traced to its source transaction.
 
 ### Not in the initial product
@@ -35,7 +35,7 @@ A focused, local-first accounting application for a small online business: inges
 - Direct bank or credit-card connections.
 - Amazon sales analytics, inventory forecasting, SKU profitability, or order management.
 - Invoices, bills, payroll, sales-tax filing, or accounts-payable workflows.
-- A Statement of Cash Flows, general-journal workspace, closing-entry workflow, or other financial statements beyond the implemented P/L and Balance Sheet.
+- A general-journal workspace, closing-entry workflow, direct-method Cash Flow presentation, or other financial statements beyond the implemented P/L, Balance Sheet, and Statement of Cash Flows.
 - Multi-company, multi-user, or cloud collaboration.
 - Automatic tax filing or Schedule C mapping/categorization.
 
