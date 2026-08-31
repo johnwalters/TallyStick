@@ -206,6 +206,11 @@ function reportFixture(): CashFlowReport {
       addressLines: ['100 Example Avenue', 'Portland, OR 97205'], contactLines: ['hello@example.test'],
     },
     currencyCode: 'USD', accountingBasis: 'CASH', method: 'INDIRECT', status: 'COMPLETE',
+    classifications: [{
+      accountRole: 'FINANCIAL_SOURCE', accountId: 'checking-1', accountPath: 'Assets > Bank > Operating Checking',
+      accountType: 'BANK', detailType: 'Checking', cashRole: 'CASH', treatment: 'CASH_BALANCE', status: 'CONFIRMED',
+      source: 'USER', rationale: 'Operating cash account.', archived: false, modifiedAtUtc: '2026-08-25T00:00:00.000Z',
+    }],
     rows: [{
       rowId, rowType: 'ACCOUNT_ACTIVITY', section: 'OPERATING', treatment: 'OPERATING_ASSET',
       accountRole: 'FINANCIAL_SOURCE', accountId: 'checking-1', label: 'Operating Checking',

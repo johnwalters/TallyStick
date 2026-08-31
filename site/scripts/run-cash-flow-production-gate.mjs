@@ -5,14 +5,18 @@ import { fileURLToPath } from 'node:url';
 
 const siteRoot = fileURLToPath(new URL('../', import.meta.url));
 const ngCli = path.join(siteRoot, 'node_modules/@angular/cli/bin/ng.js');
-const acceptanceInclude = process.env.CASH_FLOW_ACCEPTANCE_INCLUDE ?? '**/cash-flow-report.service.spec.ts';
-const expectedTestCount = Number(process.env.CASH_FLOW_EXPECTED_TEST_COUNT ?? 58);
+// The output suite is part of production acceptance: it parses the printable
+// immutable report contract while the report suite binds that contract to the
+// canonical oracle.  Keep both includes/counts explicit so disabling either
+// cannot leave this gate green.
+const acceptanceIncludes = (process.env.CASH_FLOW_ACCEPTANCE_INCLUDE ?? '**/cash-flow-report.service.spec.ts,**/cash-flow-output.service.spec.ts').split(',');
+const expectedTestCount = Number(process.env.CASH_FLOW_EXPECTED_TEST_COUNT ?? 76);
 const args = [
   ngCli,
   'test',
   '--watch=false',
   '--browsers=ChromeHeadless',
-  `--include=${acceptanceInclude}`,
+  ...acceptanceIncludes.map(include => `--include=${include}`),
 ];
 
 const output = [];

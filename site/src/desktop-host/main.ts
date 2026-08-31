@@ -6,6 +6,7 @@ import * as path from 'node:path';
 import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { DatabaseLifecycleManager } from './database-lifecycle';
 import { saveReportFile } from './report-file-save';
+import { routePrintCommand } from './report-preview-print-command';
 import { SqliteHostStore } from './sqlite-host-store';
 import { CURRENT_SQLITE_SCHEMA_VERSION } from '../shared/schema-version';
 
@@ -42,7 +43,7 @@ function installApplicationMenu(): void {
           accelerator: 'CmdOrCtrl+P',
           click: () => {
             const focusedWindow = BrowserWindow.getFocusedWindow();
-            if (focusedWindow) void focusedWindow.webContents.print({ printBackground: true });
+            routePrintCommand(focusedWindow ?? undefined, mainWindow);
           },
         },
         { type: 'separator' },
@@ -141,16 +142,17 @@ async function createWindow(): Promise<void> {
 async function runDesktopSmoke(): Promise<void> {
   if (!mainWindow) throw new Error('The Accounting desktop window was not created.');
   const deadline = Date.now() + 10000;
-  let result: { title?: string; windowTitle?: string; appName?: string; financialAccountEditor?: boolean; chartWorkspace?: boolean; chartTable?: boolean; chartEditor?: boolean; rulesWorkspace?: boolean; rulesTable?: boolean; ruleEditor?: boolean; reportWorkspace?: boolean; summaryButton?: boolean; detailButton?: boolean; scheduleBasisButton?: boolean; unadjustedBasisButton?: boolean; scheduleBasisActive?: boolean; detailTable?: boolean; dataWorkspace?: boolean; databasePath?: boolean; backupCreated?: boolean; printMenu?: boolean; printAccelerator?: boolean } | undefined;
+  let result: { title?: string; windowTitle?: string; appName?: string; financialAccountEditor?: boolean; chartWorkspace?: boolean; chartTable?: boolean; chartEditor?: boolean; rulesWorkspace?: boolean; rulesTable?: boolean; ruleEditor?: boolean; reportWorkspace?: boolean; summaryButton?: boolean; detailButton?: boolean; scheduleBasisButton?: boolean; unadjustedBasisButton?: boolean; scheduleBasisActive?: boolean; detailTable?: boolean; cashFlowWorkspace?: boolean; cashFlowPrintAction?: boolean; cashFlowPreview?: boolean; cashFlowPreviewPdf?: boolean; cashFlowPreviewPdfPath?: string; dataWorkspace?: boolean; databasePath?: boolean; backupCreated?: boolean; printMenu?: boolean; printAccelerator?: boolean } | undefined;
   while (Date.now() < deadline) {
     result = await mainWindow.webContents.executeJavaScript(`(async () => {
       const buttons = [...document.querySelectorAll('button')];
       const chartWorkspaceButton = buttons.find(button => button.textContent?.trim() === 'Chart of Accounts');
       const rulesWorkspaceButton = buttons.find(button => button.textContent?.trim() === 'Rules');
       const reportsWorkspaceButton = buttons.find(button => button.textContent?.trim() === 'Profit & Loss');
+      const cashFlowWorkspaceButton = buttons.find(button => button.textContent?.trim() === 'Cash Flow');
       const balanceSheetWorkspaceButton = buttons.find(button => button.textContent?.trim() === 'Balance Sheet');
       const dataWorkspaceButton = buttons.find(button => button.textContent?.trim() === 'Backups');
-      if (!chartWorkspaceButton || !rulesWorkspaceButton || !reportsWorkspaceButton || !balanceSheetWorkspaceButton || !dataWorkspaceButton) return { ready: false };
+      if (!chartWorkspaceButton || !rulesWorkspaceButton || !reportsWorkspaceButton || !cashFlowWorkspaceButton || !balanceSheetWorkspaceButton || !dataWorkspaceButton) return { ready: false };
       const addFinancialAccountButton = buttons.find(button => button.textContent?.trim() === 'Add account');
       if (!addFinancialAccountButton) return { ready: false };
       addFinancialAccountButton.click();
@@ -198,6 +200,11 @@ async function runDesktopSmoke(): Promise<void> {
       await new Promise(resolve => setTimeout(resolve, 50));
       const reportWorkspace = Boolean(document.querySelector('.report-workspace'));
       const detailTable = Boolean(document.querySelector('.detail-table'));
+      cashFlowWorkspaceButton.click();
+      await new Promise(resolve => setTimeout(resolve, 100));
+      const cashFlowWorkspace = Boolean(document.querySelector('#cash-flow-workspace'));
+      const cashFlowPrintAction = [...document.querySelectorAll('button')].some(button => button.textContent?.trim() === 'Print / PDF');
+      if (!cashFlowWorkspace || !cashFlowPrintAction) return { ready: false };
       balanceSheetWorkspaceButton.click();
       await new Promise(resolve => setTimeout(resolve, 100));
       const balanceButtons = [...document.querySelectorAll('button')];
@@ -232,6 +239,8 @@ async function runDesktopSmoke(): Promise<void> {
         unadjustedBasisButton: Boolean(unadjustedBasisButton),
         scheduleBasisActive,
         detailTable,
+        cashFlowWorkspace,
+        cashFlowPrintAction,
         dataWorkspace: Boolean(document.querySelector('.data-safety-workspace')),
         databasePath: dataText.includes('tallystick.sqlite'),
         backupCreated: dataText.includes('Latest verified backup') && dataText.includes('.sqlite'),
@@ -242,12 +251,38 @@ async function runDesktopSmoke(): Promise<void> {
   }
   const printMenuItem = Menu.getApplicationMenu()?.getMenuItemById('print-report');
   if (result) {
+    await mainWindow.webContents.executeJavaScript(`(() => {
+      const cashFlow = [...document.querySelectorAll('button')].find(button => button.textContent?.trim() === 'Cash Flow');
+      cashFlow?.click();
+      setTimeout(() => [...document.querySelectorAll('button')].find(button => button.textContent?.trim() === 'Print / PDF')?.click(), 100);
+    })()`);
+    const previewDeadline = Date.now() + 5000;
+    let preview: BrowserWindow | undefined;
+    while (Date.now() < previewDeadline) {
+      preview = BrowserWindow.getAllWindows().find(window => window !== mainWindow && window.getTitle().includes('Statement of Cash Flows'));
+      if (preview) break;
+      await new Promise(resolve => setTimeout(resolve, 50));
+    }
+    if (preview) {
+      const previewContent = await preview.webContents.executeJavaScript(`Boolean(document.querySelector('#print-document') && document.title.includes('Statement of Cash Flows') && document.querySelector('thead'))`);
+      result.cashFlowPreview = Boolean(previewContent);
+      // This is deliberately a renderer PDF, not a DOM-only smoke assertion.
+      // The externally inspectable artifact lets the smoke test prove that the
+      // exact preview document reaches Chromium's PDF compositor without
+      // opening a system print dialog.
+      const pdf = await preview.webContents.printToPDF({ pageSize: 'A4', printBackground: true });
+      const previewPdfPath = path.join(tmpdir(), 'tallystick-cash-flow-preview-smoke.pdf');
+      writeFileSync(previewPdfPath, pdf);
+      result.cashFlowPreviewPdf = pdf.subarray(0, 4).toString() === '%PDF' && pdf.byteLength > 1024;
+      result.cashFlowPreviewPdfPath = previewPdfPath;
+      preview.close();
+    }
     result.windowTitle = mainWindow.getTitle();
     result.appName = app.getName();
     result.printMenu = Boolean(printMenuItem);
     result.printAccelerator = printMenuItem?.accelerator === 'CmdOrCtrl+P';
   }
-  if (!result?.title || result.windowTitle !== 'TallyStick' || result.appName !== 'TallyStick' || !result.financialAccountEditor || !result.chartWorkspace || !result.chartTable || !result.chartEditor || !result.rulesWorkspace || !result.rulesTable || !result.ruleEditor || !result.reportWorkspace || !result.summaryButton || !result.detailButton || !result.scheduleBasisButton || !result.unadjustedBasisButton || !result.scheduleBasisActive || !result.detailTable || !result.dataWorkspace || !result.databasePath || !result.backupCreated || !result.printMenu || !result.printAccelerator) {
+  if (!result?.title || result.windowTitle !== 'TallyStick' || result.appName !== 'TallyStick' || !result.financialAccountEditor || !result.chartWorkspace || !result.chartTable || !result.chartEditor || !result.rulesWorkspace || !result.rulesTable || !result.ruleEditor || !result.reportWorkspace || !result.summaryButton || !result.detailButton || !result.scheduleBasisButton || !result.unadjustedBasisButton || !result.scheduleBasisActive || !result.detailTable || !result.cashFlowWorkspace || !result.cashFlowPrintAction || !result.cashFlowPreview || !result.cashFlowPreviewPdf || !result.dataWorkspace || !result.databasePath || !result.backupCreated || !result.printMenu || !result.printAccelerator) {
     throw new Error(`Desktop report smoke failed: ${JSON.stringify(result ?? {})}`);
   }
   console.log(`Desktop report smoke passed: ${JSON.stringify(result)}`);

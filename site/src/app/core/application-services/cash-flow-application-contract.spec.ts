@@ -57,7 +57,7 @@ describe('Cash Flow public application contract', () => {
     expect(Object.isFrozen(catalog.defaults)).toBeTrue();
   });
 
-  it('implements classification, report, CSV, and exact detail operations while keeping XLSX deferred', async () => {
+  it('implements classification, report, CSV/XLSX, and exact detail operations', async () => {
     const query = { startDate: '2026-01-01', endDate: '2026-12-31', includeZeroRows: false };
     const chart = application.listChartAccounts().find(account => account.detailType === 'Owner draw')!;
     const preview = application.previewCashFlowClassification({ accountRole: 'CHART', accountId: chart.id, treatment: 'FINANCING' });
@@ -91,10 +91,13 @@ describe('Cash Flow public application contract', () => {
 
     const csvExport = await application.exportCashFlow({ reportId: report.reportId, databaseRevision: report.databaseRevision, format: 'CSV' });
     expect(csvExport.format).toBe('CSV');
-    if (csvExport.status === 'CANCELLED') throw new Error('Expected a completed CSV export.');
+    if (csvExport.status === 'CANCELLED' || csvExport.format !== 'CSV') throw new Error('Expected a completed CSV export.');
     expect(csvExport.content).toContain('Report,Statement of Cash Flows');
     expect(csvExport.content).toContain(report.reportId);
     expect(csvExport.rowCount).toBe(report.rows.length);
+
+    const printPreview = await application.openCashFlowPrintPreview({ reportId: report.reportId, databaseRevision: report.databaseRevision });
+    expect(printPreview).toEqual({ opened: false, title: `${report.company.displayName} — Statement of Cash Flows` });
 
     expect(() => application.getCashFlowDetail({ reportId: report.reportId, databaseRevision: revision, detailKey: 'detail-1' as never }))
       .toThrowError(CashFlowContractError);
@@ -107,7 +110,9 @@ describe('Cash Flow public application contract', () => {
     await expectStaleIdentity(() => application.exportCashFlow({ reportId: 'report-1' as never, databaseRevision: revision, format: 'CSV' }));
     await expectStaleIdentity(() => application.openCashFlowPrintPreview({ reportId: 'report-1' as never, databaseRevision: revision }));
 
-    await expectDeferred(() => application.exportCashFlow({ reportId: report.reportId, databaseRevision: revision, format: 'XLSX' }));
+    const xlsxExport = await application.exportCashFlow({ reportId: report.reportId, databaseRevision: revision, format: 'XLSX' });
+    if (xlsxExport.status === 'CANCELLED' || xlsxExport.format !== 'XLSX') throw new Error('Expected a completed XLSX export.');
+    expect(xlsxExport.bytes.byteLength).toBeGreaterThan(0);
   });
 
   it('serves immutable, reconciling detail for every eligible public report row', () => {

@@ -293,6 +293,10 @@ export class AppComponent {
     this.report = this.accountingReport();
     this.refresh();
     void this.backupFacade.loadLocations();
+    (globalThis as { localAccounting?: { reportPreview?: { onPrintRequested(listener: () => void): () => void } } }).localAccounting?.reportPreview?.onPrintRequested(() => {
+      if (this.workspaceView === 'CASH_FLOW') void this.openCashFlowPrintPreview();
+      else if (this.workspaceView === 'BALANCE_SHEET') void this.openBalanceSheetPrintPreview();
+    });
   }
 
   loadBalanceSheet(): void {
@@ -393,18 +397,24 @@ export class AppComponent {
       return;
     }
     // Desktop saves through the host bridge. In a browser-only session the
-    // output service returns the same immutable CSV content so the workspace
-    // can offer a normal download without recalculating the report.
+    // output service returns the same immutable export bytes/content so the
+    // workspace can offer a normal download without recalculating the report.
     const desktopReportFileBridge = (globalThis as { localAccounting?: { reportFiles?: unknown } }).localAccounting?.reportFiles;
-    if (format === 'CSV' && result?.status === 'DOWNLOAD_READY' && !desktopReportFileBridge) {
-      this.downloadFile(result.content, result.suggestedFileName, 'text/csv;charset=utf-8');
+    if (result?.status === 'DOWNLOAD_READY' && !desktopReportFileBridge) {
+      if (result.format === 'CSV') {
+        this.downloadFile(result.content, result.suggestedFileName, 'text/csv;charset=utf-8');
+      } else {
+        this.downloadFile(result.bytes, result.suggestedFileName, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      }
     }
   }
   async openCashFlowPrintPreview(): Promise<void> {
     if (this.cashFlowStale || !this.cashFlowReport) return;
-    await this.cashFlowFacade.openPrintPreview({ reportId: this.cashFlowReport.reportId, databaseRevision: this.cashFlowReport.databaseRevision });
+    const result = await this.cashFlowFacade.openPrintPreview({ reportId: this.cashFlowReport.reportId, databaseRevision: this.cashFlowReport.databaseRevision });
     if (this.cashFlowFacade.failure()?.code === 'CASH_FLOW_REPORT_REVISION_STALE') {
       this.markCashFlowStale(this.cashFlowFacade.error()!);
+    } else if (result && !result.opened) {
+      this.statusMessage = 'Print preview is available in the TallyStick desktop app.';
     }
   }
   private markCashFlowStale(message: string): void { this.cashFlowStale = true; this.cashFlowStaleMsg = message; }

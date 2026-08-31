@@ -24,7 +24,11 @@ export interface LocalAccountingBridge {
   reportFiles: {
     save(suggestedFileName: string, bytes: Uint8Array, fileType: 'CSV' | 'XLSX' | 'HTML', reportTitle?: 'Balance Sheet' | 'Statement of Cash Flows'): Promise<'SAVED' | 'CANCELLED'>;
   };
-  reportPreview: { open(title: string, html: string): Promise<string>; };
+  reportPreview: {
+    open(title: string, html: string): Promise<string>;
+    /** Requests a preview from the native File > Print / Command-P command. */
+    onPrintRequested(listener: () => void): () => void;
+  };
 }
 
 declare global {

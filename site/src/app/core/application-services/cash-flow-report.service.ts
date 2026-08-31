@@ -10,6 +10,7 @@ import {
   CashFlowDisclosure,
   CASH_FLOW_CONTRACT_VERSION,
   CashFlowReportIdentity,
+  CashFlowClassificationSnapshotRow,
   CashFlowQueryInput,
   CashFlowReport,
   CashFlowRow,
@@ -260,7 +261,6 @@ export class CashFlowReportService {
       createdAt: '',
       modifiedAt: '',
     };
-
     const status = warnings.some(warning => isBlockingCashFlowWarning(warning.code))
       ? 'REVIEW_REQUIRED' as const
       : 'COMPLETE' as const;
@@ -268,6 +268,7 @@ export class CashFlowReportService {
     // indirect Operating calculation. Slice 13 appends recorded-only
     // noncash disclosures after reconciliation without changing any cash
     // section total or boundary projection.
+    const classificationSnapshot = buildCashFlowClassificationSnapshot(snapshot, rows, detailIndex, warnings, noncash.disclosures);
     const report = freezeCashFlowReport({
       reportId: cashFlowReportId(snapshot.databaseRevision, query),
       databaseRevision: snapshot.databaseRevision,
@@ -279,6 +280,7 @@ export class CashFlowReportService {
       method: 'INDIRECT',
       status,
       rows,
+      classifications: classificationSnapshot,
       disclosures: noncash.disclosures,
       netOperatingMinor: operating.netOperatingMinor,
       netInvestingMinor: investing.amountMinor,
@@ -2511,6 +2513,78 @@ function financialAccountPath(accountId: string, accounts: ReadonlyMap<string, F
     current = current.parentAccountId ? accounts.get(current.parentAccountId) : undefined;
   }
   return parts.join(' > ');
+}
+
+function buildCashFlowClassificationSnapshot(
+  snapshot: BalanceSheetRepositorySnapshot,
+  rows: readonly CashFlowRow[],
+  detailIndex: Readonly<Record<string, readonly CashFlowContribution[]>>,
+  warnings: readonly CashFlowWarning[],
+  disclosures: readonly CashFlowDisclosure[],
+): readonly CashFlowClassificationSnapshotRow[] {
+  const financialById = new Map(snapshot.accounts.map(account => [account.id, account]));
+  const chartById = new Map(snapshot.chartAccounts.map(account => [account.id, account]));
+  const participating = new Set<string>();
+  const add = (role: string | undefined, id: string | undefined) => {
+    if (role && id) participating.add(`${role}:${id}`);
+  };
+  rows.forEach(row => {
+    // Account rows, including visible zero rows, are part of the associated
+    // report context. Structural rows have no account identity.
+    add(row.accountRole, row.accountId);
+    if (row.detailKey) {
+      (detailIndex[row.detailKey] ?? []).forEach(contribution => add(contribution.accountRole, contribution.accountId));
+    }
+  });
+  Object.values(detailIndex).forEach(contributions => contributions.forEach(contribution => {
+    // Retain nonzero provenance even when presentation-only zero filtering hid
+    // the corresponding row (for example equal/opposite adjustments).
+    if (contribution.contributionMinor !== 0n) add(contribution.accountRole, contribution.accountId);
+  }));
+  warnings.forEach(warning => add(warning.accountRole, warning.accountId));
+  disclosures.forEach(disclosure => {
+    add(disclosure.accountRole, disclosure.accountId);
+    add('CHART', disclosure.chartAccountId);
+  });
+  return snapshot.cashFlowClassifications
+    .filter(classification => participating.has(`${classification.accountRole}:${classification.accountId}`))
+    .map(classification => {
+      const account = classification.accountRole === 'FINANCIAL_SOURCE'
+        ? financialById.get(classification.accountId)
+        : chartById.get(classification.accountId);
+      const accountPath = account
+        ? classification.accountRole === 'FINANCIAL_SOURCE'
+          ? financialAccountPath(account.id, financialById)
+          : chartAccountPath(account.id, chartById)
+        : `(missing ${classification.accountRole.toLowerCase().replace('_', ' ')})`;
+      return {
+        accountRole: classification.accountRole,
+        accountId: classification.accountId,
+        accountPath,
+        accountType: classification.accountType,
+        detailType: classification.detailType,
+        ...(classification.cashRole === undefined ? {} : { cashRole: classification.cashRole }),
+        treatment: classification.treatment,
+        status: classification.status,
+        source: classification.source,
+        rationale: classification.rationale,
+        archived: Boolean(account?.archived),
+        ...(classification.modifiedAtUtc === undefined ? {} : { modifiedAtUtc: classification.modifiedAtUtc }),
+      } satisfies CashFlowClassificationSnapshotRow;
+    })
+    .sort((left, right) => stableCompare(normalizePath(left.accountPath), normalizePath(right.accountPath))
+      || stableCompare(left.accountRole, right.accountRole)
+      || stableCompare(left.accountId, right.accountId));
+}
+
+function normalizePath(value: string): string {
+  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+}
+
+function stableCompare(left: string, right: string): number {
+  const a = normalizePath(left);
+  const b = normalizePath(right);
+  return a < b ? -1 : a > b ? 1 : 0;
 }
 
 interface NoncashAdjustment {

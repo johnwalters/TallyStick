@@ -772,6 +772,22 @@ describe('AppComponent', () => {
     expect(component.cashFlowStale).toBeTrue();
   });
 
+  it('routes the native Command-P request to the current Cash Flow report preview without printing', async () => {
+    let requestPreview: (() => void) | undefined;
+    (globalThis as { localAccounting?: unknown }).localAccounting = {
+      reportPreview: { onPrintRequested: (listener: () => void) => { requestPreview = listener; return () => undefined; } },
+    };
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    const preview = spyOn(component, 'openCashFlowPrintPreview').and.resolveTo();
+    requestPreview?.();
+    expect(preview).toHaveBeenCalledTimes(1);
+  });
+
   it('keeps the current report usable when a CSV save fails without changing the revision', async () => {
     const application = TestBed.inject(ACCOUNTING_APPLICATION);
     const fixture = TestBed.createComponent(AppComponent);
@@ -782,7 +798,7 @@ describe('AppComponent', () => {
     await settleDeferred(fixture);
     const report = component.cashFlowReport!;
     spyOn(application, 'exportCashFlow').and.rejectWith(new CashFlowContractError({
-      code: 'CASH_FLOW_EXPORT_FAILED', message: 'Cash Flow CSV export failed. Choose another location and try again.',
+      code: 'CASH_FLOW_EXPORT_FAILED', message: 'Cash Flow export failed. Choose another location and try again.',
       reportId: report.reportId, databaseRevision: report.databaseRevision, retryable: true,
     }));
 
@@ -812,7 +828,30 @@ describe('AppComponent', () => {
 
     await component.exportCashFlow('CSV');
 
+    if (result.format !== 'CSV') throw new Error('Expected a CSV result.');
     expect(download).toHaveBeenCalledOnceWith(result.content, result.suggestedFileName, 'text/csv;charset=utf-8');
+    expect(component.cashFlowStale).toBeFalse();
+  });
+
+  it('downloads immutable XLSX bytes returned by the Cash Flow output boundary in browser mode', async () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectWorkspace('CASH_FLOW');
+    fixture.detectChanges();
+    await settleDeferred(fixture);
+    const report = component.cashFlowReport!;
+    const result: CashFlowExportResult = {
+      format: 'XLSX', status: 'DOWNLOAD_READY', suggestedFileName: 'statement.xlsx',
+      rowCount: report.rows.length, bytes: new Uint8Array([1, 2, 3]),
+    };
+    spyOn(application, 'exportCashFlow').and.resolveTo(result);
+    const download = spyOn<any>(component, 'downloadFile');
+
+    await component.exportCashFlow('XLSX');
+
+    expect(download).toHaveBeenCalledOnceWith(result.bytes, result.suggestedFileName, 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     expect(component.cashFlowStale).toBeFalse();
   });
 
@@ -829,8 +868,8 @@ describe('AppComponent', () => {
     const screenDisclaimer = (fixture.nativeElement.querySelector('.cash-flow-disclaimer') as HTMLElement).textContent?.trim();
     expect(screenDisclaimer).toBe(cashFlowReportDisclaimer(report.query));
     const exported = await application.exportCashFlow({ reportId: report.reportId, databaseRevision: report.databaseRevision, format: 'CSV' });
-    if (exported.status === 'CANCELLED') throw new Error('Expected browser-ready CSV output.');
-    const disclaimerRow = exported.content.split(/\r?\n/).find(line => line.startsWith('Disclaimer,'));
+    if (exported.status === 'CANCELLED' || exported.format !== 'CSV') throw new Error('Expected browser-ready CSV output.');
+    const disclaimerRow = exported.content.split(/\r?\n/).find((line: string) => line.startsWith('Disclaimer,'));
     expect(disclaimerRow).toContain(cashFlowReportDisclaimer(report.query));
   });
 

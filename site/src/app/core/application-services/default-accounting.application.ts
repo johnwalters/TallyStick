@@ -298,17 +298,27 @@ export class DefaultAccountingApplication implements AccountingApplication {
     this.cashFlowReports.assertCashFlowReportCurrent(command);
     const report = this.cashFlowReports.getCachedCashFlowReport(command);
     if (!report) return this.cashFlowNotImplemented(`Export Cash Flow report ${command.reportId} as ${command.format}`);
-    if (command.format !== 'CSV') return this.cashFlowNotImplemented(`Export Cash Flow report ${command.reportId} as ${command.format}`);
-    // Keep the CSV writer out of the eager application shell. It is a pure
-    // output boundary with no repository dependencies, so load it only when
-    // the user requests CSV export.
+    // Keep report writers out of the eager application shell. They are pure
+    // output boundaries with no repository dependencies, so load them only
+    // when the user requests an export.
     const { CashFlowOutputService } = await import('./cash-flow-output.service');
     return new CashFlowOutputService().export(report, command.format);
   }
 
   async openCashFlowPrintPreview(command: OpenCashFlowPrintPreviewCommand): Promise<CashFlowPrintPreviewResult> {
     this.cashFlowReports.assertCashFlowReportCurrent(command);
-    return this.cashFlowNotImplemented(`Open Cash Flow print preview ${command.reportId}`);
+    const report = this.cashFlowReports.getCachedCashFlowReport(command);
+    if (!report) {
+      throw new CashFlowContractError({
+        code: 'CASH_FLOW_REPORT_REVISION_STALE',
+        message: 'The requested Statement of Cash Flows report is unavailable or stale. Regenerate it before printing.',
+        reportId: command.reportId,
+        databaseRevision: command.databaseRevision,
+        retryable: true,
+      });
+    }
+    const { CashFlowOutputService } = await import('./cash-flow-output.service');
+    return new CashFlowOutputService().openPrintPreview(report);
   }
 
   previewCashFlowClassificationImport(command: PreviewCashFlowClassificationImportCommand): CashFlowClassificationImportPreview {

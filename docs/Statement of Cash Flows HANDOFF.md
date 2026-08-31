@@ -2,33 +2,31 @@
 
 ## Current feature state
 
-`CF-SLICE-13-OPENING-NONCASH` and the Phase 5 `CF5-GATE` remain independently `APPROVED` and complete as of August 27, 2026. The committed Slice 14 reconciliation/warnings and Slice 15 detail/revision/cache implementations are present in the current history, but their tracker closure is not being changed by this handoff.
+`CF-SLICE-19-PRINT-PDF` is the active uncommitted correction pass in the visible checkout. It is not independently approved, and CF8-006–CF8-009 and CF8-GATE remain open. The print document now renders only the immutable supplied report, including report ID, database revision, generated timestamp, complete reconciliation (including restricted-cash beginning/ending and unclassified activity), warnings with every public provenance field, disclosures, and repeated report context on every printable table. Command-P opens a preview; only the explicit preview action invokes printing.
 
-`CF-SLICE-16-WORKSPACE` is implemented in the visible checkout and ready for independent review. The workspace adds the Cash Flow navigation tab, independent period presets/custom dates and zero-row control, report metadata/status/totals, section and disclosure rendering, deterministic hierarchy expansion, exact amount drill-down with revision/provenance, warnings and classification-review navigation, loading/empty/invalid/error states, and keyboard/focus/accessibility behavior. Reports are explicitly marked stale after classification, Chart, or company reporting mutations and after stale-revision failures: stale totals and detail/export/print actions are withheld until Refresh succeeds. Warning navigation uses the composite account-role/account-ID identity and loads the referenced editor; the detail panel shows formula, rationale, balance-change fields, stable account path, source, report/revision, and transaction/transfer provenance. The workspace and classification review are isolated into lazy feature components so the production build remains warning-free under the existing budgets. Export and print controls are exposed as required by the workspace contract, while their file-generation slices remain deferred. No progress tracker status was changed in this turn.
+The executable production gate now runs the canonical report and print-contract suites together: 20 static fixture scenarios plus 76 production acceptance tests. The output, report, and native smoke paths include an Electron `printToPDF` attempt. The remaining blocker is environmental verification: the direct Electron smoke launcher exited silently in this managed environment and did not produce the expected rendered-PDF artifact for visual/multi-page inspection. Do not mark the Slice 19 tasks or Phase 8 gate complete until that artifact is reproduced and independent re-review approves the correction pass.
 
-The overall Statement of Cash Flows feature is not finished. The immediate resume point is independent review of `CF-SLICE-16-WORKSPACE` / CF7-001–CF7-011 and CF7-GATE. Do not close those tasks, start Slice 17, or mark later phases complete until review and progress-document updates are explicitly authorized.
+Phases 0–5 remain independently approved through `CF-SLICE-13-OPENING-NONCASH` / CF5-GATE. Later implementation work is present but does not change tracker completion without independent approval.
 
 ## Immediate resume point
 
-Resume with independent review of the current `CF-SLICE-16-WORKSPACE` implementation and its CF7-001–CF7-011 acceptance coverage. Slice 16 is the active authorized work unit; no Slice 17 implementation is authorized by this handoff.
+Resume by reproducing the native rendered-PDF smoke artifact for `CF-SLICE-19-PRINT-PDF`, inspecting its page/layout evidence, then requesting independent re-review of CF8-006–CF8-009 and CF8-GATE. Do not begin `CF-SLICE-20-RELEASE-PROOF`.
 
 ## Checkout context
 
 - Path: `/Volumes/External SSD 1TB/Projects/TallyStick`
 - Branch: `cash-flow`
-- Baseline HEAD before the current Slice 16 changes: `495c2b89e9099234e58f83217c0fa44085cb94f2` (`CF-SLICE-15-DETAIL-REVISION-CACHE`).
-- Current Slice 16 state: three existing shell/template/test files (`site/src/app/app.component.ts`, `site/src/app/app.component.html`, and `site/src/app/app.component.spec.ts`) plus five new feature-component files under `site/src/app/features/cash-flow/` are modified or newly created and unstaged. Cash Flow styles now live in the feature stylesheet; `app.component.scss` is unchanged. No commit or push has been performed. The unrelated `docs/orchestration_prompt.txt` file, if present, must remain untouched and excluded.
+- Current HEAD: `50d5e6788a7fd768ffe425b004f16565695e52fd`.
+- Current state: the working tree contains the existing Slice 18/19 implementation overlay plus these tracker/handoff edits. The output service, report tests, production-gate script, desktop bridge/preload/main path, and focused native command tests are all intentionally in scope. No commit or push has been performed.
 - No alternate checkout or worktree is in use.
 
 ## Verification evidence
 
-- Independent review disposition: `APPROVED` for Slice 13 and the Phase 5 `CF5-GATE`; Phase 5 is complete.
-- Slice 16 focused browser suite: `55/55` passed, including stale-report recovery, warning-account selection/focus, detail audit fields, presets, empty/no-cash, warning-heading, and responsive-state coverage.
-- Fixture/oracle gate: 20 static Cash Flow scenarios plus 58 production acceptance tests executed against the canonical oracle.
-- `npm run test:ci`: `307/307` browser/unit tests passed, including dependency boundaries and both fixture oracles (Balance Sheet: 2 companies/19 scenarios; Cash Flow: 2 companies/20 scenarios).
-- `npm run build`: passed; initial bundle `1.42 MB` with no warning output. The workspace and classification review are lazy feature chunks; warning budgets were not relaxed.
-- Application/specification TypeScript checks, dependency boundary checks, and `git diff --check`: passed.
-- Desktop-host/Electron smoke was not applicable; Slice 16 changes are confined to the Angular workspace and do not cross native or persistence boundaries.
+- Independent approval remains recorded for Slice 13 / CF5-GATE only; Slice 19 is awaiting re-review.
+- Production fixture/oracle gate: 20 static scenarios plus 76 report/print acceptance tests passed.
+- `npm run test:ci`: 332/332 browser/unit tests passed, including dependency boundaries and both fixture oracles (Balance Sheet: 2 companies/19 scenarios; Cash Flow: 2 companies/20 scenarios).
+- `npm run build`: passed; initial bundle 1.41 MB with no warnings. Application/specification/desktop TypeScript, dependency boundaries, `npm run test:desktop-host` (17/17), and `git diff --check` passed.
+- Direct Electron `desktop:smoke:launch` did not yield its expected PDF artifact in this managed environment; native visual/PDF evidence remains outstanding.
 
 ## Historical context
 

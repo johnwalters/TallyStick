@@ -8,7 +8,8 @@ import { InMemoryAccountingRepository } from '../repository-gateways/in-memory-a
 import { BalanceSheetReportService } from './balance-sheet-report.service';
 import { assertCashFlowDetailAmount, CashFlowReportService, dayBeforeBusinessDate } from './cash-flow-report.service';
 import { calculateUnadjustedNetProfit } from './profit-loss-calculation';
-import { cashFlowCsv } from './cash-flow-output.service';
+import { cashFlowCsv, cashFlowPrintHtml, cashFlowPrintModel, cashFlowXlsx, cashFlowXlsxDecimalNumber } from './cash-flow-output.service';
+import * as XLSX from 'xlsx';
 
 describe('CashFlowReportService query and cash balances', () => {
   let repository: InMemoryAccountingRepository;
@@ -1584,6 +1585,8 @@ describe('CashFlowReportService query and cash balances', () => {
       const report = service.getCashFlowReport({ startDate: expected.period.startDate, endDate: expected.period.endDate, includeZeroRows: true });
       const repeat = service.getCashFlowReport({ startDate: expected.period.startDate, endDate: expected.period.endDate, includeZeroRows: true });
       assertProductionCsvParity(report);
+      assertProductionXlsxParity(report);
+      assertProductionPrintParity(report);
       const accountRows = report.rows.filter(row => row.rowType === 'ACCOUNT_ACTIVITY');
       const amount = (rows: readonly { amountMinor?: bigint }[]) => rows.reduce((sum, row) => sum + (row.amountMinor ?? 0n), 0n);
       const totals = expected.expectedTotals;
@@ -2056,6 +2059,31 @@ describe('CashFlowReportService query and cash balances', () => {
     if (!classification) throw new Error(`Missing classification for ${accountId}`);
     repository.cashFlowClassifications.set(key, { ...classification, status: 'REVIEW_REQUIRED' });
   }
+
+  it('orders participating classifications with locale-independent normalized paths and role/id tie-breakers', () => {
+    const cash = addAccount('cash', 'Primary funds', 0n, '2025-12-01', 'CASH');
+    const decomposed = addChartAccount('z-account', 'E\u0301clair', 'EXPENSE', 'Office expenses');
+    const composed = addChartAccount('a-account', 'Éclair', 'EXPENSE', 'Office expenses');
+    const turkish = addChartAccount('m-account', 'İnvoice', 'EXPENSE', 'Office expenses');
+    const unrelated = addChartAccount('unrelated', 'Unrelated inactive account', 'EXPENSE', 'Office expenses');
+    [decomposed, composed, turkish].forEach(account => addChartClassification(account.id, account.accountType, account.detailType, 'OPERATING_REVENUE_EXPENSE'));
+    addChartClassification(unrelated.id, unrelated.accountType, unrelated.detailType, 'OPERATING_REVENUE_EXPENSE');
+    addTransaction('classification-z', cash.id, '2026-01-03', -1n, 'POSTED', undefined, [{ chartAccountId: decomposed.id, amountMinor: -1n }]);
+    addTransaction('classification-a', cash.id, '2026-01-02', -1n, 'POSTED', undefined, [{ chartAccountId: composed.id, amountMinor: -1n }]);
+    addTransaction('classification-m', cash.id, '2026-01-01', -1n, 'POSTED', undefined, [{ chartAccountId: turkish.id, amountMinor: -1n }]);
+    const first = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
+    const firstOrder = first.classifications.map(classification => `${classification.accountRole}:${classification.accountId}`);
+    const transactions = [...repository.transactions.entries()].reverse();
+    repository.transactions.clear();
+    transactions.forEach(([id, transaction]) => repository.transactions.set(id, transaction));
+    const accounts = [...repository.chartAccounts.entries()].reverse();
+    repository.chartAccounts.clear();
+    accounts.forEach(([id, account]) => repository.chartAccounts.set(id, account));
+    const second = service.getCashFlowReport({ startDate: '2026-01-01', endDate: '2026-01-31', includeZeroRows: true });
+    expect(second.classifications.map(classification => `${classification.accountRole}:${classification.accountId}`)).toEqual(firstOrder);
+    expect(firstOrder).toEqual(['CHART:a-account', 'CHART:z-account', 'CHART:m-account', `FINANCIAL_SOURCE:${cash.id}`]);
+    expect(firstOrder).not.toContain('CHART:unrelated');
+  });
 });
 
 let productionCsvParityScenarioCount = 0;
@@ -2129,8 +2157,140 @@ function assertProductionCsvParity(report: CashFlowReport): void {
   ]));
 }
 
+/** Production print/PDF acceptance guard.  It projects the actual immutable
+ * report used by the canonical oracle test and mechanically verifies all
+ * print metadata, warning provenance, reconciliation metrics and repeating
+ * table context before Electron renders the same HTML to PDF. */
+function assertProductionPrintParity(report: CashFlowReport): void {
+  const model = cashFlowPrintModel(report);
+  expect(model.reportId).toBe(report.reportId);
+  expect(model.databaseRevision).toBe(report.databaseRevision);
+  expect(model.generatedAt).toBe(report.generatedAt);
+  expect(model.disclaimer).toBe(`Prepared from recorded transactions and account classifications for ${report.query.startDate} through ${report.query.endDate}. Supplemental noncash disclosures do not affect cash totals.`);
+  expect(model.warnings).toEqual(report.warnings);
+  expect(model.disclosures).toEqual(report.disclosures ?? []);
+  expect(model.reconciliation).toEqual([
+    { label: 'Net Cash from Operating Activities', amountMinor: report.netOperatingMinor }, { label: 'Net Cash from Investing Activities', amountMinor: report.netInvestingMinor }, { label: 'Net Cash from Financing Activities', amountMinor: report.netFinancingMinor },
+    { label: 'Net Change in Cash', amountMinor: report.netChangeInCashMinor }, { label: 'Beginning Cash', amountMinor: report.beginningCashMinor }, { label: 'Calculated Ending Cash', amountMinor: report.calculatedEndingCashMinor }, { label: 'Ending Cash', amountMinor: report.endingCashMinor },
+    { label: 'Restricted Cash Beginning', amountMinor: report.restrictedCashBeginningMinor }, { label: 'Restricted Cash Ending', amountMinor: report.restrictedCashEndingMinor }, { label: 'Unclassified Cash Activity', amountMinor: report.unclassifiedCashActivityMinor }, { label: 'Difference', amountMinor: report.differenceMinor },
+  ]);
+  const document = new DOMParser().parseFromString(cashFlowPrintHtml(report), 'text/html');
+  expect(document.title).toBe(`${report.company.displayName} — Statement of Cash Flows`);
+  const tables = Array.from(document.querySelectorAll('table'));
+  expect(tables.length).toBeGreaterThan(1);
+  expect(tables.every(table => table.querySelectorAll('thead .running-context').length === 1)).toBeTrue();
+  report.warnings.forEach(warning => {
+    const rendered = document.querySelector(`[data-warning-id="${warning.warningId}"]`)?.textContent ?? '';
+    expect(rendered).toContain(warning.warningId);
+    expect(rendered).toContain(warning.code);
+    expect(rendered).toContain(warning.message);
+    if (warning.accountRole) expect(rendered).toContain(warning.accountRole);
+    if (warning.accountId) expect(rendered).toContain(warning.accountId);
+    if (warning.businessDate) expect(rendered).toContain(warning.businessDate);
+    if (warning.detailKey) expect(rendered).toContain(warning.detailKey);
+    (warning.references ?? []).forEach(reference => expect(rendered).toContain(reference));
+  });
+}
+
 function decimalForCsv(value: bigint): string {
   const sign = value < 0n ? '-' : '';
   const absolute = value < 0n ? -value : value;
   return `${sign}${absolute / 100n}.${String(absolute % 100n).padStart(2, '0')}`;
+}
+
+/** Reopen and mechanically compare the production XLSX payload to the same
+ * immutable report used by the CSV assertion above. */
+function assertProductionXlsxParity(report: CashFlowReport): void {
+  const workbook = XLSX.read(cashFlowXlsx(report), { type: 'array', cellStyles: true });
+  expect(workbook.SheetNames).toEqual(['Statement of Cash Flows', 'Cash Flow Detail', 'Cash Flow Classifications']);
+  const statement = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets['Statement of Cash Flows'], { header: 1, defval: '', raw: true });
+  const metadata = new Map(statement.slice(0, 14).map(row => [String(row[0] ?? ''), String(row[1] ?? '')]));
+  expect(metadata.get('Report')).toBe('Statement of Cash Flows');
+  expect(metadata.get('Company legal name')).toBe(report.company.legalName);
+  expect(metadata.get('Company display name')).toBe(report.company.displayName);
+  expect(metadata.get('Start date')).toBe(report.query.startDate);
+  expect(metadata.get('End date')).toBe(report.query.endDate);
+  expect(metadata.get('Report ID')).toBe(report.reportId);
+  expect(metadata.get('Database revision')).toBe(report.databaseRevision);
+  expect(metadata.get('Status')).toBe(report.status);
+  expect(metadata.get('Disclaimer')).toBe(`Prepared from recorded transactions and account classifications for ${report.query.startDate} through ${report.query.endDate}. Supplemental noncash disclosures do not affect cash totals.`);
+  const header = statement.findIndex(row => row[0] === 'Row ID');
+  expect(header).toBe(15);
+  const rows = statement.slice(header + 1, header + 1 + report.rows.length);
+  expect(rows).toHaveSize(report.rows.length);
+  report.rows.forEach((expected, index) => {
+    const actual = rows[index];
+    expect(actual.slice(0, 18)).toEqual([
+      xlsxText(expected.rowId), xlsxText(expected.rowType), xlsxText(expected.section), xlsxText(expected.treatment ?? ''), xlsxText(expected.label), xlsxText(expected.fullPath ?? ''), expected.depth,
+      expected.amountMinor === undefined ? '' : expected.amountMinor.toString(), expected.amountMinor === undefined ? '' : cashFlowXlsxDecimalNumber(expected.amountMinor),
+      xlsxText(expected.accountRole ?? ''), xlsxText(expected.accountId ?? ''), xlsxText(expected.cashRole ?? ''), expected.archived ? 'Yes' : 'No', expected.reviewRequired ? 'Yes' : 'No',
+      xlsxText(expected.detailKey ?? ''), xlsxText(expected.parentRowId ?? ''), expected.bold ? 'Yes' : 'No', expected.derived ? 'Yes' : 'No',
+    ]);
+  });
+  const warningHeader = statement.findIndex(row => row[0] === 'Warning ID');
+  expect(warningHeader).toBeGreaterThan(header);
+  expect(statement.slice(warningHeader + 1, warningHeader + 1 + report.warnings.length).map(row => row.slice(0, 8))).toEqual(report.warnings.map(warning => [
+    xlsxText(warning.warningId), xlsxText(warning.code), xlsxText(warning.message), xlsxText(warning.accountRole ?? ''), xlsxText(warning.accountId ?? ''), xlsxText(warning.businessDate ?? ''), xlsxText(warning.detailKey ?? ''), xlsxText((warning.references ?? []).slice().sort().join(';')),
+  ]));
+  const reconciliationHeader = statement.findIndex(row => row[0] === 'Metric');
+  expect(reconciliationHeader).toBeGreaterThan(warningHeader);
+  const metrics: readonly [string, bigint][] = [
+    ['Net Operating', report.netOperatingMinor], ['Net Investing', report.netInvestingMinor], ['Net Financing', report.netFinancingMinor],
+    ['Net Change in Cash', report.netChangeInCashMinor], ['Beginning Cash', report.beginningCashMinor], ['Calculated Ending Cash', report.calculatedEndingCashMinor],
+    ['Ending Cash', report.endingCashMinor], ['Restricted Cash Beginning', report.restrictedCashBeginningMinor], ['Restricted Cash Ending', report.restrictedCashEndingMinor],
+    ['Unclassified Cash Activity', report.unclassifiedCashActivityMinor], ['Difference', report.differenceMinor],
+  ];
+  expect(statement.slice(reconciliationHeader + 1, reconciliationHeader + 1 + metrics.length).map(row => row.slice(0, 3))).toEqual(metrics.map(([label, amount]) => [label, amount.toString(), cashFlowXlsxDecimalNumber(amount)]));
+  const disclosureHeader = statement.findIndex(row => row[0] === 'Disclosure ID');
+  expect(disclosureHeader).toBeGreaterThan(reconciliationHeader);
+  expect(statement.slice(disclosureHeader + 1, disclosureHeader + 1 + (report.disclosures ?? []).length).map(row => row.slice(0, 13))).toEqual((report.disclosures ?? []).map(disclosure => [
+    xlsxText(disclosure.disclosureId), xlsxText(disclosure.section), xlsxText(disclosure.label), disclosure.amountMinor === undefined ? '' : disclosure.amountMinor.toString(),
+    disclosure.amountMinor === undefined ? '' : cashFlowXlsxDecimalNumber(disclosure.amountMinor), xlsxText(disclosure.detailKey ?? ''), xlsxText(disclosure.accountRole ?? ''), xlsxText(disclosure.accountId ?? ''),
+    xlsxText(disclosure.chartAccountId ?? ''), xlsxText(disclosure.transactionId ?? ''), xlsxText(disclosure.transferId ?? ''), xlsxText(disclosure.description ?? ''), xlsxText(disclosure.rationale),
+  ]));
+  const detailMatrix = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets['Cash Flow Detail'], { header: 1, defval: '', raw: true });
+  const detailHeader = (detailMatrix[0] ?? []).map(value => String(value));
+  const details = detailMatrix.slice(1);
+  expect(detailHeader).toEqual([
+    'Record type', 'Row ID', 'Detail key', 'Contribution ID', 'Contribution type', 'Contribution minor', 'Contribution amount', 'Business date', 'Account role', 'Account ID', 'Account name', 'Chart account ID', 'Chart account path', 'Transaction ID', 'Counterparty transaction ID', 'Split ID', 'Transfer ID', 'Source batch ID', 'Payee', 'Description', 'Memo', 'Opening amount minor', 'Opening amount', 'Ending amount minor', 'Ending amount', 'Raw change minor', 'Raw change', 'Formula', 'Child row ID', 'Report ID', 'Database revision',
+  ]);
+  const expectedDetails: unknown[][] = [];
+  report.rows.forEach(row => {
+    const contributions = row.detailKey ? (report.detailIndex[row.detailKey] ?? []) : [];
+    if (!contributions.length) {
+      if (row.amountMinor === 0n) {
+        const context = new Array<unknown>(31).fill('');
+        context[0] = 'ROW_CONTEXT'; context[1] = row.rowId; context[2] = row.detailKey ?? '';
+        context[8] = xlsxText(row.accountRole ?? ''); context[9] = xlsxText(row.accountId ?? ''); context[27] = 'Zero-valued row context';
+        context[29] = xlsxText(report.reportId); context[30] = xlsxText(report.databaseRevision);
+        expectedDetails.push(context);
+      }
+      return;
+    }
+    contributions.forEach(contribution => {
+      expectedDetails.push([
+        'CONTRIBUTION', xlsxText(row.rowId), xlsxText(contribution.detailKey), xlsxText(contribution.contributionId), xlsxText(contribution.contributionType), contribution.contributionMinor.toString(), cashFlowXlsxDecimalNumber(contribution.contributionMinor),
+        xlsxText(contribution.businessDate ?? ''), xlsxText(contribution.accountRole ?? row.accountRole ?? ''), xlsxText(contribution.accountId ?? row.accountId ?? ''), xlsxText(contribution.accountName ?? ''), xlsxText(contribution.chartAccountId ?? ''), xlsxText(contribution.chartAccountPath ?? ''),
+        xlsxText(contribution.transactionId ?? ''), xlsxText(contribution.counterpartyTransactionId ?? ''), xlsxText(contribution.splitId ?? ''), xlsxText(contribution.transferId ?? ''), xlsxText(contribution.sourceBatchId ?? ''), xlsxText(contribution.payee ?? ''), xlsxText(contribution.description ?? ''), xlsxText(contribution.memo ?? ''),
+        contribution.openingAmountMinor === undefined ? '' : contribution.openingAmountMinor.toString(), contribution.openingAmountMinor === undefined ? '' : cashFlowXlsxDecimalNumber(contribution.openingAmountMinor),
+        contribution.endingAmountMinor === undefined ? '' : contribution.endingAmountMinor.toString(), contribution.endingAmountMinor === undefined ? '' : cashFlowXlsxDecimalNumber(contribution.endingAmountMinor),
+        contribution.rawChangeMinor === undefined ? '' : contribution.rawChangeMinor.toString(), contribution.rawChangeMinor === undefined ? '' : cashFlowXlsxDecimalNumber(contribution.rawChangeMinor),
+        xlsxText(contribution.formula ?? ''), xlsxText(contribution.childRowId ?? ''), xlsxText(report.reportId), xlsxText(report.databaseRevision),
+      ]);
+    });
+  });
+  expect(details).toEqual(expectedDetails);
+  const classifications = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets['Cash Flow Classifications'], { header: 1, defval: '', raw: true }).slice(1);
+  expect(classifications).toHaveSize(report.classifications.length);
+  report.classifications.forEach((expected, index) => {
+    const actual = classifications[index];
+    expect(actual).toEqual([
+      xlsxText(expected.accountRole), xlsxText(expected.accountId), xlsxText(expected.accountPath), xlsxText(expected.accountType), xlsxText(expected.detailType), xlsxText(expected.cashRole ?? ''), xlsxText(expected.treatment),
+      xlsxText(expected.status), xlsxText(expected.source), xlsxText(expected.rationale), expected.archived ? 'Yes' : 'No', xlsxText(expected.modifiedAtUtc ?? ''), xlsxText(report.databaseRevision),
+    ]);
+  });
+}
+
+function xlsxText(value: string): string {
+  return /^[\t\r\n ]*[=+\-@]/.test(value) ? `'${value}` : value;
 }

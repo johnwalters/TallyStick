@@ -169,6 +169,27 @@ export interface CashFlowDisclosure {
   readonly rationale: string;
 }
 
+/**
+ * Frozen classification context captured with a Cash Flow report.  Export
+ * services consume this snapshot rather than querying the repository again,
+ * keeping the Classifications workbook sheet on the same revision as the
+ * statement and detail sheets.
+ */
+export interface CashFlowClassificationSnapshotRow {
+  readonly accountRole: 'FINANCIAL_SOURCE' | 'CHART';
+  readonly accountId: string;
+  readonly accountPath: string;
+  readonly accountType: string;
+  readonly detailType: string;
+  readonly cashRole?: CashFlowCashRole;
+  readonly treatment: CashFlowTreatment;
+  readonly status: CashFlowClassificationStatus;
+  readonly source: CashFlowClassificationSource;
+  readonly rationale: string;
+  readonly archived: boolean;
+  readonly modifiedAtUtc?: string;
+}
+
 export const CASH_FLOW_WARNING_CODES = [
   'NO_CASH_ACCOUNTS_CONFIGURED',
   'CASH_ROLE_REVIEW_REQUIRED',
@@ -222,6 +243,7 @@ export interface CashFlowReport {
   readonly method: CashFlowMethod;
   readonly status: CashFlowReportStatus;
   readonly rows: readonly CashFlowRow[];
+  readonly classifications: readonly CashFlowClassificationSnapshotRow[];
   readonly disclosures?: readonly CashFlowDisclosure[];
   readonly netOperatingMinor: bigint;
   readonly netInvestingMinor: bigint;
@@ -478,7 +500,25 @@ export type CashFlowExportResult =
       readonly suggestedFileName: string;
     }
   | {
-      readonly format: 'CSV';
+      readonly format: 'XLSX';
+      readonly status: 'SAVED';
+      readonly path: string;
+      readonly completedAtUtc: string;
+      readonly rowCount: number;
+      /** The exact immutable workbook bytes represented by this export. */
+      readonly bytes: Uint8Array;
+      readonly suggestedFileName: string;
+    }
+  | {
+      readonly format: 'XLSX';
+      readonly status: 'DOWNLOAD_READY';
+      readonly rowCount: number;
+      /** Browser callers download these exact immutable workbook bytes. */
+      readonly bytes: Uint8Array;
+      readonly suggestedFileName: string;
+    }
+  | {
+      readonly format: 'CSV' | 'XLSX';
       readonly status: 'CANCELLED';
       readonly rowCount: number;
     };
@@ -488,6 +528,8 @@ export interface OpenCashFlowPrintPreviewCommand extends CashFlowReportIdentity 
 export interface CashFlowPrintPreviewResult {
   readonly opened: boolean;
   readonly title: string;
+  /** Opaque native preview identity. It is absent when no preview window was opened. */
+  readonly previewId?: string;
 }
 
 export const CASH_FLOW_FAILURE_CODES = [
@@ -677,6 +719,7 @@ export function freezeCashFlowReport(report: CashFlowReport): CashFlowReport {
       contactLines: Object.freeze([...report.company.contactLines]),
     }),
     rows: Object.freeze(report.rows.map(row => Object.freeze({ ...row }))),
+    classifications: Object.freeze(report.classifications.map(classification => Object.freeze({ ...classification }))),
     disclosures: report.disclosures ? Object.freeze(report.disclosures.map(disclosure => Object.freeze({ ...disclosure }))) : undefined,
     warnings: Object.freeze(report.warnings.map(warning => Object.freeze({ ...warning, references: warning.references ? Object.freeze([...warning.references]) : undefined }))),
     detailIndex: Object.freeze(frozenDetails),

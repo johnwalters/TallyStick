@@ -26,7 +26,14 @@ const bridge: LocalAccountingBridge = {
   reportFiles: {
     save: (suggestedFileName, bytes, fileType, reportTitle) => ipcRenderer.invoke('report-file:save', suggestedFileName, bytes, fileType, reportTitle),
   },
-  reportPreview: { open: (title, html) => ipcRenderer.invoke('report-preview:open', title, html) },
+  reportPreview: {
+    open: (title, html) => ipcRenderer.invoke('report-preview:open', title, html),
+    onPrintRequested: listener => {
+      const handler = () => listener();
+      ipcRenderer.on('report-preview:request-open', handler);
+      return () => ipcRenderer.removeListener('report-preview:request-open', handler);
+    },
+  },
 };
 
 contextBridge.exposeInMainWorld('localAccounting', bridge);
