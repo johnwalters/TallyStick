@@ -631,7 +631,9 @@ export class DefaultAccountingApplication implements AccountingApplication {
           lastFour?: string;
         }>;
         if (!Array.isArray(rawConditions)) throw new AccountingError('RULE_CONDITIONS_INVALID', 'Conditions JSON must contain an array.');
-        const conditions = rawConditions.map(condition => this.resolveImportedRuleCondition(condition, rowNumber, issues));
+        const ruleName = String(row['Rule Name'] ?? '').trim() || `rule on workbook row ${rowNumber}`;
+        const chartAccountName = String(row['Chart Account Name'] ?? '').trim() || undefined;
+        const conditions = rawConditions.map(condition => this.resolveImportedRuleCondition(condition, rowNumber, issues, ruleName, chartAccountName));
         const tags = JSON.parse(String(row['Tags JSON'] ?? '[]')) as string[];
         const enabled = String(row['Enabled']).trim().toLowerCase();
         const excluded = String(row['Suggest Exclude']).trim().toLowerCase();
@@ -642,7 +644,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
           issues,
         );
         const rule: TransactionRule = {
-          id: String(row['Rule ID'] ?? '').trim(), name: String(row['Rule Name'] ?? '').trim(),
+          id: String(row['Rule ID'] ?? '').trim(), name: ruleName,
           enabled: ['true', '1', 'yes'].includes(enabled), priority: Number(row['Priority']),
           matchMode: String(row['Match Mode'] ?? 'ALL').trim().toUpperCase() as 'ALL' | 'ANY', conditions,
           chartAccountId,
@@ -678,22 +680,16 @@ export class DefaultAccountingApplication implements AccountingApplication {
     return structuredClone(preview);
   }
 
-  private ruleExchangeConditions(rule: TransactionRule): Array<RuleCondition & {
-    accountName?: string;
-    accountType?: string;
-    institutionOrEntity?: string;
-    lastFour?: string;
-  }> {
+  private ruleExchangeConditions(rule: TransactionRule): RuleCondition[] {
     return rule.conditions.map(condition => {
       if (condition.field !== 'ACCOUNT') return structuredClone(condition);
       const account = this.repository.accounts.get(condition.value);
       if (!account) return structuredClone(condition);
       return {
         ...structuredClone(condition),
-        accountName: account.name,
-        accountType: account.accountType,
-        institutionOrEntity: account.institutionOrEntity,
-        lastFour: account.lastFour,
+        // Exchange files are portable: the receiving database resolves this
+        // readable source-account name to its own internal ID during preview.
+        value: account.name,
       };
     });
   }
@@ -703,7 +699,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
     accountType?: string;
     institutionOrEntity?: string;
     lastFour?: string;
-  }, rowNumber: number, issues: RuleImportIssue[]): RuleCondition {
+  }, rowNumber: number, issues: RuleImportIssue[], ruleName: string, chartAccountName?: string): RuleCondition {
     const normalized: RuleCondition = {
       field: condition.field,
       operator: condition.operator,
@@ -723,20 +719,41 @@ export class DefaultAccountingApplication implements AccountingApplication {
     if (condition.institutionOrEntity) candidates = candidates.filter(account => normalize(account.institutionOrEntity) === normalize(condition.institutionOrEntity));
     if (condition.lastFour) candidates = candidates.filter(account => normalize(account.lastFour) === normalize(condition.lastFour));
 
+    const chartCategoryNote = chartAccountName
+      ? ` Its separate Chart of Accounts category is “${chartAccountName}”; that category is not the missing account.`
+      : '';
+    const sourceAccountChoices = [...this.repository.accounts.values()]
+      .filter(account => !account.archived)
+      .map(account => `${account.name} (${account.type === 'BANK' ? 'bank' : account.type === 'CREDIT_CARD' ? 'credit card' : 'source account'})`)
+      .join(', ');
     if (!candidates.length) {
-      throw new AccountingError('RULE_ACCOUNT_NOT_FOUND', `Account condition ${normalized.value} could not be matched to an active account${condition.accountName ? ` named ${condition.accountName}` : ''}. Re-export the rules with account identity or correct the account.`);
+      const valueIsLegacyId = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalized.value);
+      const exportedName = condition.accountName || normalized.value;
+      const exportedIdentity = condition.accountName || !valueIsLegacyId
+        ? `The file says the source account is “${exportedName}”, but no active source account has that identity.`
+        : `The file contains only the legacy source-account ID ${normalized.value}; it does not include a bank, card, or account name to match.`;
+      throw new AccountingError(
+        'RULE_ACCOUNT_NOT_FOUND',
+        `Rule “${ruleName}” has an ACCOUNT condition for a bank/card/source account, not a Chart of Accounts category. ${exportedIdentity}${chartCategoryNote} Choose the intended active source account in the rule file, or remove this ACCOUNT condition if the rule should apply to every source account. Active source accounts here: ${sourceAccountChoices || 'none'}.`,
+      );
     }
     if (candidates.length > 1) {
-      throw new AccountingError('RULE_ACCOUNT_AMBIGUOUS', `Account condition ${normalized.value} matches multiple active accounts named ${condition.accountName || normalized.value}. Use institution and last-four details to make the account unique.`);
+      throw new AccountingError(
+        'RULE_ACCOUNT_AMBIGUOUS',
+        `Rule “${ruleName}” has an ACCOUNT condition for a bank/card/source account, not a Chart of Accounts category. “${condition.accountName || normalized.value}” matches multiple active source accounts: ${candidates.map(account => `${account.name} (${account.institutionOrEntity}${account.lastFour ? ` · ${account.lastFour}` : ''})`).join(', ')}.${chartCategoryNote} Add the correct institution and last-four details to the rule export.`,
+      );
     }
 
+    const exportedAsName = normalize(normalized.value) === normalize(candidates[0].name);
     normalized.value = candidates[0].id;
-    issues.push({
-      rowNumber,
-      severity: 'WARNING',
-      code: 'RULE_ACCOUNT_REMAPPED_BY_NAME',
-      message: `Account condition ${condition.accountName || condition.value} was remapped to ${candidates[0].name} (${candidates[0].id}).`,
-    });
+    if (!exportedAsName) {
+      issues.push({
+        rowNumber,
+        severity: 'WARNING',
+        code: 'RULE_ACCOUNT_REMAPPED_BY_NAME',
+        message: `Rule “${ruleName}” source-account condition was remapped to ${candidates[0].name} (${candidates[0].id}).${chartCategoryNote}`,
+      });
+    }
     return normalized;
   }
 
@@ -2597,21 +2614,35 @@ export class DefaultAccountingApplication implements AccountingApplication {
     recordAudit: boolean;
     parentId?: string;
   }): ChartAccount {
-    const candidates = [...this.repository.chartAccounts.values()].filter(account =>
+    const sameNamedAccounts = [...this.repository.chartAccounts.values()].filter(account =>
       account.accountType === 'EXPENSE' && account.name.trim().toLowerCase() === command.name.toLowerCase(),
     );
-    const existing = candidates.find(account => account.parentId === command.parentId) ?? candidates[0];
+    const compatibleAccount = sameNamedAccounts.find(account =>
+      account.accountType === 'EXPENSE'
+      && account.detailType === command.detailType
+      && account.parentId === command.parentId,
+    );
+    // The initial demo seed is assembled in one transaction, before it has
+    // Cash Flow classification rows. It may contain a generic placeholder
+    // with a standard display name. It is safe to normalize only that fresh
+    // placeholder. A persisted account already has a classification, so its
+    // name alone is never authority to change its structure.
+    const freshSeedPlaceholder = sameNamedAccounts.find(account => !this.repository.getCashFlowClassification('CHART', account.id));
+    const existing = compatibleAccount ?? freshSeedPlaceholder ?? sameNamedAccounts[0];
     if (existing) {
-      const before = structuredClone(existing);
-      existing.name = command.name;
-      existing.type = 'EXPENSE';
-      existing.accountType = 'EXPENSE';
-      existing.detailType = command.detailType;
-      existing.parentId = command.parentId;
-      existing.archived = false;
-      this.repository.chartAccounts.set(existing.id, existing);
-      if (command.recordAudit && JSON.stringify(before) !== JSON.stringify(existing)) {
-        this.record(before.archived ? 'RESTORE_DEFAULT_CHART_ACCOUNT' : 'UPDATE_DEFAULT_CHART_ACCOUNT', 'ChartAccount', existing.id, before, existing, `Keep the standard ${command.name} expense account available in the default hierarchy.`);
+      if (existing === freshSeedPlaceholder && !compatibleAccount) {
+        existing.type = 'EXPENSE';
+        existing.accountType = 'EXPENSE';
+        existing.detailType = command.detailType;
+        existing.parentId = command.parentId;
+      }
+      if (existing.archived && (existing === compatibleAccount || existing === freshSeedPlaceholder)) {
+        const before = structuredClone(existing);
+        existing.archived = false;
+        this.repository.chartAccounts.set(existing.id, existing);
+        if (command.recordAudit) {
+          this.record('RESTORE_DEFAULT_CHART_ACCOUNT', 'ChartAccount', existing.id, before, existing, `Keep the standard ${command.name} expense account available in the default hierarchy.`);
+        }
       }
       return existing;
     }

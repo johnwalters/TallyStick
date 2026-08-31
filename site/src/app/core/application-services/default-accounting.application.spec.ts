@@ -77,6 +77,24 @@ describe('DefaultAccountingApplication', () => {
     expect(repository.audit.filter(event => event.operation === 'CREATE_DEFAULT_CHART_ACCOUNT')).toHaveSize(1);
   });
 
+  it('does not rewrite or duplicate an existing same-named user account during startup seeding', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    repository.transaction(() => {
+      repository.chartAccounts.delete(DEFAULT_INTEREST_PAID_ACCOUNT_ID);
+      repository.chartAccounts.set('user-interest-paid', {
+        id: 'user-interest-paid', name: 'Interest Paid', type: 'EXPENSE', accountType: 'EXPENSE',
+        detailType: 'Advertising', description: 'User-defined category with the same display name.', displayOrder: 999, archived: false, locked: false,
+      });
+    });
+
+    TestBed.runInInjectionContext(() => new DefaultAccountingApplication());
+
+    expect(repository.chartAccounts.get('user-interest-paid')).toEqual(jasmine.objectContaining({
+      detailType: 'Advertising', description: 'User-defined category with the same display name.',
+    }));
+    expect(repository.chartAccounts.has(DEFAULT_INTEREST_PAID_ACCOUNT_ID)).toBeFalse();
+  });
+
   it('seeds and restores the Operating Expenses, Office Expenses, and Software and apps hierarchy', () => {
     const repository = TestBed.inject(InMemoryAccountingRepository);
     const operatingExpenses = app.listChartAccounts().find(item => item.name === 'Operating Expenses')!;
@@ -469,8 +487,9 @@ describe('DefaultAccountingApplication', () => {
     const workbook = XLSX.read(exported, { type: 'array' });
     const exportedRow = XLSX.utils.sheet_to_json<Record<string, string>>(workbook.Sheets[workbook.SheetNames[0]], { defval: '' })[0];
     expect(JSON.parse(exportedRow['Conditions JSON'])).toContain(jasmine.objectContaining({
-      field: 'ACCOUNT', value: account.id, accountName: account.name, accountType: account.accountType, institutionOrEntity: account.institutionOrEntity,
+      field: 'ACCOUNT', value: account.name,
     }));
+    expect(exportedRow['Conditions JSON']).not.toContain(account.id);
 
     const preview = app.previewRulesImport(exported);
     expect(preview.valid).toBeTrue();
@@ -502,7 +521,7 @@ describe('DefaultAccountingApplication', () => {
     const preview = app.previewRulesImport(exported);
 
     expect(preview.valid).toBeTrue();
-    expect(preview.issues).toContain(jasmine.objectContaining({ severity: 'WARNING', code: 'RULE_ACCOUNT_REMAPPED_BY_NAME', rowNumber: 2 }));
+    expect(preview.issues.filter(issue => issue.code === 'RULE_ACCOUNT_REMAPPED_BY_NAME')).toHaveSize(0);
     expect(preview.rules[0].conditions[0].value).toBe('replacement-operating-checking');
     app.commitRulesImport(preview.previewToken);
     expect(app.listRules()[0].conditions[0].value).toBe('replacement-operating-checking');
@@ -519,7 +538,12 @@ describe('DefaultAccountingApplication', () => {
     const preview = app.previewRulesImport(exported);
 
     expect(preview.valid).toBeFalse();
-    expect(preview.issues).toContain(jasmine.objectContaining({ severity: 'ERROR', code: 'RULE_ACCOUNT_NOT_FOUND', rowNumber: 2 }));
+    expect(preview.issues).toContain(jasmine.objectContaining({
+      severity: 'ERROR', code: 'RULE_ACCOUNT_NOT_FOUND', rowNumber: 2,
+      message: jasmine.stringContaining('bank/card/source account, not a Chart of Accounts category'),
+    }));
+    expect(preview.issues.find(issue => issue.code === 'RULE_ACCOUNT_NOT_FOUND')?.message).toContain('Rule “Missing account rule”');
+    expect(preview.issues.find(issue => issue.code === 'RULE_ACCOUNT_NOT_FOUND')?.message).toContain('The file says the source account is “Operating Checking”');
     expect(() => app.commitRulesImport(preview.previewToken)).toThrowError(/Correct every rule-import error/);
   });
 
@@ -1101,7 +1125,7 @@ describe('DefaultAccountingApplication', () => {
     const transaction = app.listTransactions({ sourceBatchId: committed.batch.id }).items[0];
     app.postWithCategory(transaction.id, protectedAccount.id);
 
-    expect(() => app.importChartAccounts(exportedChartWithout(protectedAccount.id))).toThrowError(/orphan an existing transaction/);
+    expect(() => app.importChartAccounts(exportedChartWithout(protectedAccount.id))).toThrowError(/Existing posted transaction/);
     expect(app.listChartAccounts().some(account => account.id === protectedAccount.id)).toBeTrue();
   });
 
@@ -1118,7 +1142,7 @@ describe('DefaultAccountingApplication', () => {
     const settings = app.getTaxYearSettings(2026);
     app.saveTaxYearSettings({ ...settings, federalIncomeTaxAccountIds: [protectedAccount.id] });
 
-    expect(() => app.importChartAccounts(exportedChartWithout(protectedAccount.id))).toThrowError(/tax-setting/);
+    expect(() => app.importChartAccounts(exportedChartWithout(protectedAccount.id))).toThrowError(/Federal income-tax setting/);
     expect(app.listChartAccounts().some(account => account.id === protectedAccount.id)).toBeTrue();
   });
 
