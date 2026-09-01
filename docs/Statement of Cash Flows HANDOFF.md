@@ -32,13 +32,53 @@ Commit `5f422ef` fixes a post-release usability defect found while restoring a l
 
 The guided-correction browser tests passed 122/122. Application/specification TypeScript checks, `npm run build`, desktop packaging, code-signature verification, and `git diff --check` passed. A prior `npm run test:ci` wrapper run encountered an unrelated nondeterministic Cash Flow output-byte assertion in its production fixture gate; rerun the release-proof command before making a release claim.
 
+### Post-release desktop startup and version-status follow-up (uncommitted)
+
+The local desktop application can now reopen the schema-8 database created by
+the earlier matched-payment work. The prior package understood only schema 7,
+so it rejected the otherwise valid local database during host startup before
+its deliberately hidden Electron window could be shown. This was an app
+startup defect, not a macOS window-placement failure.
+
+- Schema 8 is now a retained, validated compatibility boundary. It preserves
+  the historical nullable `transfer_match` review columns but does not restore
+  the retired separate Cash Flow transfer-review workflow.
+- Fresh schema-7 databases migrate forward to schema 8; existing schema-8
+  databases open without rewriting accounting records.
+- The Electron startup promise now displays a native plain-English error
+  dialog if opening the data fails, explicitly stating that data was not
+  changed, rather than silently leaving no window.
+- The rebuilt package was launched as a fresh instance from
+  `site/release/TallyStick-darwin-arm64/TallyStick.app`.
+
+Verified after this repair: production build, desktop host tests (17/17),
+focused SQLite compatibility tests (11/11), desktop packaging, and
+`git diff --check`.
+
+The next planned usability/deployment work is documented in
+`docs/APP_VERSIONING_AND_DATABASE_STATUS_PLAN.md`:
+
+- Use `v0.4.0`-style release versions plus a strictly increasing numeric
+  package build number.
+- Increment the build number only when `desktop:package` creates a package;
+  test and ordinary browser builds must not mutate it.
+- Use a single tracked release manifest to generate renderer metadata and the
+  macOS bundle's short-version/build-version values.
+- In **Transactions** only, show `v<release> · build <number> · Database
+  schema <number>` immediately to the right of `TALLYSTICK`, in the header
+  above/alongside the Company settings action. The schema label must import
+  the shared current-schema constant; it must never expose a database path,
+  company ID, git hash, or per-database revision.
+
 ## Checkout context
 
 - Path: visible saved-project repository root (no alternate checkout or worktree)
 - Branch: `cash-flow`
 - Baseline HEAD for this final release-proof pass: `b44a9f9c215abeb207071042572a6dd1cdd1bbf2`.
 - Current HEAD: `5f422ef` (`various fixes`), also at `origin/cash-flow`.
-- Current state: clean working tree. The packaged desktop application is `site/release/TallyStick-darwin-arm64/TallyStick.app`.
+- Current state: uncommitted post-release changes include the matched-payment
+  confirmation, schema-8 startup compatibility, and related tests/docs. The
+  packaged desktop application is `site/release/TallyStick-darwin-arm64/TallyStick.app`.
 - No alternate checkout or worktree is in use.
 
 ## Verification evidence
