@@ -849,9 +849,13 @@ export class AppComponent {
       return;
     }
     this.classificationSaveImpact = savedReview.saveImpact ?? savedReview.impact;
-    this.classificationSaveMessage = `Saved classification for ${draft.accountPath}. Affected report sections will use it after refresh.`;
+    const balanceSheetAffected = this.classificationSaveImpact?.affectedReports.includes('BALANCE_SHEET') ?? false;
+    this.classificationSaveMessage = balanceSheetAffected
+      ? `Saved classification for ${draft.accountPath}. The Balance Sheet was refreshed.`
+      : `Saved classification for ${draft.accountPath}. Affected report sections will use it after refresh.`;
     this.statusMessage = `Saved Cash Flow classification for ${draft.accountPath}.`;
     this.invalidateCashFlow();
+    if (balanceSheetAffected && this.balanceSheet) this.loadBalanceSheet();
     this.loadClassificationState();
     const updatedItem = this.classificationReview?.accounts.find(item => item.accountRole === draft.accountRole && item.accountId === draft.accountId);
     this.setClassificationEditor(draft.accountRole, draft.accountId, updatedItem);

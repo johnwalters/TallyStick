@@ -172,8 +172,12 @@ export class CashFlowClassificationService {
       accountType: target.accountType,
       detailType: target.detailType,
     };
+    let accountReviewConfirmed = false;
     try {
-      this.repository.saveCashFlowClassifications([update]);
+      this.repository.transaction(() => {
+        this.repository.saveCashFlowClassifications([update]);
+        accountReviewConfirmed = this.confirmReviewedFinancialAccounts([update], rationale).has(update.accountId);
+      });
     } catch (error) {
       if (error instanceof Error && error.message.toLowerCase().includes('stale')) {
         throw this.failure('CLASSIFICATION_STALE', 'The classification changed before it could be saved. Reload and try again.', command, true);
@@ -194,7 +198,7 @@ export class CashFlowClassificationService {
       accountPath: this.accountPath(command.accountRole, target.account),
       ...(current ? { previousClassification: current } : {}),
       classification: update,
-      affectedReports: ['CASH_FLOW'],
+      affectedReports: Object.freeze(accountReviewConfirmed ? ['CASH_FLOW', 'BALANCE_SHEET'] as const : ['CASH_FLOW'] as const),
       affectedSections: Object.freeze([...(SECTION_FOR[update.treatment] ? [SECTION_FOR[update.treatment]!] : [])]),
       periodActivityMinor: this.activityFor(command.accountRole, target.account, summary, query),
       reportImpactMinor: this.activityFor(command.accountRole, target.account, summary, query),
@@ -270,7 +274,10 @@ export class CashFlowClassificationService {
     if (pending.issues.length) throw this.failure('CASH_FLOW_CLASSIFICATION_INVALID', 'Correct the classification import issues before committing.', { accountRole: 'CHART', accountId: '' });
     const updates = pending.updates.map(update => ({ ...update, modifiedAtUtc: nowUtc() }));
     try {
-      this.repository.saveCashFlowClassifications(updates, currentRevision);
+      this.repository.transaction(() => {
+        this.repository.saveCashFlowClassifications(updates, currentRevision);
+        this.confirmReviewedFinancialAccounts(updates, 'Confirmed by Cash Flow classification spreadsheet import.');
+      });
     } catch (error) {
       this.pendingImports.delete(command.previewId);
       if (error instanceof Error && error.message.toLowerCase().includes('stale')) throw this.failure('CLASSIFICATION_STALE', 'The classification import is stale. Preview it again.', { accountRole: 'CHART', accountId: '' }, true);
@@ -288,6 +295,24 @@ export class CashFlowClassificationService {
       ...[...this.repository.chartAccounts.values()].map(account => this.exchangeRow('CHART', account)),
     ].sort((left, right) => normalizePath(left.accountPath).localeCompare(normalizePath(right.accountPath)) || left.accountRole.localeCompare(right.accountRole) || left.accountId.localeCompare(right.accountId));
     return Object.freeze({ databaseRevision: currentRevision, rows: Object.freeze(rows.map(row => Object.freeze({ ...row }))) });
+  }
+
+  private confirmReviewedFinancialAccounts(updates: readonly CashFlowClassificationRecord[], reason: string): ReadonlySet<string> {
+    const confirmed = new Set<string>();
+    for (const update of updates) {
+      if (update.accountRole !== 'FINANCIAL_SOURCE' || update.status !== 'CONFIRMED') continue;
+      const account = this.repository.accounts.get(update.accountId);
+      if (!account || account.classificationStatus !== 'REVIEW_REQUIRED') continue;
+      const before = structuredClone(account);
+      const after: FinancialAccount = { ...account, classificationStatus: 'CONFIRMED' };
+      this.repository.accounts.set(account.id, after);
+      this.repository.audit.push({
+        id: newId(), timestampUtc: update.modifiedAtUtc ?? nowUtc(), operation: 'CONFIRM_FINANCIAL_ACCOUNT_CLASSIFICATION',
+        entityType: 'FinancialAccount', entityId: account.id, before, after: structuredClone(after), reason,
+      });
+      confirmed.add(account.id);
+    }
+    return confirmed;
   }
 
   private exchangeRow(role: 'FINANCIAL_SOURCE' | 'CHART', account: FinancialAccount | ChartAccount): CashFlowClassificationExchangeRow {

@@ -9,6 +9,7 @@ import * as XLSX from 'xlsx';
 import { AlternateUiHarness } from '../../features/alternate/alternate-ui.harness';
 import { BOFA_SUMMARY_PREAMBLE_CSV } from '../import-services/test-fixtures/bofa-summary-preamble.fixture';
 import { CURRENT_SQLITE_SCHEMA_VERSION } from '../../../shared/schema-version';
+import { money } from '../domain-model/accounting.types';
 
 describe('DefaultAccountingApplication', () => {
   let app: DefaultAccountingApplication;
@@ -771,6 +772,30 @@ describe('DefaultAccountingApplication', () => {
     expect(repository.getCashFlowClassification('CHART', migratedChart.id)).toEqual(jasmine.objectContaining({ source: 'MIGRATED', rationale: 'Migrated from the prior schema.', modifiedAtUtc: '2026-01-02T00:00:00.000Z' }));
     expect(repository.audit.length).toBeGreaterThan(auditBefore);
     expect(userReview.saveImpact?.classification).toEqual(userBefore);
+  });
+
+  it('confirms a reviewed financial source after a valid Cash Flow classification and clears its Balance Sheet review warning', () => {
+    const repository = TestBed.inject(InMemoryAccountingRepository);
+    const otherTransactions = app.listAccounts().find(account => account.name === 'Other Transactions')!;
+    repository.accounts.set(otherTransactions.id, {
+      ...otherTransactions,
+      openingBalance: money(-1_913_731n), openingBalanceDate: '2026-01-01', classificationStatus: 'REVIEW_REQUIRED',
+    });
+    const before = app.getBalanceSheet({ asOfDate: '2026-12-31', includeZeroBalanceAccounts: false });
+    expect(before.rows.find(row => row.accountId === otherTransactions.id)).toEqual(jasmine.objectContaining({ unclassified: true, amountMinor: -1_913_731n }));
+    expect(before.warnings.some(warning => warning.code === 'UNCLASSIFIED_NONZERO_ACCOUNT' && warning.accountId === otherTransactions.id)).toBeTrue();
+
+    const review = app.saveCashFlowClassification({
+      accountRole: 'FINANCIAL_SOURCE', accountId: otherTransactions.id, cashRole: 'NOT_CASH', treatment: 'OPERATING_ASSET',
+      userRationale: 'Other current asset clearing account; not cash.', query: { startDate: '2026-01-01', endDate: '2026-12-31', includeZeroRows: false },
+    });
+
+    expect(repository.accounts.get(otherTransactions.id)).toEqual(jasmine.objectContaining({ classificationStatus: 'CONFIRMED' }));
+    expect(repository.audit.at(-1)).toEqual(jasmine.objectContaining({ operation: 'CONFIRM_FINANCIAL_ACCOUNT_CLASSIFICATION', entityId: otherTransactions.id }));
+    expect(review.saveImpact?.affectedReports).toEqual(['CASH_FLOW', 'BALANCE_SHEET']);
+    const after = app.getBalanceSheet({ asOfDate: '2026-12-31', includeZeroBalanceAccounts: false });
+    expect(after.rows.find(row => row.accountId === otherTransactions.id)).toEqual(jasmine.objectContaining({ unclassified: false, amountMinor: -1_913_731n }));
+    expect(after.warnings.some(warning => warning.code === 'UNCLASSIFIED_NONZERO_ACCOUNT' && warning.accountId === otherTransactions.id)).toBeFalse();
   });
 
   it('commits a Chart replacement with explicit Cash Flow classifications in one transaction', () => {

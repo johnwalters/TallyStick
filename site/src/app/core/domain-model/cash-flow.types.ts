@@ -375,7 +375,7 @@ export interface CashFlowClassificationSaveImpact {
   readonly accountPath: string;
   readonly previousClassification?: CashFlowClassification;
   readonly classification: CashFlowClassification;
-  readonly affectedReports: readonly ('CASH_FLOW')[];
+  readonly affectedReports: readonly ('CASH_FLOW' | 'BALANCE_SHEET')[];
   readonly affectedSections: readonly CashFlowSection[];
   readonly periodActivityMinor: bigint;
   readonly reportImpactMinor: bigint;
