@@ -1,11 +1,11 @@
 import { AfterViewInit, ChangeDetectorRef, Component, ComponentRef, EventEmitter, Input, OnChanges, OnDestroy, Output, SimpleChanges, ViewChild, ViewContainerRef } from '@angular/core';
-import { CashFlowClassificationReview, CashFlowDetail, CashFlowReport, CashFlowRow, CashFlowWarning } from '../../core/domain-model/cash-flow.types';
+import { CashFlowClassificationReview, CashFlowDetail, CashFlowReport, CashFlowRow, CashFlowWarning, CashFlowTransactionCategoryCorrection } from '../../core/domain-model/cash-flow.types';
 import type { CashFlowPeriodPreset, CashFlowWorkspaceComponent } from './cash-flow-workspace.component';
 
 export type CashFlowWorkspaceState = readonly [
   CashFlowReport | undefined, CashFlowDetail | undefined, CashFlowRow | undefined,
   string, string, string, string, CashFlowPeriodPreset, boolean, boolean, boolean,
-  string, string, string | undefined, ReadonlySet<string>, string,
+  string, string, string | undefined, CashFlowTransactionCategoryCorrection | undefined, ReadonlySet<string>, string,
   CashFlowClassificationReview | undefined, number, number,
 ];
 
@@ -15,7 +15,7 @@ export type CashFlowWorkspaceState = readonly [
   template: '<ng-template #workspaceHost></ng-template>',
 })
 export class CashFlowWorkspaceHostComponent implements AfterViewInit, OnChanges, OnDestroy {
-  @Input() state: CashFlowWorkspaceState = [undefined, undefined, undefined, '', '', '', '', 'FISCAL_YEAR', false, false, false, '', '', undefined, new Set<string>(), '', undefined, 2026, 1];
+  @Input() state: CashFlowWorkspaceState = [undefined, undefined, undefined, '', '', '', '', 'FISCAL_YEAR', false, false, false, '', '', undefined, undefined, new Set<string>(), '', undefined, 2026, 1];
 
   @Output() readonly periodRangeChange = new EventEmitter<{ preset: CashFlowPeriodPreset; startDate: string; endDate: string }>();
   @Output() readonly startDateChange = new EventEmitter<string>();
@@ -30,6 +30,7 @@ export class CashFlowWorkspaceHostComponent implements AfterViewInit, OnChanges,
   @Output() readonly openDetail = new EventEmitter<{ row: CashFlowRow; event: Event }>();
   @Output() readonly closeDetail = new EventEmitter<void>();
   @Output() readonly reviewWarning = new EventEmitter<{ warning: CashFlowWarning; event: Event }>();
+  @Output() readonly correctTransactionCategory = new EventEmitter<CashFlowTransactionCategoryCorrection>();
 
   @ViewChild('workspaceHost', { read: ViewContainerRef, static: true }) private workspaceHost?: ViewContainerRef;
   private workspaceRef?: ComponentRef<CashFlowWorkspaceComponent>;
@@ -62,6 +63,7 @@ export class CashFlowWorkspaceHostComponent implements AfterViewInit, OnChanges,
     instance.openDetail.subscribe(value => this.openDetail.emit(value));
     instance.closeDetail.subscribe(() => this.closeDetail.emit());
     instance.reviewWarning.subscribe(value => this.reviewWarning.emit(value));
+    instance.correctTransactionCategory.subscribe(value => this.correctTransactionCategory.emit(value));
     this.syncInputs();
     this.changeDetector.detectChanges();
   }
@@ -83,15 +85,16 @@ export class CashFlowWorkspaceHostComponent implements AfterViewInit, OnChanges,
     this.workspaceRef.setInput('staleMessage', state[11]);
     this.workspaceRef.setInput('dateError', state[12]);
     this.workspaceRef.setInput('error', state[13]);
-    this.workspaceRef.setInput('expandedRowIds', state[14]);
-    this.workspaceRef.setInput('detailRationale', state[15] || this.detailRationale());
+    this.workspaceRef.setInput('transactionCategoryCorrection', state[14]);
+    this.workspaceRef.setInput('expandedRowIds', state[15]);
+    this.workspaceRef.setInput('detailRationale', state[16] || this.detailRationale());
     this.workspaceRef.changeDetectorRef.detectChanges();
   }
 
   private periodRange(preset: CashFlowPeriodPreset): { startDate: string; endDate: string } | undefined {
     const now = new Date();
-    const year = this.state[17];
-    const fiscalStart = Math.min(12, Math.max(1, this.state[18] || 1));
+    const year = this.state[18];
+    const fiscalStart = Math.min(12, Math.max(1, this.state[19] || 1));
     const month = now.getMonth() + 1;
     const currentYear = now.getFullYear();
     const date = (y: number, m: number, d: number): string => {
@@ -114,7 +117,7 @@ export class CashFlowWorkspaceHostComponent implements AfterViewInit, OnChanges,
   detailRationale(): string {
     const row = this.state[2];
     if (!row?.accountRole || !row.accountId) return 'Derived from the immutable report calculation; no single account classification applies.';
-    const item = this.state[16]?.accounts.find(candidate => candidate.accountRole === row.accountRole && candidate.accountId === row.accountId);
+    const item = this.state[17]?.accounts.find(candidate => candidate.accountRole === row.accountRole && candidate.accountId === row.accountId);
     return item?.currentClassification?.rationale ?? item?.suggestedClassification?.rationale ?? item?.rationale ?? 'No classification rationale is available in the current review snapshot.';
   }
 }

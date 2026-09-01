@@ -15,6 +15,7 @@ import {
   CashFlowReport,
   CashFlowRow,
   CashFlowWarning,
+  CashFlowTransactionCategoryCorrectionError,
   GetCashFlowDetailCommand,
   cashFlowAccountRowId,
   cashFlowDetailKey,
@@ -126,6 +127,12 @@ export class CashFlowReportService {
       noncash = buildNoncashDisclosures(query, snapshot, classifications, cashAccountIds, restrictedAccountIds);
     } catch (error) {
       if (error instanceof CashFlowContractError) throw error;
+      if (error instanceof CashFlowTransactionCategoryCorrectionError) {
+        throw new CashFlowContractError({
+          code: 'CASH_FLOW_REPORT_GENERATION_FAILED', message: error.message, retryable: false,
+          transactionCategoryCorrection: error.correction,
+        });
+      }
       throw new CashFlowContractError({
         code: 'CASH_FLOW_REPORT_GENERATION_FAILED',
         message: error instanceof Error ? error.message : 'Recorded noncash activity could not be validated for this Cash Flow period.',
@@ -1279,11 +1286,11 @@ function buildNoncashDisclosures(
     const sourceRequiresReview = sourceClassification?.status === 'REVIEW_REQUIRED'
       || sourceClassification?.cashRole === 'REVIEW_REQUIRED';
     if (sourceRequiresReview && transactionHasMaterialActivity) {
-      throw new Error(`Noncash source ${source.id} has an invalid or review-required Cash Flow classification.`);
+      throw new Error(`Source account “${source.name}” (${source.detailType}) needs a Cash Flow classification. Open Review classifications, choose its cash role and Cash Flow treatment, then save. This is a source/import account, not a Chart of Accounts category.`);
     }
     if (!sourceClassificationValid) {
       if (transactionHasMaterialActivity && chartSignalsNoncash) {
-        throw new Error(`Noncash source ${source.id} has an invalid or review-required Cash Flow classification.`);
+        throw new Error(`Source account “${source.name}” (${source.detailType}) needs a Cash Flow classification. Open Review classifications, choose its cash role and Cash Flow treatment, then save. This is a source/import account, not a Chart of Accounts category.`);
       }
       // A source with no confirmed structural classification is only safe to
       // leave alone after confirming that no Chart side explicitly signals a
@@ -1312,7 +1319,21 @@ function buildNoncashDisclosures(
     // noncash signal.
     if (!sourceHasSectionIntent) {
       if (transactionHasMaterialActivity && chartSignalsNoncash) {
-        throw new Error(`Noncash source ${source.id} has an incompatible ordinary treatment for its Chart counteraccount.`);
+        const conflictingChart = chartSplits.find(item => item.chart && isNoncashDisclosureTreatment(item.classification?.treatment));
+        if (conflictingChart?.chart && conflictingChart.classification) {
+          const description = transaction.description.trim() || transaction.rawDescription.trim() || 'Untitled transaction';
+          throw new CashFlowTransactionCategoryCorrectionError({
+            transactionId: transaction.id,
+            transactionDate: transaction.postingDate,
+            transactionDescription: description,
+            sourceAccountId: source.id,
+            sourceAccountName: source.name,
+            chartAccountId: conflictingChart.chart.id,
+            chartAccountName: conflictingChart.chart.name,
+            chartTreatment: conflictingChart.classification.treatment,
+          }, `Cash Flow needs a transaction category corrected: “${description}” on ${transaction.postingDate} in “${source.name}” is currently categorized as “${conflictingChart.chart.name}”, which is treated as ${displayCashFlowTreatment(conflictingChart.classification.treatment)}. This source account is an ordinary operating account, so open the transaction and choose the income, expense, or other category that describes this entry. Do not change the source account’s cash role.`);
+        }
+        throw new Error(`A posted transaction in “${source.name}” has a Chart category that is incompatible with its ordinary Cash Flow treatment.`);
       }
       continue;
     }
@@ -1455,6 +1476,10 @@ function buildNoncashDisclosures(
     detailIndex: Object.freeze(detailIndex),
     hierarchyIssues: Object.freeze(hierarchyIssues),
   };
+}
+
+function displayCashFlowTreatment(treatment: string): string {
+  return treatment.toLocaleLowerCase().replaceAll('_', ' ');
 }
 
 function noncashDisclosureAccountRowId(

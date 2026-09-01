@@ -6,6 +6,7 @@ import {
   CashFlowReport,
   CashFlowRow,
   CashFlowWarning,
+  CashFlowTransactionCategoryCorrection,
   cashFlowReportDisclaimer,
 } from '../../core/domain-model/cash-flow.types';
 import { formatMoney, money } from '../../core/domain-model/accounting.types';
@@ -34,6 +35,7 @@ export class CashFlowWorkspaceComponent implements OnChanges, AfterViewChecked {
   @Input() staleMessage = '';
   @Input() dateError = '';
   @Input() error?: string;
+  @Input() transactionCategoryCorrection?: CashFlowTransactionCategoryCorrection;
   @Input() expandedRowIds: ReadonlySet<string> = new Set<string>();
   @Input() detailRationale = '';
 
@@ -50,6 +52,7 @@ export class CashFlowWorkspaceComponent implements OnChanges, AfterViewChecked {
   @Output() readonly openDetail = new EventEmitter<{ row: CashFlowRow; event: Event }>();
   @Output() readonly closeDetail = new EventEmitter<void>();
   @Output() readonly reviewWarning = new EventEmitter<{ warning: CashFlowWarning; event: Event }>();
+  @Output() readonly correctTransactionCategory = new EventEmitter<CashFlowTransactionCategoryCorrection>();
 
   @ViewChild('detailPanel') private detailPanel?: ElementRef<HTMLElement>;
   private focusDetailPanel = false;

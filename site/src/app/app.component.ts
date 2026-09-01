@@ -35,6 +35,7 @@ import {
   CashFlowWarning,
   CashFlowQuery,
   CashFlowTreatment,
+  CashFlowTransactionCategoryCorrection,
 } from './core/domain-model/cash-flow.types';
 
 type TransactionSortColumn = 'DATE_ACCOUNT' | 'SOURCE' | 'CATEGORY' | 'AMOUNT';
@@ -249,8 +250,8 @@ export class AppComponent {
   get cashFlowWorkspaceState() {
     return [this.cashFlowReport, this.cashFlowDetail, this.cashFlowDetailRow, this.companyProfile.displayName, this.companyProfile.accountingBasis,
       this.cashFlowStartDate, this.cashFlowEndDate, this.cashFlowPeriod, this.cashFlowShowZeros, this.cashFlowLoading,
-      this.cashFlowStale, this.cashFlowStaleMsg, this.cashFlowDateErr, this.cashFlowFacade.error(), this.cashFlowExpanded,
-      '', this.classificationReview, this.companyProfile.activeTaxYear, this.companyProfile.fiscalYearStartMonth] as const;
+      this.cashFlowStale, this.cashFlowStaleMsg, this.cashFlowDateErr, this.cashFlowFacade.error(), this.cashFlowFacade.transactionCategoryCorrection(),
+      this.cashFlowExpanded, '', this.classificationReview, this.companyProfile.activeTaxYear, this.companyProfile.fiscalYearStartMonth] as const;
   }
   get classificationReviewState() {
     return [this.classificationReview, this.filteredClassificationReviewItems, this.classificationEditor, this.classificationPreview,
@@ -367,6 +368,18 @@ export class AppComponent {
     }
     const parentIds = new Set((this.cashFlowReport?.rows ?? []).flatMap(row => row.parentRowId ? [row.parentRowId] : []));
     this.cashFlowExpanded = new Set([...parentIds]);
+  }
+
+  correctCashFlowTransactionCategory(correction: CashFlowTransactionCategoryCorrection): void {
+    this.workspaceView = 'TRANSACTIONS';
+    this.selectedAccountId = correction.sourceAccountId;
+    this.selectedTransactionState = 'POSTED';
+    this.startDate = correction.transactionDate;
+    this.endDate = correction.transactionDate;
+    this.search = correction.transactionDescription;
+    this.clearSelection();
+    this.refresh();
+    this.statusMessage = `Cash Flow needs this transaction's category corrected. Review “${correction.transactionDescription}” in ${correction.sourceAccountName}; its current category is “${correction.chartAccountName}”.`;
   }
 
   toggleCashFlowRow(row: CashFlowRow): void {

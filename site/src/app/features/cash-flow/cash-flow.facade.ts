@@ -13,6 +13,8 @@ import {
   CashFlowFailure,
   CashFlowQuery,
   CashFlowQueryInput,
+  CashFlowTransactionCategoryCorrection,
+  CashFlowTransactionCategoryCorrectionError,
   CashFlowReport,
   CommitCashFlowClassificationImportCommand,
   ExportCashFlowClassificationsCommand,
@@ -39,6 +41,7 @@ export class CashFlowFacade {
   readonly lastClassificationExport = signal<CashFlowClassificationExportResult | undefined>(undefined);
   readonly busy = signal(false);
   readonly error = signal<string | undefined>(undefined);
+  readonly transactionCategoryCorrection = signal<CashFlowTransactionCategoryCorrection | undefined>(undefined);
   /** Typed boundary failure retained for UI decisions such as stale versus export errors. */
   readonly failure = signal<CashFlowFailure | undefined>(undefined);
 
@@ -140,11 +143,19 @@ export class CashFlowFacade {
   private clearError(): void {
     this.error.set(undefined);
     this.failure.set(undefined);
+    this.transactionCategoryCorrection.set(undefined);
   }
 
   private captureError(error: unknown): void {
+    if (error instanceof CashFlowTransactionCategoryCorrectionError) {
+      this.transactionCategoryCorrection.set(error.correction);
+      this.failure.set(undefined);
+      this.error.set(error.message);
+      return;
+    }
     if (error instanceof CashFlowContractError) {
       this.failure.set(error.failure);
+      this.transactionCategoryCorrection.set(error.failure.transactionCategoryCorrection);
       this.error.set(error.failure.message);
       return;
     }

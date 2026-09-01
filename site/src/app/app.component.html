@@ -448,7 +448,8 @@
       (toggleRow)="toggleCashFlowRow($event)"
       (openDetail)="openCashFlowDetail($event.row, $event.event)"
       (closeDetail)="closeCashFlowDetail()"
-      (reviewWarning)="reviewCashFlowWarning($event.warning, $event.event)" />
+      (reviewWarning)="reviewCashFlowWarning($event.warning, $event.event)"
+      (correctTransactionCategory)="correctCashFlowTransactionCategory($event)" />
     } @placeholder {
       …
     }

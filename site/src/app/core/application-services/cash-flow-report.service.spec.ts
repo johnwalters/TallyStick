@@ -1260,7 +1260,8 @@ describe('CashFlowReportService query and cash balances', () => {
       service.getCashFlowReport({ startDate: '2026-11-01', endDate: '2026-11-30' });
     } catch (error) {
       expect((error as CashFlowContractError).failure.code).toBe('CASH_FLOW_REPORT_GENERATION_FAILED');
-      expect((error as CashFlowContractError).message).toContain('invalid or review-required');
+      expect((error as CashFlowContractError).message).toContain('Source account “Missing source classification”');
+      expect((error as CashFlowContractError).message).toContain('Open Review classifications');
     }
   });
 
@@ -1287,6 +1288,18 @@ describe('CashFlowReportService query and cash balances', () => {
     addTransaction('ordinary-source-entry', source.id, '2026-11-06', -100n, 'POSTED', undefined, [{ chartAccountId: asset.id, amountMinor: -100n }], false);
 
     expect(() => service.getCashFlowReport({ startDate: '2026-11-01', endDate: '2026-11-30' })).toThrowError(CashFlowContractError);
+    try {
+      service.getCashFlowReport({ startDate: '2026-11-01', endDate: '2026-11-30' });
+    } catch (error) {
+      const failure = (error as CashFlowContractError).failure;
+      expect(failure.message).toContain('transaction category corrected');
+      expect(failure.message).toContain('Ordinary credit card');
+      expect(failure.message).toContain('Incompatible asset');
+      expect(failure.transactionCategoryCorrection).toEqual(jasmine.objectContaining({
+        transactionId: 'ordinary-source-entry', transactionDate: '2026-11-06', sourceAccountId: source.id,
+        chartAccountId: asset.id, chartTreatment: 'INVESTING',
+      }));
+    }
   });
 
   it('rejects a noncash disclosure whose two recorded sides never establish Investing or Financing', () => {
@@ -1551,7 +1564,9 @@ describe('CashFlowReportService query and cash balances', () => {
       service.getCashFlowReport({ startDate: '2026-06-01', endDate: '2026-06-30' });
     } catch (error) {
       expect((error as CashFlowContractError).failure.code).toBe('CASH_FLOW_REPORT_GENERATION_FAILED');
-      expect((error as CashFlowContractError).message).toContain('review-required');
+      expect((error as CashFlowContractError).message).toContain('Source account “Unresolved debt source”');
+      expect((error as CashFlowContractError).message).toContain('Open Review classifications');
+      expect((error as CashFlowContractError).message).not.toContain('review-debt');
     }
   });
 

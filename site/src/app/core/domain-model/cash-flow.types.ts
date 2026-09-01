@@ -56,6 +56,30 @@ export interface CashFlowQueryInput {
 }
 
 /**
+ * An actionable category conflict discovered while building a Cash Flow
+ * statement.  This deliberately identifies the recorded transaction and its
+ * Chart category so the UI can take the person to the place where the data is
+ * corrected, rather than asking them to decipher an internal account ID.
+ */
+export interface CashFlowTransactionCategoryCorrection {
+  readonly transactionId: string;
+  readonly transactionDate: string;
+  readonly transactionDescription: string;
+  readonly sourceAccountId: string;
+  readonly sourceAccountName: string;
+  readonly chartAccountId: string;
+  readonly chartAccountName: string;
+  readonly chartTreatment: CashFlowTreatment;
+}
+
+export class CashFlowTransactionCategoryCorrectionError extends Error {
+  override readonly name = 'CashFlowTransactionCategoryCorrectionError';
+  constructor(readonly correction: CashFlowTransactionCategoryCorrection, message: string) {
+    super(message);
+  }
+}
+
+/**
  * The single user-facing disclaimer shared by the screen and CSV output.
  * Keeping it query-based prevents period text from drifting between surfaces.
  */
@@ -554,6 +578,7 @@ export interface CashFlowFailure {
   readonly field?: string;
   readonly accountRole?: AccountRole;
   readonly accountId?: string;
+  readonly transactionCategoryCorrection?: CashFlowTransactionCategoryCorrection;
   readonly detailKey?: CashFlowDetailKey;
   readonly reportId?: CashFlowReportId;
   readonly databaseRevision?: DatabaseRevision;

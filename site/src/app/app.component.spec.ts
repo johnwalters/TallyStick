@@ -40,6 +40,26 @@ describe('AppComponent', () => {
     delete (globalThis as { localAccounting?: unknown }).localAccounting;
   });
 
+  it('opens the exact posted transaction when Cash Flow reports a category correction', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const sourceAccountId = component.accounts[0].id;
+    component.correctCashFlowTransactionCategory({
+      transactionId: 'transaction-goodwill', transactionDate: '2026-01-31', transactionDescription: 'Goodwill',
+      sourceAccountId, sourceAccountName: 'Amazon', chartAccountId: 'goodwill-chart',
+      chartAccountName: 'Goodwill', chartTreatment: 'INVESTING',
+    });
+
+    expect(component.workspaceView).toBe('TRANSACTIONS');
+    expect(component.selectedAccountId).toBe(sourceAccountId);
+    expect(component.selectedTransactionState).toBe('POSTED');
+    expect(component.startDate).toBe('2026-01-31');
+    expect(component.endDate).toBe('2026-01-31');
+    expect(component.search).toBe('Goodwill');
+    expect(component.statusMessage).toContain('Goodwill');
+  });
+
   it('creates the local bookkeeping shell', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
@@ -508,7 +528,7 @@ describe('AppComponent', () => {
     expect(transactionsTab.querySelector('.bi-list')).toBeTruthy();
     expect(chartTab.querySelector('.bi-bar-chart-steps')).toBeTruthy();
     expect(reportsTab.querySelector('.bi-file-ruled')).toBeTruthy();
-    expect(cashFlowTab.querySelector('.bi-cash-coin')).toBeTruthy();
+    expect(cashFlowTab.querySelector('.bi-cash')).toBeTruthy();
     expect(dataTab.querySelector('.bi-database')).toBeTruthy();
     expect(transactionsTab.getAttribute('aria-selected')).toBe('true');
     expect(reportsTab.getAttribute('aria-selected')).toBe('false');
