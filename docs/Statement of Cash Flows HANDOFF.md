@@ -65,20 +65,20 @@ Verified after this repair: production build, desktop host tests (17/17),
 focused SQLite compatibility tests (11/11), desktop packaging, and
 `git diff --check`.
 
-The next planned usability/deployment work is documented in
-`docs/APP_VERSIONING_AND_DATABASE_STATUS_PLAN.md`:
+Version/build and database-status deployment work is now implemented and
+documented in `docs/APP_VERSIONING_AND_DATABASE_STATUS_PLAN.md`:
 
-- Use `v0.4.0`-style release versions plus a strictly increasing numeric
-  package build number.
-- Increment the build number only when `desktop:package` creates a package;
-  test and ordinary browser builds must not mutate it.
-- Use a single tracked release manifest to generate renderer metadata and the
-  macOS bundle's short-version/build-version values.
-- In **Transactions** only, show `v<release> · build <number> · Database
-  schema <number>` immediately to the right of `TALLYSTICK`, in the header
-  above/alongside the Company settings action. The schema label must import
-  the shared current-schema constant; it must never expose a database path,
-  company ID, git hash, or per-database revision.
+- `site/release-metadata.json` is the single tracked source for the release
+  version and monotonically increasing package build number. The current
+  package is displayed as `v0.4.0.0002`.
+- Only `npm run desktop:package` increments that build number; tests, browser
+  builds, and smoke runs do not mutate it.
+- The metadata generates the renderer build value and macOS bundle
+  `CFBundleShortVersionString` / `CFBundleVersion` fields.
+- In **Transactions** only, the header displays `v<release>.<four-digit-build>
+  · Database schema <number>` above Company settings at the right margin. The
+  schema label imports the shared current-schema constant; it never exposes a
+  database path, company ID, git hash, or per-database revision.
 
 ## Checkout context
 

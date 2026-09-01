@@ -8,7 +8,10 @@
 .shell { box-sizing: border-box; width: 100%; max-width: 1600px; min-width: 0; padding: 28px clamp(20px, 2.5vw, 40px) 48px; justify-self: center; }
 .topbar, .section-heading, footer, .actions, .status { display: flex; align-items: center; justify-content: space-between; }
 .topbar { padding-bottom: 28px; }
-.topbar-actions { display: flex; align-items: center; gap: 14px; }
+.topbar-brand { min-width: 0; }
+.topbar-actions { display: grid; justify-items: end; gap: 7px; }
+.topbar-action-row { display: flex; align-items: center; justify-content: flex-end; gap: 14px; }
+.app-build-info { margin: 0; color: #7c8881; font-size: 10px; font-weight: 700; letter-spacing: .04em; white-space: nowrap; }
 .company-settings-trigger { padding: 8px 12px; border: 1px solid #d9ddd7; border-radius: 999px; background: #fff; color: #31564b; cursor: pointer; font: inherit; font-size: 11px; font-weight: 800; }
 .company-settings-trigger:hover { border-color: #b87d4e; }
 .company-settings-trigger:focus-visible { outline: 2px solid #b87d4e; outline-offset: 2px; }
@@ -509,3 +512,4 @@ footer { margin-top: 26px; color: #9aa49e; font-size: 11px; }
 .balance-sheet-detail header,.detail-line { display:flex; justify-content:space-between; gap:24px; align-items:baseline; }
 .detail-line { padding:10px 0; border-bottom:1px solid #e4e8e6; }
 @media (max-width:760px) { .balance-sheet-header,.balance-sheet-controls { align-items:stretch; flex-direction:column; } .balance-sheet-totals { grid-template-columns:1fr 1fr; } }
+@media (max-width:600px) { .topbar-actions { justify-items:start; } .topbar-action-row { justify-content:flex-start; } .app-build-info { white-space:normal; } }

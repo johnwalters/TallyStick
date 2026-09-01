@@ -19,6 +19,8 @@ import type { CashFlowClassificationEditorDraft } from './features/cash-flow/cas
 import { CashFlowClassificationReviewHostComponent } from './features/cash-flow/cash-flow-classification-review-host.component';
 import type { CashFlowPeriodPreset } from './features/cash-flow/cash-flow-workspace.component';
 import { CashFlowWorkspaceHostComponent } from './features/cash-flow/cash-flow-workspace-host.component';
+import { APP_BUILD_NUMBER, APP_RELEASE_VERSION } from '../shared/app-build';
+import { CURRENT_SQLITE_SCHEMA_VERSION } from '../shared/schema-version';
 import {
   CASH_FLOW_CASH_ROLES,
   CASH_FLOW_TREATMENTS,
@@ -136,6 +138,11 @@ export class AppComponent {
   @ViewChild('categorySearchInput') categorySearchInput?: ElementRef<HTMLInputElement>;
   @ViewChild('transactionFileInput') transactionFileInput?: ElementRef<HTMLInputElement>;
   readonly title = 'TallyStick';
+  readonly appBuildInfo = {
+    releaseVersion: APP_RELEASE_VERSION,
+    buildNumber: APP_BUILD_NUMBER,
+    databaseSchemaVersion: CURRENT_SQLITE_SCHEMA_VERSION,
+  } as const;
   companyProfile: CompanyProfile;
   companyDraft?: CompanyProfileDraft;
   companyTaxIdentifier = '';
@@ -161,7 +168,7 @@ export class AppComponent {
   dateFilterError = '';
   search = '';
   statusMessage = 'Ready';
-  statusTone: 'NEUTRAL' | 'SUCCESS' | 'ERROR' = 'NEUTRAL';
+  statusTone: 'NEUTRAL' | 'SUCCESS' | 'ERROR' = 'SUCCESS';
   chartImportIssues: readonly ChartAccountImportIssue[] = [];
   importPreview?: ImportPreview;
   selectedFileName = '';

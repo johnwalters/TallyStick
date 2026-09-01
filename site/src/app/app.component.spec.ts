@@ -65,6 +65,7 @@ describe('AppComponent', () => {
     fixture.detectChanges();
     expect(fixture.componentInstance.title).toBe('TallyStick');
     expect(fixture.nativeElement.querySelector('.topbar .eyebrow')?.textContent).toContain('TALLYSTICK');
+    expect(fixture.nativeElement.querySelector('.status')?.classList.contains('success')).toBeTrue();
     expect(fixture.nativeElement.querySelector('h1')?.textContent).toContain('Example Outfitters LLC');
     expect(fixture.nativeElement.querySelector('.hero')).toBeNull();
     expect([...fixture.nativeElement.querySelectorAll('button')].some((button: HTMLButtonElement) => button.textContent?.trim() === 'Refresh')).toBeFalse();
@@ -75,6 +76,19 @@ describe('AppComponent', () => {
     expect(fixture.nativeElement.querySelectorAll('.account-card')).toHaveSize(5);
     expect(fixture.nativeElement.querySelector('.import-strip h3')?.textContent.trim()).toBe('Upload file');
     expect(fixture.nativeElement.querySelector('#reports-workspace')).toBeNull();
+  });
+
+  it('shows the app build and current database schema only in Transactions', () => {
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    const buildInfo = fixture.nativeElement.querySelector('.app-build-info') as HTMLElement;
+    expect(buildInfo.textContent).toContain(`v${component.appBuildInfo.releaseVersion}.${component.appBuildInfo.buildNumber.toString().padStart(4, '0')}`);
+    expect(buildInfo.textContent).toContain(`Database schema ${component.appBuildInfo.databaseSchemaVersion}`);
+
+    component.selectWorkspace('CHART');
+    fixture.detectChanges();
+    expect(fixture.nativeElement.querySelector('.app-build-info')).toBeNull();
   });
 
   it('opens the Cash Flow classification review, exposes structural reasons, and saves a validated stable-ID change', async () => {

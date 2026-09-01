@@ -6,6 +6,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const siteDirectory = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const releaseMetadata = JSON.parse(readFileSync(path.join(siteDirectory, 'release-metadata.json'), 'utf8'));
+if (typeof releaseMetadata.releaseVersion !== 'string' || !/^\d+\.\d+\.\d+$/.test(releaseMetadata.releaseVersion)
+  || !Number.isSafeInteger(releaseMetadata.buildNumber) || releaseMetadata.buildNumber < 1) {
+  throw new Error('Invalid release-metadata.json. Run the release metadata validation before packaging.');
+}
 const outputDirectory = path.join(siteDirectory, 'release');
 const iconSource = path.join(siteDirectory, 'TallyStick1.png');
 const iconWorkDirectory = mkdtempSync(path.join(tmpdir(), 'tallystick-icon-'));
@@ -65,6 +70,12 @@ const appPaths = await packager({
   prune: true,
   appBundleId: 'io.tallystick.desktop',
   appCategoryType: 'public.app-category.finance',
+  appVersion: releaseMetadata.releaseVersion,
+  buildVersion: String(releaseMetadata.buildNumber),
+  extendInfo: {
+    CFBundleShortVersionString: releaseMetadata.releaseVersion,
+    CFBundleVersion: String(releaseMetadata.buildNumber),
+  },
   icon: [iconPath, iconComposerPath],
   ignore: [
     /^\/\.angular(?:\/|$)/,
@@ -80,5 +91,5 @@ for (const appDirectory of appPaths) {
   if (signing.status !== 0) throw new Error(`Unable to apply the local macOS signature to ${appBundle}.`);
 }
 
-console.log(`Packaged TallyStick: ${appPaths.join(', ')}`);
+console.log(`Packaged TallyStick v${releaseMetadata.releaseVersion}.${String(releaseMetadata.buildNumber).padStart(4, '0')}: ${appPaths.join(', ')}`);
 rmSync(iconWorkDirectory, { recursive: true, force: true });

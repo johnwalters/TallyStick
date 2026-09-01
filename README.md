@@ -78,6 +78,35 @@ npm run desktop:package
 
 The bundle is written to `site/release/TallyStick-darwin-<architecture>/TallyStick.app`.
 
+## Release versioning
+
+TallyStick displays packaged builds as `v<release>.<four-digit-build>`, for
+example `v0.4.0.0006`. The release (`0.4.0`) and numeric build (`6`) are kept
+separately so feature/bug-fix releases remain understandable while every
+packaged desktop artifact has a unique increasing identity.
+
+To change the release portion without changing the build number:
+
+```bash
+cd site
+npm run release:set-version -- 0.4.1
+```
+
+Then package the app. Packaging increments the build number automatically:
+
+```bash
+npm run desktop:package
+```
+
+For example, if the current app is `v0.4.0.0006`, setting the release to
+`0.5.0` and packaging produces `v0.5.0.0007`.
+
+Use `0.4.1` for a bug-fix release, `0.5.0` for a meaningful feature release,
+and `1.0.0` for the first stable/public release. Do not edit the build number
+by hand: `site/release-metadata.json` is the source of truth, and
+`desktop:package` owns its increment. Regular builds, tests, and smoke runs do
+not change it.
+
 ## Local data and backups
 
 TallyStick does not require an HTTP service, bank credentials, analytics service, or cloud synchronization. Electron owns the local SQLite file and exposes a narrow typed bridge to the Angular application.

@@ -9,19 +9,19 @@ running app build and the database schema that it opened.
 The first release under this plan is:
 
 ```text
-TallyStick v0.4.0 (build 1)
+TallyStick v0.4.0.0001
 Database schema 8
 ```
 
 The visible header format is:
 
 ```text
-TALLYSTICK   v0.4.0 · build 1 · Database schema 8
-Example Outfitters LLC                         [Company settings]
+TALLYSTICK                                      v0.4.0.0001 · Database schema 8
+Example Outfitters LLC                                           [Company settings]
 ```
 
-The metadata sits directly to the right of `TALLYSTICK`, in the header area
-above the Company settings button. It is shown only while **Transactions** is
+The metadata sits at the right margin, above the Company settings button. It
+is shown only while **Transactions** is
 the active workspace. It is informative text, not a control and not an error
 status.
 
@@ -45,6 +45,10 @@ Release versions follow pre-1.0 Semantic Versioning:
 The build number must never be reset when the release version changes. This
 makes `build 47` unambiguous in bug reports, backups, screenshots, and a
 packaged `.app` even if two people build the same release branch.
+
+The Transactions header combines the two values as
+`v<releaseVersion>.<four-digit-buildNumber>`. The fourth dotted component is
+a display convention, not a fourth Semantic Versioning component.
 
 ## Single source of truth
 
@@ -76,10 +80,9 @@ packaged `.app` even if two people build the same release branch.
    - build number must be a positive integer;
    - increment the build number atomically;
    - write the incremented manifest only after validation;
-   - generate a small ignored TypeScript module, for example
-     `src/shared/app-build.generated.ts`, exporting the release version and
+   - generate the tracked `src/shared/app-build.ts` module, exporting the release version and
      build number;
-   - print `Packaging TallyStick v0.4.0 (build 2)` so the exact artifact is
+   - print `Packaging TallyStick v0.4.0.0002` so the exact artifact is
      obvious in terminal logs.
 
 2. Make `npm run desktop:package` invoke this preparation script **before**
@@ -92,10 +95,12 @@ packaged `.app` even if two people build the same release branch.
 
    - `CFBundleShortVersionString`: `0.4.0`
    - `CFBundleVersion`: the numeric build number, such as `2`
-   - package filename/output label: `TallyStick-v0.4.0-build-2-darwin-arm64`
+   - package terminal label: `TallyStick v0.4.0.0002` while retaining
+     the stable launch directory `release/TallyStick-darwin-arm64`
 
    This distinguishes the release users recognize from the monotonically
-   increasing macOS build identity.
+   increasing macOS build identity without breaking the stable local launcher
+   path.
 
 4. Add `npm run release:set-version -- 0.4.1` for an intentional release bump.
    It validates the supplied SemVer value, changes only `releaseVersion`, and
@@ -120,8 +125,8 @@ packaged `.app` even if two people build the same release branch.
 
 3. In `app.component.html`, render the metadata only for
    `workspaceView === 'TRANSACTIONS'`. Place it in the top-bar metadata row:
-   immediately after the `TALLYSTICK` wordmark and before the Company settings
-   action stack. Keep the company name and existing Ready/error status in their
+   at the right margin directly above the Company settings action. Keep the
+   company name and existing Ready/error status in their
    present semantic roles.
 
 4. Add responsive CSS in `app.component.scss`:
@@ -134,7 +139,7 @@ packaged `.app` even if two people build the same release branch.
    - remains readable at system text scaling and with navigation collapsed.
 
 5. Accessibility text should read naturally, for example:
-   `TallyStick version 0.4.0, build 2, database schema 8.`
+   `TallyStick version 0.4.0.0002, database schema 8.`
    Do not expose an internal git hash, user-data path, company ID, or database
    revision in this header.
 

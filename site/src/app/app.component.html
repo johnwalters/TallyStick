@@ -20,13 +20,18 @@
 
 <main class="shell">
   <header class="topbar">
-    <div>
+    <div class="topbar-brand">
       <p class="eyebrow">TALLYSTICK</p>
       <h1>{{ companyProfile.displayName }}</h1>
     </div>
     <div class="topbar-actions">
-      <button type="button" class="company-settings-trigger" (click)="openCompanySettings()">Company settings</button>
-      <div class="status" [class.success]="statusTone === 'SUCCESS'" [class.error]="statusTone === 'ERROR'" aria-live="polite"><span class="status-dot"></span>{{ statusMessage }}</div>
+      @if (workspaceView === 'TRANSACTIONS') {
+        <p class="app-build-info" [attr.aria-label]="'TallyStick version ' + appBuildInfo.releaseVersion + '.' + appBuildInfo.buildNumber.toString().padStart(4, '0') + ', database schema ' + appBuildInfo.databaseSchemaVersion">v{{ appBuildInfo.releaseVersion }}.{{ appBuildInfo.buildNumber.toString().padStart(4, '0') }} · Database schema {{ appBuildInfo.databaseSchemaVersion }}</p>
+      }
+      <div class="topbar-action-row">
+        <button type="button" class="company-settings-trigger" (click)="openCompanySettings()">Company settings</button>
+        <div class="status" [class.success]="statusTone === 'SUCCESS'" [class.error]="statusTone === 'ERROR'" aria-live="polite"><span class="status-dot"></span>{{ statusMessage }}</div>
+      </div>
     </div>
   </header>
 
