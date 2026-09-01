@@ -2,17 +2,27 @@
 
 ## Current feature state
 
-The Statement of Cash Flows release is implemented and verified through `CF-SLICE-20-RELEASE-PROOF`. Phases 0–9, CF8-GATE, CF9-GATE, and A1–A20 are complete. The workspace, exact detail, CSV, reopened three-sheet XLSX, print preview, and native PDF all consume the same immutable report/revision and retain complete warning, disclosure, and reconciliation provenance.
+The Statement of Cash Flows release is complete and merged into `main` at
+`f0b4b55` (`cash flow reporting works and complete`). Phases 0–9, CF8-GATE,
+CF9-GATE, and A1–A20 are complete. The workspace, exact detail, CSV, reopened
+three-sheet XLSX, print preview, and native PDF all consume the same immutable
+report/revision and retain complete warning, disclosure, and reconciliation
+provenance.
 
 The executable release command validates the canonical A1–A20 oracle, oracle-copy identity, privacy, determinism, integer money, no-mutation behavior, performance, full browser regressions, TypeScript contracts, production build, desktop-host backup/restore, and an isolated Electron PDF smoke. Command-P opens preview only; printing or Save as PDF requires an explicit action.
 
 ## Immediate resume point
 
-No Statement of Cash Flows implementation work remains. For future regressions, run `cd site && npm run test:cash-flow-release-proof`. Direct-method presentation, forecasting, consolidation, and unrelated features remain out of scope.
+No Statement of Cash Flows implementation work remains. For a future
+regression, start from `main` and run `cd site && npm run
+test:cash-flow-release-proof`. Direct-method presentation, forecasting,
+consolidation, and unrelated features remain out of scope.
 
-### Post-release matched-payment confirmation (uncommitted)
+### Post-release matched-payment confirmation
 
-The follow-up matched-payment usability fix is implemented but not committed. It addresses valid bank/card payment pairs that settle on different business dates at the point where the person chooses **Match transfer** in Transactions.
+The follow-up matched-payment usability fix addresses valid bank/card payment
+pairs that settle on different business dates at the point where the person
+chooses **Match transfer** in Transactions.
 
 - A different-date match now states the two dates and asks whether to match them anyway as one payment before it writes the match.
 - Accepting creates the existing audited `TransferMatch` with a rationale that records the date lag; it does not alter, exclude, or undo either transaction.
@@ -32,7 +42,7 @@ Commit `5f422ef` fixes a post-release usability defect found while restoring a l
 
 The guided-correction browser tests passed 122/122. Application/specification TypeScript checks, `npm run build`, desktop packaging, code-signature verification, and `git diff --check` passed. A prior `npm run test:ci` wrapper run encountered an unrelated nondeterministic Cash Flow output-byte assertion in its production fixture gate; rerun the release-proof command before making a release claim.
 
-### Post-release desktop startup and version-status follow-up (uncommitted)
+### Post-release desktop startup and version-status follow-up
 
 The local desktop application can now reopen the schema-8 database created by
 the earlier matched-payment work. The prior package understood only schema 7,
@@ -72,13 +82,13 @@ The next planned usability/deployment work is documented in
 
 ## Checkout context
 
-- Path: visible saved-project repository root (no alternate checkout or worktree)
-- Branch: `cash-flow`
-- Baseline HEAD for this final release-proof pass: `b44a9f9c215abeb207071042572a6dd1cdd1bbf2`.
-- Current HEAD: `5f422ef` (`various fixes`), also at `origin/cash-flow`.
-- Current state: uncommitted post-release changes include the matched-payment
-  confirmation, schema-8 startup compatibility, and related tests/docs. The
-  packaged desktop application is `site/release/TallyStick-darwin-arm64/TallyStick.app`.
+- Path: visible saved-project repository root (no alternate checkout or worktree).
+- Branch: `main`.
+- Cash Flow completion merge: `f0b4b55` (`cash flow reporting works and complete`),
+  also at `origin/main`.
+- Current HEAD when this handoff was updated: `48d2f18` (`versioning started`).
+- Current state: the Cash Flow work is complete; the packaged desktop
+  application is `site/release/TallyStick-darwin-arm64/TallyStick.app`.
 - No alternate checkout or worktree is in use.
 
 ## Verification evidence
