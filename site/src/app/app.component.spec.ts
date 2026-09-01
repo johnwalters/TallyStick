@@ -939,6 +939,14 @@ describe('AppComponent', () => {
     fixture.detectChanges();
     await settleDeferred(fixture);
     expect(component.cashFlowPeriod).toBe('CUSTOM');
+    const monthInput = fixture.nativeElement.querySelector('.cash-flow-month-filter') as HTMLInputElement;
+    monthInput.value = '2028-02';
+    monthInput.dispatchEvent(new Event('input'));
+    monthInput.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    expect(component.cashFlowStartDate).toBe('2028-02-01');
+    expect(component.cashFlowEndDate).toBe('2028-02-29');
+    expect(component.cashFlowPeriod).toBe('CUSTOM');
     const report = component.cashFlowReport!;
     component.cashFlowLoading = true;
     fixture.detectChanges();
@@ -1619,6 +1627,25 @@ describe('AppComponent', () => {
     spyOn(window, 'confirm').and.returnValue(true);
     component.matchTransfer(amexPayment);
     expect(application.getTransaction(amexPayment.id)?.state).toBe('MATCHED_TRANSFER');
+  });
+
+  it('records different-date matching confirmation in the transfer rationale', () => {
+    const application = TestBed.inject(ACCOUNTING_APPLICATION);
+    const bank = application.listAccounts().find(item => item.name === 'Operating Checking')!;
+    const card = application.listAccounts().find(item => item.name === 'Business Card')!;
+    application.commitImport(application.previewImport({ fileName: 'bank-lag.csv', content: 'Date,Description,Amount\n2026-01-10,CARD PAYMENT,-35.00', kind: 'CSV', destinationAccountId: bank.id }).previewToken);
+    application.commitImport(application.previewImport({ fileName: 'card-lag.qfx', content: '<STMTTRN><DTPOSTED>20260108</DTPOSTED><TRNAMT>35.00</TRNAMT><NAME>CARD PAYMENT</NAME><FITID>lag</FITID></STMTTRN>', kind: 'QBO_OFX', destinationAccountId: card.id }).previewToken);
+    const fixture = TestBed.createComponent(AppComponent);
+    fixture.detectChanges();
+    const component = fixture.componentInstance;
+    component.selectAccount(card.id);
+    const payment = application.listTransactions({ accountId: card.id, states: ['PENDING'] }).items[0];
+    spyOn(window, 'confirm').and.returnValue(true);
+    component.matchTransfer(payment);
+    const matched = application.getTransaction(payment.id)!;
+    expect(matched.state).toBe('MATCHED_TRANSFER');
+    const exported = JSON.parse(application.exportAllData()) as { transfers: Array<{ id: string; rationale: string }> };
+    expect(exported.transfers.find(item => item.id === matched.transferMatchId)?.rationale).toContain('2-day posting delay');
   });
 
   it('shows a row-level explanation for rejected import-preview rows', () => {

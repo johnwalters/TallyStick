@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import { Database, SqlJsStatic } from 'sql.js';
 import { CURRENT_SQLITE_SCHEMA_VERSION } from '../shared/schema-version';
 import { validateSchema6Database, validateSchema7Database } from '../app/core/sqlite-gateway/schema-v7-migration';
+import { SCHEMA_8_VERSION, validateSchema8Database } from '../app/core/sqlite-gateway/schema-v8-migration';
 
 export const DEFAULT_BACKUP_TIME_ZONE = 'UTC';
 
@@ -148,9 +149,10 @@ export class DatabaseLifecycleManager {
         }
         if (schemaVersion === 6) validateSchema6Database(database);
       }
-      if (schemaVersion >= 7) {
+      if (schemaVersion === 7) {
         validateSchema7Database(database);
       }
+      if (schemaVersion === SCHEMA_8_VERSION) validateSchema8Database(database);
     } catch (error) {
       if (error instanceof Error && /SQLite|schema|company/.test(error.message)) throw error;
       throw new Error(`Unable to validate the SQLite database: ${error instanceof Error ? error.message : 'unknown error'}`);

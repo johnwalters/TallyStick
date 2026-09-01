@@ -1,6 +1,7 @@
 import { Database, SqlJsStatic } from 'sql.js';
 import { CURRENT_SQLITE_SCHEMA_VERSION } from '../shared/schema-version';
 import { validateSchema7Database } from '../app/core/sqlite-gateway/schema-v7-migration';
+import { SCHEMA_8_VERSION, validateSchema8Database } from '../app/core/sqlite-gateway/schema-v8-migration';
 
 /**
  * Owns the Electron process's authoritative in-memory SQLite image.
@@ -76,7 +77,8 @@ export class SqliteHostStore {
         database.close();
         throw new Error('SQLite foreign-key check failed.');
       }
-      if (version === CURRENT_SQLITE_SCHEMA_VERSION) validateSchema7Database(database);
+      if (version === 7) validateSchema7Database(database);
+      if (version === SCHEMA_8_VERSION) validateSchema8Database(database);
     }
     return database;
   }

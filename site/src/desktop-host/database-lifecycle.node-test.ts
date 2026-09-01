@@ -9,6 +9,7 @@ import { DatabaseLifecycleManager } from './database-lifecycle';
 import { SQLITE_MIGRATIONS, SQLITE_V3_MIGRATIONS, SQLITE_V4_MIGRATIONS, SQLITE_V5_MIGRATIONS } from '../app/core/sqlite-gateway/schema';
 import { applySchema6Bootstrap } from '../app/core/sqlite-gateway/schema-v6-migration';
 import { applySchema7Bootstrap } from '../app/core/sqlite-gateway/schema-v7-migration';
+import { applySchema8Bootstrap } from '../app/core/sqlite-gateway/schema-v8-migration';
 import { reportFileDialogOptions } from './report-file-dialog';
 import { saveReportFile } from './report-file-save';
 
@@ -94,9 +95,13 @@ async function databaseBytes(companyId: string, schemaVersion = CURRENT_SQLITE_S
     SQLITE_V5_MIGRATIONS.forEach(statement => database.run(statement));
     applySchema6Bootstrap(database);
     database.run('UPDATE schema_version SET version = ?', [6]);
-    if (schemaVersion === CURRENT_SQLITE_SCHEMA_VERSION) {
+    if (schemaVersion >= 7) {
       applySchema7Bootstrap(database);
-      database.run('UPDATE schema_version SET version = ?', [CURRENT_SQLITE_SCHEMA_VERSION]);
+      database.run('UPDATE schema_version SET version = ?', [7]);
+    }
+    if (schemaVersion >= 8) {
+      applySchema8Bootstrap(database);
+      database.run('UPDATE schema_version SET version = ?', [8]);
     }
     database.run(`INSERT INTO company(id, name, currency, fiscal_year_start_month, accounting_basis, active_tax_year)
       VALUES (?, ?, 'USD', 1, 'CASH', 2026)`, [companyId, `Company ${companyId}`]);

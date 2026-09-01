@@ -42,6 +42,7 @@ export class CashFlowWorkspaceComponent implements OnChanges, AfterViewChecked {
   @Output() readonly periodPresetChange = new EventEmitter<CashFlowPeriodPreset>();
   @Output() readonly startDateChange = new EventEmitter<string>();
   @Output() readonly endDateChange = new EventEmitter<string>();
+  @Output() readonly monthRangeChange = new EventEmitter<{ startDate: string; endDate: string }>();
   @Output() readonly datesChanged = new EventEmitter<void>();
   @Output() readonly includeZeroRowsChange = new EventEmitter<boolean>();
   @Output() readonly refresh = new EventEmitter<void>();
@@ -78,6 +79,20 @@ export class CashFlowWorkspaceComponent implements OnChanges, AfterViewChecked {
   }
 
   money(value = 0n): string { return formatMoney(money(value)); }
+  monthForRange(): string {
+    const match = /^(\d{4}-\d{2})-01$/.exec(this.startDate);
+    if (!match) return '';
+    const [year, month] = match[1].split('-').map(Number);
+    const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+    return this.endDate === `${match[1]}-${String(lastDay).padStart(2, '0')}` ? match[1] : '';
+  }
+  selectMonth(month: string): void {
+    if (!/^\d{4}-\d{2}$/.test(month)) return;
+    const [year, monthNumber] = month.split('-').map(Number);
+    if (monthNumber < 1 || monthNumber > 12) return;
+    const lastDay = new Date(Date.UTC(year, monthNumber, 0)).getUTCDate();
+    this.monthRangeChange.emit({ startDate: `${month}-01`, endDate: `${month}-${String(lastDay).padStart(2, '0')}` });
+  }
   statusLabel(): string {
     if (this.stale) return 'Stale — refresh required';
     return this.report?.status === 'REVIEW_REQUIRED' ? 'Review required' : 'Complete';

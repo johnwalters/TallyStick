@@ -840,13 +840,13 @@ describe('CashFlowReportService query and cash balances', () => {
     expect(report.netChangeInCashMinor).toBe(0n);
     expect(report.calculatedEndingCashMinor).toBe(0n);
     expect(report.differenceMinor).toBe(107n);
-    expect(report.unclassifiedCashActivityMinor).toBe(-107n);
+    expect(report.unclassifiedCashActivityMinor).toBe(-92n);
     const unclassified = report.detailIndex[report.rows.find(row => row.rowId.startsWith('SYNTHETIC:UNCLASSIFIED_CASH_ACTIVITY'))!.detailKey!];
     expect(unclassified.map(item => [item.transferId, item.contributionMinor])).toEqual([
-      ['review-transfer', -40n], ['mismatch-transfer', -30n], ['date-mismatch-transfer', -15n], ['excluded-endpoint-transfer', -22n],
+      ['review-transfer', -40n], ['mismatch-transfer', -30n], ['excluded-endpoint-transfer', -22n],
     ]);
     expect(report.warnings.find(warning => warning.code === 'UNMATCHED_CASH_TRANSFER_CANDIDATE')?.references).toEqual([
-      'date-mismatch-transfer', 'excluded-endpoint-transfer', 'mismatch-transfer',
+      'excluded-endpoint-transfer', 'mismatch-transfer',
     ]);
     const transferDiagnostics = Object.values(report.detailIndex).flatMap(items => items)
       .filter(item => item.transferId === 'no-cash-transfer');

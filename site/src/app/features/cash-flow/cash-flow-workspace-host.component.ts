@@ -53,6 +53,7 @@ export class CashFlowWorkspaceHostComponent implements AfterViewInit, OnChanges,
     });
     instance.startDateChange.subscribe(value => this.startDateChange.emit(value));
     instance.endDateChange.subscribe(value => this.endDateChange.emit(value));
+    instance.monthRangeChange.subscribe(range => this.periodRangeChange.emit({ preset: 'CUSTOM', ...range }));
     instance.datesChanged.subscribe(() => this.datesChanged.emit());
     instance.includeZeroRowsChange.subscribe(value => this.includeZeroRowsChange.emit(value));
     instance.refresh.subscribe(() => this.refresh.emit());

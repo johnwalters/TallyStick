@@ -175,7 +175,7 @@ export interface AccountingApplication {
   deleteExcluded(ids: string[]): void;
   undo(ids: string[]): Transaction[];
   findTransferCandidates(id: string, dateWindowDays?: number): Array<{ transaction: Transaction; confidence: number; rationale: string }>;
-  confirmTransfer(leftId: string, rightId: string): TransferMatch;
+  confirmTransfer(leftId: string, rightId: string, rationale?: string): TransferMatch;
   unmatchTransfer(matchId: string): void;
   getProfitLoss(startDate: string, endDate: string, grouping: 'MONTH' | 'YEAR', excludedChartAccountIds?: string[]): ProfitLossReport;
   getScheduleCReadyReport(startDate: string, endDate: string, grouping: 'MONTH' | 'YEAR', excludedChartAccountIds?: string[]): ScheduleCReadyReport;

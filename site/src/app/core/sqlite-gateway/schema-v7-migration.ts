@@ -265,7 +265,7 @@ export function applySchema7Migration(database: Database, options: Schema7Migrat
  * the classification tables must retain their foreign keys, checks, and
  * indexes.
  */
-export function validateSchema7Database(database: Database): void {
+export function validateSchema7Database(database: Database, expectedSchemaVersion = SCHEMA_7_VERSION): void {
   validateSchema7Objects(database);
 
   const integrity = String(rows(database, 'PRAGMA integrity_check')[0]?.['integrity_check'] ?? 'unknown');
@@ -274,8 +274,8 @@ export function validateSchema7Database(database: Database): void {
   if (foreignKeyViolations.length > 0) throw new Error(`Schema 7 foreign-key check found ${foreignKeyViolations.length} violation(s).`);
 
   const versionRows = rows(database, 'SELECT version FROM schema_version');
-  if (versionRows.length !== 1 || Number(versionRows[0]?.['version']) !== SCHEMA_7_VERSION) {
-    throw new Error(`Schema 7 database requires exactly one schema-7 version row; found ${versionRows.length}.`);
+  if (versionRows.length !== 1 || Number(versionRows[0]?.['version']) !== expectedSchemaVersion) {
+    throw new Error(`Schema 7 database requires exactly one schema-${expectedSchemaVersion} version row; found ${versionRows.length}.`);
   }
   validateSchema7Relationships(database);
 

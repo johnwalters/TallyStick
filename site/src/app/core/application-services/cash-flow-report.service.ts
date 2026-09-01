@@ -991,7 +991,6 @@ function buildCashSideActivity(
       || left.transferMatchId !== transfer.id || right.transferMatchId !== transfer.id
       || left.accountId === right.accountId
       || (left && right && left.amount.minorUnits + right.amount.minorUnits !== 0n)
-      || (left && right && left.postingDate !== right.postingDate)
       || extraClaimants.length > 0
       || duplicateEndpointReference;
     if (malformed) {
@@ -2946,10 +2945,15 @@ function buildWarnings(
       && classification.treatment === 'CASH_BALANCE';
     if (classification.status === 'REVIEW_REQUIRED' || classification.treatment === 'REVIEW_REQUIRED') {
       if (isCashBoundaryReview) continue;
+      const accountLabel = classificationAccount
+        ? classification.accountRole === 'CHART'
+          ? chartAccountPath(classificationAccount.id, chartById)
+          : classificationAccount.name
+        : `missing ${classification.accountRole === 'CHART' ? 'Chart' : 'Financial'} account`;
       warnings.push({
         warningId: cashFlowWarningId('CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED', [classification.accountRole, classification.accountId], query),
         code: 'CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED',
-        message: `${classification.accountRole === 'CHART' ? 'Chart' : 'Financial'} account ${classification.accountId} requires Cash Flow treatment review.`,
+        message: `${classification.accountRole === 'CHART' ? 'Chart' : 'Financial'} account ${accountLabel} requires Cash Flow treatment review.`,
         accountRole: classification.accountRole,
         accountId: classification.accountId,
         references: [classification.accountRole, classification.accountId],
@@ -2976,7 +2980,7 @@ function buildWarnings(
     warnings.push({
       warningId: cashFlowWarningId('CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED', ['CHART', account.id], query),
       code: 'CASH_FLOW_CLASSIFICATION_REVIEW_REQUIRED',
-      message: `Chart account ${account.id} requires Cash Flow treatment review.`,
+      message: `Chart account ${chartAccountPath(account.id, chartById)} requires Cash Flow treatment review.`,
       accountRole: 'CHART', accountId: account.id, references: ['CHART', account.id],
     });
   }
@@ -3049,7 +3053,7 @@ function buildWarnings(
     warnings.push({
       warningId: cashFlowWarningId('UNMATCHED_CASH_TRANSFER_CANDIDATE', transferWarningReferences, query),
       code: 'UNMATCHED_CASH_TRANSFER_CANDIDATE',
-      message: 'One or more confirmed transfer structures require review before Cash Flow classification.',
+      message: 'One or more matched payments are incomplete or no longer balance. Open Transactions to unmatch or correct the affected entries.',
       references: transferWarningReferences,
     });
   }

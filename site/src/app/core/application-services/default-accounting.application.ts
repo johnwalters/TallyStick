@@ -1341,13 +1341,13 @@ export class DefaultAccountingApplication implements AccountingApplication {
       .sort((left, right) => right.confidence - left.confidence);
   }
 
-  confirmTransfer(leftId: string, rightId: string): TransferMatch {
+  confirmTransfer(leftId: string, rightId: string, rationale?: string): TransferMatch {
     return this.repository.transaction(() => {
       const left = this.requireTransaction(leftId);
       const right = this.requireTransaction(rightId);
       if (left.state !== 'PENDING' || right.state !== 'PENDING') throw new AccountingError('STATE_CONFLICT', 'Both transactions must be Pending.');
       if (left.accountId === right.accountId || left.amount.minorUnits !== -right.amount.minorUnits) throw new AccountingError('TRANSFER_NOT_ELIGIBLE', 'Transfers require different accounts and equal-and-opposite amounts.');
-      const match: TransferMatch = { id: newId(), leftTransactionId: left.id, rightTransactionId: right.id, confidence: 1, rationale: 'User confirmed equal-and-opposite account movement.', confirmedAtUtc: nowUtc() };
+      const match: TransferMatch = { id: newId(), leftTransactionId: left.id, rightTransactionId: right.id, confidence: 1, rationale: rationale?.trim() || 'User confirmed equal-and-opposite account movement.', confirmedAtUtc: nowUtc() };
       const beforeLeft = structuredClone(left);
       const beforeRight = structuredClone(right);
       left.state = 'MATCHED_TRANSFER'; left.transferMatchId = match.id; left.modifiedAtUtc = nowUtc();
@@ -1366,6 +1366,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
       this.resetTransfer(match);
     });
   }
+
 
   getProfitLoss(startDate: string, endDate: string, grouping: 'MONTH' | 'YEAR', excludedChartAccountIds: string[] = []): ProfitLossReport {
     this.validateDateRange(startDate, endDate);
@@ -2412,6 +2413,7 @@ export class DefaultAccountingApplication implements AccountingApplication {
     });
     this.repository.transfers.delete(match.id);
   }
+
 
   private findChartByName(name: string): string[] {
     return [...this.repository.chartAccounts.values()].filter(account => account.name === name).map(account => account.id);

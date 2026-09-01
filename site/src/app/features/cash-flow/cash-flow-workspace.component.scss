@@ -10,7 +10,7 @@
 .cash-flow-controls { display:flex; align-items:flex-end; flex-wrap:wrap; gap:13px; margin:18px 0 16px; }
 .cash-flow-controls label { display:grid; min-width:145px; gap:6px; color:#52665b; font-size:11px; font-weight:800; }
 .cash-flow-controls label > span { letter-spacing:.06em; text-transform:uppercase; }
-.cash-flow-controls input[type=date], .cash-flow-controls select { box-sizing:border-box; min-height:38px; padding:8px 10px; border:1px solid #cfd7d0; border-radius:8px; background:#fff; color:#31564b; font:inherit; font-weight:500; }
+.cash-flow-controls input[type=date], .cash-flow-controls input[type=month], .cash-flow-controls select { box-sizing:border-box; min-height:38px; padding:8px 10px; border:1px solid #cfd7d0; border-radius:8px; background:#fff; color:#31564b; font:inherit; font-weight:500; }
 .cash-flow-zero-toggle { display:flex !important; min-height:38px; align-items:center; gap:7px; padding-bottom:1px; }
 .cash-flow-zero-toggle span { letter-spacing:normal !important; text-transform:none !important; }
 .cash-flow-zero-toggle input { width:16px; height:16px; accent-color:#31564b; }

@@ -5,6 +5,7 @@
   </header>
   <div class="cash-flow-controls">
     <label><span>Period</span><select [ngModel]="periodPreset" (ngModelChange)="periodPresetChange.emit($event)"><option value="CURRENT_MONTH">Current month</option><option value="PREVIOUS_MONTH">Previous month</option><option value="CURRENT_QUARTER">Current quarter</option><option value="YEAR_TO_DATE">Year to date</option><option value="FISCAL_YEAR">Fiscal year</option><option value="PREVIOUS_FISCAL_YEAR">Previous fiscal year</option><option value="CUSTOM">Custom</option></select></label>
+    <label><span>Month</span><input class="cash-flow-month-filter" type="month" [ngModel]="monthForRange()" (ngModelChange)="selectMonth($event)" aria-label="Cash Flow month" /></label>
     <label><span>From</span><input type="date" [ngModel]="startDate" (ngModelChange)="startDateChange.emit($event)" (change)="datesChanged.emit()" /></label>
     <label><span>Through</span><input type="date" [ngModel]="endDate" (ngModelChange)="endDateChange.emit($event)" (change)="datesChanged.emit()" /></label>
     <label class="cash-flow-zero-toggle"><input type="checkbox" [ngModel]="includeZeroRows" (ngModelChange)="includeZeroRowsChange.emit($event)" /> <span>Show zero rows</span></label>

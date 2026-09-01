@@ -10,12 +10,35 @@ The executable release command validates the canonical A1–A20 oracle, oracle-c
 
 No Statement of Cash Flows implementation work remains. For future regressions, run `cd site && npm run test:cash-flow-release-proof`. Direct-method presentation, forecasting, consolidation, and unrelated features remain out of scope.
 
+### Post-release matched-payment confirmation (uncommitted)
+
+The follow-up matched-payment usability fix is implemented but not committed. It addresses valid bank/card payment pairs that settle on different business dates at the point where the person chooses **Match transfer** in Transactions.
+
+- A different-date match now states the two dates and asks whether to match them anyway as one payment before it writes the match.
+- Accepting creates the existing audited `TransferMatch` with a rationale that records the date lag; it does not alter, exclude, or undo either transaction.
+- Cash Flow trusts a valid explicit match regardless of posting-date lag and uses it exactly once. It retains warnings only for malformed, incomplete, or non-balancing matched records.
+- Added regression coverage for the different-date match confirmation and its persisted rationale.
+
+Verified: `npm run build`, `npm run desktop:build`, `npm run test:boundaries`, `npm run test:desktop-host` (17/17), and `git diff --check`. The Cash Flow fixture’s static oracle portion passes, but its browser production harness—and direct focused browser tests—cannot launch ChromeHeadless in this sandbox (it exits without stderr before tests execute). Rerun browser/release proof on the desktop host before release.
+
+### Post-release guided-correction fix
+
+Commit `5f422ef` fixes a post-release usability defect found while restoring a legacy database. If a posted transaction in an ordinary source account is paired with an Investing, Financing, or noncash Chart category, Cash Flow now creates a structured, actionable failure instead of showing an internal source-account ID or directing the person to an unrelated classification warning.
+
+- The message identifies the transaction date and description, source account, current Chart category, and why the combination cannot be used in the statement.
+- The Cash Flow workspace presents **Open transaction to correct category**. It takes the person directly to the exact posted transaction, limited to the source account and business date, so they can choose the appropriate Chart of Accounts category.
+- The correction explicitly says not to change the source account’s Cash Role when the category is the problem.
+- The example that prompted the fix was a January 31 `Goodwill` entry in the `Amazon` marketplace settlement account, incorrectly assigned to the `Goodwill` Other Asset/Investing category. The error path now points to that entry rather than the unrelated archived `Bad Debt` account.
+
+The guided-correction browser tests passed 122/122. Application/specification TypeScript checks, `npm run build`, desktop packaging, code-signature verification, and `git diff --check` passed. A prior `npm run test:ci` wrapper run encountered an unrelated nondeterministic Cash Flow output-byte assertion in its production fixture gate; rerun the release-proof command before making a release claim.
+
 ## Checkout context
 
 - Path: visible saved-project repository root (no alternate checkout or worktree)
 - Branch: `cash-flow`
 - Baseline HEAD for this final release-proof pass: `b44a9f9c215abeb207071042572a6dd1cdd1bbf2`.
-- Current state: the working tree contains the focused Slice 20 release-proof, retry-safe desktop smoke, print identity layout, and completion-document updates. No commit or push has been performed for this pass.
+- Current HEAD: `5f422ef` (`various fixes`), also at `origin/cash-flow`.
+- Current state: clean working tree. The packaged desktop application is `site/release/TallyStick-darwin-arm64/TallyStick.app`.
 - No alternate checkout or worktree is in use.
 
 ## Verification evidence

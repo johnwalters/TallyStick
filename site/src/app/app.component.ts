@@ -2220,10 +2220,16 @@ export class AppComponent {
     const suggestion = this.suggestionFor(transaction.id);
     const candidate = suggestion.transferCandidateId ? this.accounting.getTransaction(suggestion.transferCandidateId) : undefined;
     if (!candidate) { this.statusMessage = 'The transfer candidate is no longer available. Refresh and try again.'; return; }
-    if (!window.confirm(`Match ${formatMoney(transaction.amount)} with ${candidate.description} in ${this.accountName(candidate.accountId)}? This will keep both transactions out of the profit and loss report.`)) return;
-    this.transactionFacade.confirmTransfer(transaction.id, candidate.id);
+    const daysApart = Math.abs((Date.parse(candidate.postingDate) - Date.parse(transaction.postingDate)) / 86_400_000);
+    const differentDates = transaction.postingDate !== candidate.postingDate;
+    const question = differentDates
+      ? `These entries are ${daysApart} day${daysApart === 1 ? '' : 's'} apart: ${transaction.postingDate} and ${candidate.postingDate}. Match them anyway as one payment? Both entries remain in your ledger as the two sides of one account movement.`
+      : `Match ${formatMoney(transaction.amount)} with ${candidate.description} in ${this.accountName(candidate.accountId)}? Both entries remain in your ledger as the two sides of one account movement.`;
+    if (!window.confirm(question)) return;
+    const rationale = differentDates ? `User confirmed these equal-and-opposite entries are one payment despite a ${daysApart}-day posting delay (${transaction.postingDate} and ${candidate.postingDate}).` : undefined;
+    this.transactionFacade.confirmTransfer(transaction.id, candidate.id, rationale);
     if (this.transactionFacade.error()) { this.statusMessage = this.transactionFacade.error()!; return; }
-    this.statusMessage = `Matched transfer with ${this.accountName(candidate.accountId)}. Neither transaction affects profit and loss.`;
+    this.statusMessage = `Matched transfer with ${this.accountName(candidate.accountId)}. Cash Flow will use this confirmed match exactly once.`;
     this.refresh();
   }
 

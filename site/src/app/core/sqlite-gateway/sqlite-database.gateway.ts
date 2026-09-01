@@ -3,6 +3,7 @@ import initSqlJs, { Database, SqlJsStatic } from 'sql.js';
 import { CURRENT_SCHEMA_VERSION, SQLITE_MIGRATIONS, SQLITE_V3_MIGRATIONS, SQLITE_V4_MIGRATIONS, SQLITE_V5_MIGRATIONS } from './schema';
 import { applySchema6Bootstrap, applySchema6Migration, SCHEMA_6_VERSION } from './schema-v6-migration';
 import { applySchema7Bootstrap, applySchema7Migration, SCHEMA_7_VERSION, validateSchema7Database } from './schema-v7-migration';
+import { applySchema8Bootstrap, applySchema8Migration, SCHEMA_8_VERSION, validateSchema8Database } from './schema-v8-migration';
 
 @Injectable()
 export class SqliteDatabaseGateway {
@@ -18,6 +19,7 @@ export class SqliteDatabaseGateway {
     this.enableForeignKeys();
     this.migrate();
     if (this.schemaVersion() === SCHEMA_7_VERSION) validateSchema7Database(this.database);
+    if (this.schemaVersion() === SCHEMA_8_VERSION) validateSchema8Database(this.database);
     // Do not replace the host-held/live file until migration and the complete
     // schema-7 recovery validation have both succeeded.  The desktop host has
     // already created the pre-migration safety backup before this path runs.
@@ -169,6 +171,14 @@ export class SqliteDatabaseGateway {
           const hasCompany = this.database.exec('SELECT COUNT(*) FROM company')[0]?.values[0]?.[0] as number | undefined;
           if (version === SCHEMA_6_VERSION || Number(hasCompany ?? 0) > 0) applySchema7Migration(this.database);
           else applySchema7Bootstrap(this.database);
+          this.database.run('UPDATE schema_version SET version = ?', [SCHEMA_7_VERSION]);
+        }
+        if (version < SCHEMA_8_VERSION && CURRENT_SCHEMA_VERSION >= SCHEMA_8_VERSION) {
+          if (version >= SCHEMA_7_VERSION || Number(this.database.exec('SELECT COUNT(*) FROM company')[0]?.values[0]?.[0] ?? 0) > 0) {
+            applySchema8Migration(this.database);
+          } else {
+            applySchema8Bootstrap(this.database);
+          }
         }
         this.database.run('UPDATE schema_version SET version = ?', [CURRENT_SCHEMA_VERSION]);
         this.database.run('COMMIT');

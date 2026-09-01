@@ -34,7 +34,7 @@ export class TransactionFacade {
   clearCategorization(id: string, rationale?: string): void { this.runMutation(() => [this.application.clearCategorization(id, rationale)]); }
   exclude(ids: string[], reason: string): void { this.runMutation(() => this.application.exclude(ids, reason)); }
   deleteExcluded(ids: string[]): void { this.runMutation(() => { this.application.deleteExcluded(ids); return []; }); }
-  confirmTransfer(leftId: string, rightId: string): void { this.runMutation(() => { this.application.confirmTransfer(leftId, rightId); return []; }); }
+  confirmTransfer(leftId: string, rightId: string, rationale?: string): void { this.runMutation(() => { this.application.confirmTransfer(leftId, rightId, rationale); return []; }); }
   undo(ids: string[]): void { this.runMutation(() => this.application.undo(ids)); }
   correctAmount(id: string, amountMinor: bigint, rationale: string, expectedModifiedAtUtc?: string): void { this.runMutation(() => [this.application.correctAmount(id, amountMinor, rationale, expectedModifiedAtUtc)]); }
   loadDetail(id: string): void { try { this.error.set(undefined); this.detail.set(this.application.getTransactionDetail(id)); } catch (error) { this.error.set(error instanceof Error ? error.message : 'Unable to load transaction detail.'); } }

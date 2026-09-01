@@ -401,6 +401,11 @@ void app.whenReady().then(async () => {
     return;
   }
   app.on('activate', () => { if (!BrowserWindow.getAllWindows().length) void createWindow(); });
+}).catch(error => {
+  const message = error instanceof Error ? error.message : 'An unknown startup error occurred.';
+  console.error(`TallyStick could not start: ${message}`);
+  dialog.showErrorBox('TallyStick could not open your data', `${message}\n\nYour data has not been changed. Restore a compatible backup or contact support with this message.`);
+  app.quit();
 });
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('will-quit', () => { if (desktopSmokeUserData) rmSync(desktopSmokeUserData, { recursive: true, force: true }); });
